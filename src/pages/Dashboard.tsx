@@ -12,7 +12,7 @@ export default function Dashboard() {
   return (
     <MainLayout title="Dashboard" subtitle="Welcome back! Here's your shelf detection overview.">
       {/* Quick Actions */}
-      <div className="flex gap-3 mb-6">
+      <div className="flex flex-wrap gap-3 mb-6">
         <Button variant="glow" onClick={() => navigate('/detection')}>
           <ScanLine className="w-4 h-4 mr-2" />
           New Detection
@@ -24,7 +24,7 @@ export default function Dashboard() {
       </div>
 
       {/* Stats Grid */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
         <StatsCard
           title="Total Detections"
           value="1,247"

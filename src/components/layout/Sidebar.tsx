@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -11,10 +11,13 @@ import {
   ChevronRight,
   LogOut,
   Boxes,
-  Activity
+  Activity,
+  Menu,
+  X
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface SidebarProps {
   userRole: 'admin' | 'tenant';
@@ -38,19 +41,51 @@ const tenantNavItems = [
 
 export function Sidebar({ userRole }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const isMobile = useIsMobile();
   const navItems = userRole === 'admin' ? adminNavItems : tenantNavItems;
 
-  return (
-    <aside 
-      className={cn(
-        "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300 flex flex-col",
-        collapsed ? "w-[72px]" : "w-64"
-      )}
+  // Close mobile sidebar on route change
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
+  // Close mobile sidebar when switching to desktop
+  useEffect(() => {
+    if (!isMobile) {
+      setMobileOpen(false);
+    }
+  }, [isMobile]);
+
+  // Mobile hamburger button
+  const MobileMenuButton = () => (
+    <Button
+      variant="ghost"
+      size="icon"
+      className="fixed top-3 left-3 z-50 md:hidden bg-card border border-border shadow-lg"
+      onClick={() => setMobileOpen(!mobileOpen)}
     >
+      {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
+    </Button>
+  );
+
+  // Mobile overlay
+  const MobileOverlay = () => (
+    <div 
+      className={cn(
+        "fixed inset-0 bg-background/80 backdrop-blur-sm z-40 md:hidden transition-opacity",
+        mobileOpen ? "opacity-100" : "opacity-0 pointer-events-none"
+      )}
+      onClick={() => setMobileOpen(false)}
+    />
+  );
+
+  const sidebarContent = (
+    <>
       {/* Logo */}
       <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
-        {!collapsed && (
+        {(!collapsed || isMobile) && (
           <div className="flex items-center gap-2 animate-fade-in">
             <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center">
               <ScanLine className="w-5 h-5 text-primary-foreground" />
@@ -58,7 +93,7 @@ export function Sidebar({ userRole }: SidebarProps) {
             <span className="font-semibold text-foreground">ShelfVision</span>
           </div>
         )}
-        {collapsed && (
+        {collapsed && !isMobile && (
           <div className="w-8 h-8 rounded-lg bg-primary flex items-center justify-center mx-auto">
             <ScanLine className="w-5 h-5 text-primary-foreground" />
           </div>
@@ -78,11 +113,11 @@ export function Sidebar({ userRole }: SidebarProps) {
                     "flex items-center gap-3 px-3 py-2.5 rounded-lg transition-all duration-200",
                     "text-sidebar-foreground hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
                     isActive && "bg-primary/10 text-primary border-l-2 border-primary",
-                    collapsed && "justify-center px-2"
+                    collapsed && !isMobile && "justify-center px-2"
                   )}
                 >
                   <item.icon className={cn("w-5 h-5 shrink-0", isActive && "text-primary")} />
-                  {!collapsed && (
+                  {(!collapsed || isMobile) && (
                     <span className="font-medium text-sm">{item.label}</span>
                   )}
                 </Link>
@@ -94,31 +129,60 @@ export function Sidebar({ userRole }: SidebarProps) {
 
       {/* User / Collapse */}
       <div className="p-3 border-t border-sidebar-border space-y-2">
-        <Button
-          variant="ghost"
-          size="sm"
-          onClick={() => setCollapsed(!collapsed)}
-          className={cn(
-            "w-full justify-center text-muted-foreground hover:text-foreground",
-            !collapsed && "justify-between"
-          )}
-        >
-          {!collapsed && <span className="text-xs">Collapse</span>}
-          {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
-        </Button>
+        {!isMobile && (
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setCollapsed(!collapsed)}
+            className={cn(
+              "w-full justify-center text-muted-foreground hover:text-foreground",
+              !collapsed && "justify-between"
+            )}
+          >
+            {!collapsed && <span className="text-xs">Collapse</span>}
+            {collapsed ? <ChevronRight className="w-4 h-4" /> : <ChevronLeft className="w-4 h-4" />}
+          </Button>
+        )}
         
         <Button
           variant="ghost"
           size="sm"
           className={cn(
             "w-full text-muted-foreground hover:text-destructive",
-            collapsed ? "justify-center" : "justify-start"
+            (collapsed && !isMobile) ? "justify-center" : "justify-start"
           )}
         >
           <LogOut className="w-4 h-4" />
-          {!collapsed && <span className="ml-2 text-sm">Logout</span>}
+          {(!collapsed || isMobile) && <span className="ml-2 text-sm">Logout</span>}
         </Button>
       </div>
-    </aside>
+    </>
+  );
+
+  return (
+    <>
+      <MobileMenuButton />
+      <MobileOverlay />
+      
+      {/* Mobile Sidebar */}
+      <aside 
+        className={cn(
+          "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-transform duration-300 flex flex-col md:hidden w-64",
+          mobileOpen ? "translate-x-0" : "-translate-x-full"
+        )}
+      >
+        {sidebarContent}
+      </aside>
+
+      {/* Desktop Sidebar */}
+      <aside 
+        className={cn(
+          "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300 flex-col hidden md:flex",
+          collapsed ? "w-[72px]" : "w-64"
+        )}
+      >
+        {sidebarContent}
+      </aside>
+    </>
   );
 }
