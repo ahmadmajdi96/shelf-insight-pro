@@ -25,32 +25,49 @@ interface SidebarProps {
   userRole?: 'admin' | 'tenant';
 }
 
-const adminNavItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+// Admin-only navigation items
+const adminOnlyNavItems = [
   { icon: Users, label: 'Tenants', path: '/tenants' },
-  { icon: UserCog, label: 'Users', path: '/users' },
   { icon: Activity, label: 'Activity', path: '/activity' },
-  { icon: Settings, label: 'Settings', path: '/settings' },
 ];
 
-const tenantAdminNavItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+// Common tenant navigation items
+const baseTenantNavItems = [
   { icon: Boxes, label: 'Categories', path: '/categories' },
   { icon: Package, label: 'Products', path: '/products' },
   { icon: ScanLine, label: 'Detection', path: '/detection' },
   { icon: Store, label: 'Stores', path: '/stores' },
+];
+
+// Tenant admin specific items
+const tenantAdminItems = [
   { icon: UserCog, label: 'Users', path: '/users' },
-  { icon: Settings, label: 'Settings', path: '/settings' },
 ];
 
-const tenantNavItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: Boxes, label: 'Categories', path: '/categories' },
-  { icon: Package, label: 'Products', path: '/products' },
-  { icon: ScanLine, label: 'Detection', path: '/detection' },
-  { icon: Store, label: 'Stores', path: '/stores' },
-  { icon: Settings, label: 'Settings', path: '/settings' },
-];
+// Build navigation based on role
+function getNavItems(isAdmin: boolean, isTenantAdmin: boolean, hasTenant: boolean) {
+  const items = [
+    { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+  ];
+  
+  // Admin gets admin-only items
+  if (isAdmin) {
+    items.push(...adminOnlyNavItems);
+    // If admin has a tenant, show tenant items too
+    if (hasTenant) {
+      items.push(...baseTenantNavItems);
+    }
+    items.push(...tenantAdminItems);
+  } else if (isTenantAdmin) {
+    items.push(...baseTenantNavItems, ...tenantAdminItems);
+  } else {
+    // Regular tenant user
+    items.push(...baseTenantNavItems);
+  }
+  
+  items.push({ icon: Settings, label: 'Settings', path: '/settings' });
+  return items;
+}
 
 export function Sidebar({ userRole: propUserRole }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
@@ -58,15 +75,10 @@ export function Sidebar({ userRole: propUserRole }: SidebarProps) {
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { role, signOut, isAdmin, isTenantAdmin } = useAuth();
+  const { signOut, isAdmin, isTenantAdmin, tenantId } = useAuth();
   
-  // Determine navigation items based on actual user role
-  const userRole = propUserRole || (isAdmin ? 'admin' : 'tenant');
-  const navItems = isAdmin 
-    ? adminNavItems 
-    : isTenantAdmin 
-      ? tenantAdminNavItems 
-      : tenantNavItems;
+  // Build navigation items dynamically based on role and tenant
+  const navItems = getNavItems(isAdmin, isTenantAdmin, !!tenantId);
 
   const handleLogout = async () => {
     await signOut();
