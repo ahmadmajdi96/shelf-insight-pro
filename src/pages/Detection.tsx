@@ -1,37 +1,81 @@
-import { useState, useMemo } from 'react';
-import { Upload, History, Settings2, Download, Copy, Check } from 'lucide-react';
+import { useState, useMemo, useEffect } from 'react';
+import { Upload, History, Settings2, Download, Copy, Check, AlertCircle } from 'lucide-react';
+import { useSearchParams, useNavigate } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { ImageUploader } from '@/components/detection/ImageUploader';
 import { DetectionResults } from '@/components/detection/DetectionResults';
 import { Button } from '@/components/ui/button';
 import { useDetection } from '@/hooks/useDetection';
+import { useProducts } from '@/hooks/useProducts';
+import { useStores } from '@/hooks/useStores';
+import { useQuota } from '@/hooks/useQuota';
+import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
-
-// Mock SKUs for demo - in production these would come from the database
-const mockSkusToDetect = [
-  { id: '1', name: 'Cola Classic 500ml', imageUrls: [] },
-  { id: '2', name: 'Cola Zero 500ml', imageUrls: [] },
-  { id: '3', name: 'Lemon Fizz 330ml', imageUrls: [] },
-  { id: '4', name: 'Orange Burst 500ml', imageUrls: [] },
-  { id: '5', name: 'Cola Classic 2L', imageUrls: [] },
-  { id: '6', name: 'Sparkling Water 1L', imageUrls: [] },
-];
-
-// Mock tenant ID - in production this would come from auth context
-const MOCK_TENANT_ID = 'demo-tenant';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 export default function Detection() {
+  const [searchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedSkuId, setSelectedSkuId] = useState<string | null>(null);
+  const [selectedStoreId, setSelectedStoreId] = useState<string>(searchParams.get('storeId') || '');
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
   const { isDetecting, result, detectSkus, reset } = useDetection();
+  const { products } = useProducts();
+  const { stores } = useStores();
+  const { quota, canProcess, isNearLimit } = useQuota();
+  const { tenantId, isAdmin } = useAuth();
+
+  // Get trained SKUs for detection
+  const trainedSkus = useMemo(() => {
+    return products
+      .filter(p => p.training_status === 'completed')
+      .map(p => ({
+        id: p.id,
+        name: p.name,
+        imageUrls: p.sku_images?.map(img => img.image_url) || [],
+      }));
+  }, [products]);
 
   const handleImageSelect = async (base64: string) => {
+    if (!canProcess && !isAdmin) {
+      toast({
+        title: 'Quota Exceeded',
+        description: 'You have reached your image processing limit. Please contact your administrator.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (trainedSkus.length === 0) {
+      toast({
+        title: 'No Trained Products',
+        description: 'Please train at least one product before running detection.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     setSelectedImage(base64);
-    // Automatically start detection
-    await detectSkus(base64, MOCK_TENANT_ID, mockSkusToDetect);
+    
+    // Use actual tenant ID
+    if (tenantId) {
+      await detectSkus(
+        base64, 
+        tenantId, 
+        trainedSkus,
+        selectedStoreId || undefined
+      );
+    }
   };
 
   const handleNewImage = () => {
@@ -45,6 +89,7 @@ export default function Detection() {
     return JSON.stringify({
       detectionId: `det_${Date.now()}`,
       timestamp: new Date().toISOString(),
+      storeId: selectedStoreId || null,
       skus: result.detections.map(d => ({
         id: d.skuId,
         name: d.skuName,
@@ -56,7 +101,7 @@ export default function Detection() {
       missingSkus: result.missingSkus,
       shareOfShelf: result.shareOfShelf,
     }, null, 2);
-  }, [result]);
+  }, [result, selectedStoreId]);
 
   const copyJson = () => {
     if (jsonOutput) {
@@ -68,7 +113,21 @@ export default function Detection() {
   };
 
   return (
-    <MainLayout title="Shelf Detection" subtitle="Upload an image to detect products and analyze shelf presence.">
+    <MainLayout 
+      title="Shelf Detection" 
+      subtitle="Upload an image to detect products and analyze shelf presence."
+      userRole={isAdmin ? 'admin' : 'tenant'}
+    >
+      {/* Quota Warning */}
+      {isNearLimit && !isAdmin && (
+        <Alert variant="destructive" className="mb-6">
+          <AlertCircle className="h-4 w-4" />
+          <AlertDescription>
+            You are approaching your monthly image limit ({quota?.monthlyUsage} / {quota?.monthlyLimit} used).
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Controls */}
       {selectedImage && (
         <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-6">
@@ -86,6 +145,40 @@ export default function Detection() {
             <Settings2 className="w-4 h-4 mr-2" />
             Detection Settings
           </Button>
+        </div>
+      )}
+
+      {/* Store Selection */}
+      {!selectedImage && stores.length > 0 && (
+        <div className="mb-6">
+          <label className="block text-sm font-medium text-muted-foreground mb-2">
+            Select Store (Optional)
+          </label>
+          <Select value={selectedStoreId} onValueChange={setSelectedStoreId}>
+            <SelectTrigger className="w-[280px] bg-card border-border">
+              <SelectValue placeholder="All stores" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All stores</SelectItem>
+              {stores.map(store => (
+                <SelectItem key={store.id} value={store.id}>
+                  {store.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      {/* Trained Products Info */}
+      {!selectedImage && (
+        <div className="mb-6 p-4 rounded-lg bg-card border border-border">
+          <p className="text-sm text-muted-foreground">
+            <span className="text-foreground font-medium">{trainedSkus.length}</span> trained products ready for detection.
+            {trainedSkus.length === 0 && (
+              <span className="ml-2 text-warning">Add and train products to enable detection.</span>
+            )}
+          </p>
         </div>
       )}
 
