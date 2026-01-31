@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Plus, Search, Filter, Grid, List } from 'lucide-react';
+import { Plus, Search, Filter, Loader2 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { ProductCard } from '@/components/products/ProductCard';
 import { AddProductModal } from '@/components/products/AddProductModal';
@@ -12,33 +12,37 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-
-const mockProducts = [
-  { id: '1', name: 'Cola Classic 500ml', category: 'Beverages', barcode: '5901234123457', imageCount: 8, trainingStatus: 'completed' as const },
-  { id: '2', name: 'Cola Zero 500ml', category: 'Beverages', barcode: '5901234123458', imageCount: 6, trainingStatus: 'completed' as const },
-  { id: '3', name: 'Lemon Fizz 330ml', category: 'Beverages', barcode: '5901234123459', imageCount: 4, trainingStatus: 'training' as const },
-  { id: '4', name: 'Orange Burst 500ml', category: 'Beverages', imageCount: 5, trainingStatus: 'completed' as const },
-  { id: '5', name: 'Cola Classic 2L', category: 'Beverages', barcode: '5901234123460', imageCount: 3, trainingStatus: 'pending' as const },
-  { id: '6', name: 'Sparkling Water 1L', category: 'Beverages', imageCount: 7, trainingStatus: 'completed' as const },
-  { id: '7', name: 'Crunchy Chips Original', category: 'Snacks', barcode: '5901234123461', imageCount: 5, trainingStatus: 'completed' as const },
-  { id: '8', name: 'Chocolate Bar Premium', category: 'Snacks', imageCount: 2, trainingStatus: 'failed' as const },
-];
+import { useProducts } from '@/hooks/useProducts';
+import { useCategories } from '@/hooks/useCategories';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function Products() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  
+  const { products, isLoading } = useProducts();
+  const { categories } = useCategories();
+  const { isAdmin } = useAuth();
 
-  const filteredProducts = mockProducts.filter(product => {
+  const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesCategory = categoryFilter === 'all' || product.category === categoryFilter;
-    const matchesStatus = statusFilter === 'all' || product.trainingStatus === statusFilter;
+    const matchesCategory = categoryFilter === 'all' || product.category_id === categoryFilter;
+    const matchesStatus = statusFilter === 'all' || product.training_status === statusFilter;
     return matchesSearch && matchesCategory && matchesStatus;
   });
 
+  const trainedCount = products.filter(p => p.training_status === 'completed').length;
+  const trainingCount = products.filter(p => p.training_status === 'training').length;
+  const pendingCount = products.filter(p => p.training_status === 'pending').length;
+
   return (
-    <MainLayout title="Products" subtitle="Manage your product catalog and training data.">
+    <MainLayout 
+      title="Products" 
+      subtitle="Manage your product catalog and training data."
+      userRole={isAdmin ? 'admin' : 'tenant'}
+    >
       {/* Actions Bar */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="relative flex-1">
@@ -57,9 +61,9 @@ export default function Products() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Categories</SelectItem>
-              <SelectItem value="Beverages">Beverages</SelectItem>
-              <SelectItem value="Snacks">Snacks</SelectItem>
-              <SelectItem value="Dairy">Dairy</SelectItem>
+              {categories.map(cat => (
+                <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+              ))}
             </SelectContent>
           </Select>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
@@ -84,47 +88,60 @@ export default function Products() {
       {/* Stats Summary */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="p-4 rounded-lg bg-card border border-border">
-          <p className="text-2xl font-bold text-foreground">{mockProducts.length}</p>
+          <p className="text-2xl font-bold text-foreground">{products.length}</p>
           <p className="text-sm text-muted-foreground">Total Products</p>
         </div>
         <div className="p-4 rounded-lg bg-card border border-border">
-          <p className="text-2xl font-bold text-success">{mockProducts.filter(p => p.trainingStatus === 'completed').length}</p>
+          <p className="text-2xl font-bold text-success">{trainedCount}</p>
           <p className="text-sm text-muted-foreground">Trained</p>
         </div>
         <div className="p-4 rounded-lg bg-card border border-border">
-          <p className="text-2xl font-bold text-warning">{mockProducts.filter(p => p.trainingStatus === 'training').length}</p>
+          <p className="text-2xl font-bold text-warning">{trainingCount}</p>
           <p className="text-sm text-muted-foreground">Training</p>
         </div>
         <div className="p-4 rounded-lg bg-card border border-border">
-          <p className="text-2xl font-bold text-muted-foreground">{mockProducts.filter(p => p.trainingStatus === 'pending').length}</p>
+          <p className="text-2xl font-bold text-muted-foreground">{pendingCount}</p>
           <p className="text-sm text-muted-foreground">Pending</p>
         </div>
       </div>
 
-      {/* Products Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-        {filteredProducts.map((product, index) => (
-          <div 
-            key={product.id} 
-            className="animate-fade-in"
-            style={{ animationDelay: `${index * 50}ms` }}
-          >
-            <ProductCard
-              id={product.id}
-              name={product.name}
-              category={product.category}
-              barcode={product.barcode}
-              imageCount={product.imageCount}
-              trainingStatus={product.trainingStatus}
-            />
-          </div>
-        ))}
-      </div>
-
-      {filteredProducts.length === 0 && (
-        <div className="text-center py-12">
-          <p className="text-muted-foreground">No products found matching your criteria.</p>
+      {/* Loading State */}
+      {isLoading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
+      ) : (
+        <>
+          {/* Products Grid */}
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
+            {filteredProducts.map((product, index) => (
+              <div 
+                key={product.id} 
+                className="animate-fade-in"
+                style={{ animationDelay: `${index * 50}ms` }}
+              >
+                <ProductCard
+                  id={product.id}
+                  name={product.name}
+                  category={product.product_categories?.name || 'Uncategorized'}
+                  barcode={product.barcode || undefined}
+                  imageCount={product.sku_images?.length || 0}
+                  trainingStatus={product.training_status}
+                />
+              </div>
+            ))}
+          </div>
+
+          {filteredProducts.length === 0 && (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">
+                {products.length === 0 
+                  ? 'No products yet. Add your first product to get started.'
+                  : 'No products found matching your criteria.'}
+              </p>
+            </div>
+          )}
+        </>
       )}
 
       <AddProductModal 

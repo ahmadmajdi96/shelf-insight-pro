@@ -14,6 +14,57 @@ export type Database = {
   }
   public: {
     Tables: {
+      detection_results: {
+        Row: {
+          bounding_boxes: Json | null
+          confidence: number | null
+          created_at: string
+          facings_count: number
+          id: string
+          is_available: boolean
+          job_id: string
+          share_of_shelf: number | null
+          sku_id: string | null
+        }
+        Insert: {
+          bounding_boxes?: Json | null
+          confidence?: number | null
+          created_at?: string
+          facings_count?: number
+          id?: string
+          is_available?: boolean
+          job_id: string
+          share_of_shelf?: number | null
+          sku_id?: string | null
+        }
+        Update: {
+          bounding_boxes?: Json | null
+          confidence?: number | null
+          created_at?: string
+          facings_count?: number
+          id?: string
+          is_available?: boolean
+          job_id?: string
+          share_of_shelf?: number | null
+          sku_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "detection_results_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "processing_jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "detection_results_sku_id_fkey"
+            columns: ["sku_id"]
+            isOneToOne: false
+            referencedRelation: "skus"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       detections: {
         Row: {
           annotated_image_url: string | null
@@ -71,6 +122,161 @@ export type Database = {
           },
         ]
       }
+      models: {
+        Row: {
+          accuracy: number | null
+          created_at: string
+          id: string
+          model_path: string | null
+          status: string
+          tenant_id: string
+          trained_date: string | null
+          updated_at: string
+          version: string
+        }
+        Insert: {
+          accuracy?: number | null
+          created_at?: string
+          id?: string
+          model_path?: string | null
+          status?: string
+          tenant_id: string
+          trained_date?: string | null
+          updated_at?: string
+          version: string
+        }
+        Update: {
+          accuracy?: number | null
+          created_at?: string
+          id?: string
+          model_path?: string | null
+          status?: string
+          tenant_id?: string
+          trained_date?: string | null
+          updated_at?: string
+          version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "models_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      notifications: {
+        Row: {
+          created_at: string
+          id: string
+          is_read: boolean
+          message: string
+          metadata: Json | null
+          tenant_id: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message: string
+          metadata?: Json | null
+          tenant_id?: string | null
+          title: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          is_read?: boolean
+          message?: string
+          metadata?: Json | null
+          tenant_id?: string | null
+          title?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "notifications_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      processing_jobs: {
+        Row: {
+          annotated_image_url: string | null
+          created_at: string
+          end_time: string | null
+          error_message: string | null
+          id: string
+          model_id: string | null
+          original_image_url: string
+          start_time: string | null
+          status: string
+          store_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          annotated_image_url?: string | null
+          created_at?: string
+          end_time?: string | null
+          error_message?: string | null
+          id?: string
+          model_id?: string | null
+          original_image_url: string
+          start_time?: string | null
+          status?: string
+          store_id?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          annotated_image_url?: string | null
+          created_at?: string
+          end_time?: string | null
+          error_message?: string | null
+          id?: string
+          model_id?: string | null
+          original_image_url?: string
+          start_time?: string | null
+          status?: string
+          store_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "processing_jobs_model_id_fkey"
+            columns: ["model_id"]
+            isOneToOne: false
+            referencedRelation: "models"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processing_jobs_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "processing_jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       product_categories: {
         Row: {
           created_at: string
@@ -112,6 +318,7 @@ export type Database = {
           created_at: string
           full_name: string | null
           id: string
+          last_login: string | null
           tenant_id: string | null
           updated_at: string
           user_id: string
@@ -121,6 +328,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          last_login?: string | null
           tenant_id?: string | null
           updated_at?: string
           user_id: string
@@ -130,6 +338,7 @@ export type Database = {
           created_at?: string
           full_name?: string | null
           id?: string
+          last_login?: string | null
           tenant_id?: string | null
           updated_at?: string
           user_id?: string
@@ -282,6 +491,7 @@ export type Database = {
           processed_images_this_month: number
           processed_images_this_week: number
           processed_images_this_year: number
+          status: string
           updated_at: string
         }
         Insert: {
@@ -297,6 +507,7 @@ export type Database = {
           processed_images_this_month?: number
           processed_images_this_week?: number
           processed_images_this_year?: number
+          status?: string
           updated_at?: string
         }
         Update: {
@@ -312,9 +523,51 @@ export type Database = {
           processed_images_this_month?: number
           processed_images_this_week?: number
           processed_images_this_year?: number
+          status?: string
           updated_at?: string
         }
         Relationships: []
+      }
+      usage_metrics: {
+        Row: {
+          created_at: string
+          id: string
+          images_processed: number
+          period_start: string
+          period_type: string
+          tenant_id: string
+          training_jobs: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          images_processed?: number
+          period_start: string
+          period_type: string
+          tenant_id: string
+          training_jobs?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          images_processed?: number
+          period_start?: string
+          period_type?: string
+          tenant_id?: string
+          training_jobs?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "usage_metrics_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
@@ -339,6 +592,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_tenant_quota: { Args: { _tenant_id: string }; Returns: Json }
       get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
       has_role: {
         Args: {
@@ -346,6 +600,14 @@ export type Database = {
           _user_id: string
         }
         Returns: boolean
+      }
+      increment_usage_metric: {
+        Args: {
+          _images_count?: number
+          _period_type: string
+          _tenant_id: string
+        }
+        Returns: undefined
       }
     }
     Enums: {

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   Package, 
@@ -13,20 +13,33 @@ import {
   Boxes,
   Activity,
   Menu,
-  X
+  X,
+  UserCog
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { useIsMobile } from '@/hooks/use-mobile';
+import { useAuth } from '@/contexts/AuthContext';
 
 interface SidebarProps {
-  userRole: 'admin' | 'tenant';
+  userRole?: 'admin' | 'tenant';
 }
 
 const adminNavItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: Users, label: 'Tenants', path: '/tenants' },
+  { icon: UserCog, label: 'Users', path: '/users' },
   { icon: Activity, label: 'Activity', path: '/activity' },
+  { icon: Settings, label: 'Settings', path: '/settings' },
+];
+
+const tenantAdminNavItems = [
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
+  { icon: Boxes, label: 'Categories', path: '/categories' },
+  { icon: Package, label: 'Products', path: '/products' },
+  { icon: ScanLine, label: 'Detection', path: '/detection' },
+  { icon: Store, label: 'Stores', path: '/stores' },
+  { icon: UserCog, label: 'Users', path: '/users' },
   { icon: Settings, label: 'Settings', path: '/settings' },
 ];
 
@@ -39,12 +52,26 @@ const tenantNavItems = [
   { icon: Settings, label: 'Settings', path: '/settings' },
 ];
 
-export function Sidebar({ userRole }: SidebarProps) {
+export function Sidebar({ userRole: propUserRole }: SidebarProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const navItems = userRole === 'admin' ? adminNavItems : tenantNavItems;
+  const { role, signOut, isAdmin, isTenantAdmin } = useAuth();
+  
+  // Determine navigation items based on actual user role
+  const userRole = propUserRole || (isAdmin ? 'admin' : 'tenant');
+  const navItems = isAdmin 
+    ? adminNavItems 
+    : isTenantAdmin 
+      ? tenantAdminNavItems 
+      : tenantNavItems;
+
+  const handleLogout = async () => {
+    await signOut();
+    navigate('/login');
+  };
 
   // Close mobile sidebar on route change
   useEffect(() => {
@@ -147,6 +174,7 @@ export function Sidebar({ userRole }: SidebarProps) {
         <Button
           variant="ghost"
           size="sm"
+          onClick={handleLogout}
           className={cn(
             "w-full text-muted-foreground hover:text-destructive",
             (collapsed && !isMobile) ? "justify-center" : "justify-start"

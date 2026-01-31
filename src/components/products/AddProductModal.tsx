@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Upload, Plus, Trash2 } from 'lucide-react';
+import { Upload, Plus, Trash2, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -17,43 +17,50 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { useProducts } from '@/hooks/useProducts';
+import { useCategories } from '@/hooks/useCategories';
+import { useQuota } from '@/hooks/useQuota';
+import { useToast } from '@/hooks/use-toast';
 
 interface AddProductModalProps {
   open: boolean;
   onClose: () => void;
-  onSubmit?: (data: ProductFormData) => void;
 }
 
-interface ProductFormData {
-  name: string;
-  description: string;
-  categoryId: string;
-  barcode: string;
-  images: File[];
-}
-
-const mockCategories = [
-  { id: '1', name: 'Beverages' },
-  { id: '2', name: 'Snacks' },
-  { id: '3', name: 'Dairy' },
-  { id: '4', name: 'Personal Care' },
-];
-
-export function AddProductModal({ open, onClose, onSubmit }: AddProductModalProps) {
-  const [formData, setFormData] = useState<ProductFormData>({
+export function AddProductModal({ open, onClose }: AddProductModalProps) {
+  const [formData, setFormData] = useState({
     name: '',
     description: '',
     categoryId: '',
     barcode: '',
-    images: [],
   });
+  const [images, setImages] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
+  
+  const { createProduct } = useProducts();
+  const { categories } = useCategories();
+  const { canAddSku, quota } = useQuota();
+  const { toast } = useToast();
 
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = Array.from(e.target.files || []);
-    setFormData(prev => ({ ...prev, images: [...prev.images, ...files] }));
     
-    files.forEach(file => {
+    // Validate file size (max 10MB per image)
+    const validFiles = files.filter(file => {
+      if (file.size > 10 * 1024 * 1024) {
+        toast({
+          title: 'File too large',
+          description: `${file.name} exceeds 10MB limit`,
+          variant: 'destructive',
+        });
+        return false;
+      }
+      return true;
+    });
+
+    setImages(prev => [...prev, ...validFiles]);
+    
+    validFiles.forEach(file => {
       const reader = new FileReader();
       reader.onload = (e) => {
         setPreviewUrls(prev => [...prev, e.target?.result as string]);
@@ -63,21 +70,56 @@ export function AddProductModal({ open, onClose, onSubmit }: AddProductModalProp
   };
 
   const removeImage = (index: number) => {
-    setFormData(prev => ({
-      ...prev,
-      images: prev.images.filter((_, i) => i !== index)
-    }));
+    setImages(prev => prev.filter((_, i) => i !== index));
     setPreviewUrls(prev => prev.filter((_, i) => i !== index));
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const resetForm = () => {
+    setFormData({ name: '', description: '', categoryId: '', barcode: '' });
+    setImages([]);
+    setPreviewUrls([]);
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit?.(formData);
+    
+    if (!canAddSku) {
+      toast({
+        title: 'SKU Limit Reached',
+        description: `You have reached your limit of ${quota?.skuLimit} SKUs.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (images.length < 5) {
+      toast({
+        title: 'More images needed',
+        description: 'Please upload at least 5 training images for better detection accuracy.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    await createProduct.mutateAsync({
+      name: formData.name,
+      description: formData.description || null,
+      category_id: formData.categoryId || null,
+      barcode: formData.barcode || null,
+      images,
+    });
+
+    resetForm();
+    onClose();
+  };
+
+  const handleClose = () => {
+    resetForm();
     onClose();
   };
 
   return (
-    <Dialog open={open} onOpenChange={onClose}>
+    <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="max-w-2xl bg-card border-border">
         <DialogHeader>
           <DialogTitle className="text-xl font-semibold">Add New Product</DialogTitle>
@@ -86,13 +128,14 @@ export function AddProductModal({ open, onClose, onSubmit }: AddProductModalProp
         <form onSubmit={handleSubmit} className="space-y-6">
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label htmlFor="name">Product Name</Label>
+              <Label htmlFor="name">Product Name *</Label>
               <Input
                 id="name"
                 placeholder="e.g., Cola Classic 500ml"
                 value={formData.name}
                 onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
                 className="bg-secondary border-border"
+                required
               />
             </div>
             <div className="space-y-2">
@@ -117,7 +160,7 @@ export function AddProductModal({ open, onClose, onSubmit }: AddProductModalProp
                 <SelectValue placeholder="Select a category" />
               </SelectTrigger>
               <SelectContent>
-                {mockCategories.map(cat => (
+                {categories.map(cat => (
                   <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -137,9 +180,14 @@ export function AddProductModal({ open, onClose, onSubmit }: AddProductModalProp
 
           {/* Image Upload */}
           <div className="space-y-3">
-            <Label>Product Images</Label>
+            <div className="flex items-center justify-between">
+              <Label>Training Images *</Label>
+              <span className="text-sm text-muted-foreground">
+                {images.length} / 5 minimum
+              </span>
+            </div>
             <p className="text-sm text-muted-foreground">
-              Upload multiple images of the product from different angles for better training accuracy.
+              Upload at least 5 images of the product from different angles for better training accuracy.
             </p>
             
             <div className="grid grid-cols-4 gap-3">
@@ -161,21 +209,44 @@ export function AddProductModal({ open, onClose, onSubmit }: AddProductModalProp
                 <span className="text-xs text-muted-foreground">Upload</span>
                 <input
                   type="file"
-                  accept="image/*"
+                  accept="image/jpeg,image/png"
                   multiple
                   onChange={handleImageUpload}
                   className="hidden"
                 />
               </label>
             </div>
+            
+            {images.length > 0 && images.length < 5 && (
+              <p className="text-sm text-warning">
+                Add {5 - images.length} more image{5 - images.length > 1 ? 's' : ''} to meet the minimum requirement.
+              </p>
+            )}
           </div>
 
+          {/* Quota Info */}
+          {quota && (
+            <div className="p-3 rounded-lg bg-secondary/50 text-sm">
+              <p className="text-muted-foreground">
+                SKU Usage: <span className="text-foreground font-medium">{quota.skuCount} / {quota.skuLimit}</span>
+              </p>
+            </div>
+          )}
+
           <div className="flex justify-end gap-3 pt-4">
-            <Button type="button" variant="outline" onClick={onClose}>
+            <Button type="button" variant="outline" onClick={handleClose}>
               Cancel
             </Button>
-            <Button type="submit" variant="glow">
-              <Plus className="w-4 h-4 mr-2" />
+            <Button 
+              type="submit" 
+              variant="glow"
+              disabled={createProduct.isPending || !canAddSku}
+            >
+              {createProduct.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Plus className="w-4 h-4 mr-2" />
+              )}
               Add Product
             </Button>
           </div>

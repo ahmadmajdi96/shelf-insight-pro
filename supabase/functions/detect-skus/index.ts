@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 interface DetectionRequest {
@@ -29,6 +29,28 @@ serve(async (req) => {
       return new Response(
         JSON.stringify({ error: "Missing required fields: imageBase64 and tenantId" }),
         { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+      );
+    }
+
+    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    // Check tenant quota before processing
+    const { data: quotaData, error: quotaError } = await supabase
+      .rpc('check_tenant_quota', { _tenant_id: tenantId });
+
+    if (quotaError) {
+      console.error("Quota check error:", quotaError);
+    }
+
+    if (quotaData && !quotaData.canProcess) {
+      return new Response(
+        JSON.stringify({ 
+          error: "Quota exceeded", 
+          details: `Monthly: ${quotaData.monthlyUsage}/${quotaData.monthlyLimit}, Status: ${quotaData.status}` 
+        }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } }
       );
     }
 
@@ -151,16 +173,12 @@ Also calculate the overall share of shelf for these products compared to the tot
     }
 
     // Store the detection in the database
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
-    const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
-
     const { data: detection, error: insertError } = await supabase
       .from("detections")
       .insert({
         tenant_id: tenantId,
         store_id: storeId || null,
-        original_image_url: "uploaded", // Will be updated with actual URL after storage upload
+        original_image_url: "uploaded",
         detection_result: detectionResult,
         share_of_shelf_percentage: detectionResult.shareOfShelf?.percentage || 0,
         total_facings: detectionResult.totalFacings || 0,
@@ -174,7 +192,30 @@ Also calculate the overall share of shelf for these products compared to the tot
       console.error("Failed to save detection:", insertError);
     }
 
-    // Note: Tenant image count would be incremented via a database trigger or separate update
+    // Increment usage metrics for all periods
+    const periodTypes = ['daily', 'weekly', 'monthly', 'yearly'];
+    for (const periodType of periodTypes) {
+      const { error: usageError } = await supabase
+        .rpc('increment_usage_metric', {
+          _tenant_id: tenantId,
+          _period_type: periodType,
+          _images_count: 1,
+        });
+      
+      if (usageError) {
+        console.error(`Failed to update ${periodType} usage:`, usageError);
+      }
+    }
+
+    // Update tenant's processed images count (for backward compatibility)
+    await supabase
+      .from("tenants")
+      .update({
+        processed_images_this_month: (quotaData?.monthlyUsage || 0) + 1,
+        processed_images_this_week: (quotaData?.weeklyUsage || 0) + 1,
+        processed_images_this_year: (quotaData?.yearlyUsage || 0) + 1,
+      })
+      .eq("id", tenantId);
 
     return new Response(
       JSON.stringify({
