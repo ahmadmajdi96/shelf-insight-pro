@@ -15,6 +15,7 @@ import {
 import { useProducts } from '@/hooks/useProducts';
 import { useCategories } from '@/hooks/useCategories';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/use-toast';
 
 export default function Products() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
@@ -22,9 +23,10 @@ export default function Products() {
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
   
-  const { products, isLoading } = useProducts();
+  const { products, isLoading, deleteProduct } = useProducts();
   const { categories } = useCategories();
   const { isAdmin } = useAuth();
+  const { toast } = useToast();
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -36,6 +38,16 @@ export default function Products() {
   const trainedCount = products.filter(p => p.training_status === 'completed').length;
   const trainingCount = products.filter(p => p.training_status === 'training').length;
   const pendingCount = products.filter(p => p.training_status === 'pending').length;
+
+  const handleDeleteProduct = async (productId: string, productName: string) => {
+    if (confirm(`Are you sure you want to delete "${productName}"? This action cannot be undone.`)) {
+      try {
+        await deleteProduct.mutateAsync(productId);
+      } catch (error) {
+        // Error is handled by the mutation
+      }
+    }
+  };
 
   return (
     <MainLayout 
@@ -126,7 +138,9 @@ export default function Products() {
                   category={product.product_categories?.name || 'Uncategorized'}
                   barcode={product.barcode || undefined}
                   imageCount={product.sku_images?.length || 0}
+                  imageUrl={product.sku_images?.[0]?.image_url}
                   trainingStatus={product.training_status}
+                  onDelete={() => handleDeleteProduct(product.id, product.name)}
                 />
               </div>
             ))}

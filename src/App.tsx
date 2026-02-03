@@ -11,6 +11,7 @@ import Detection from "./pages/Detection";
 import Categories from "./pages/Categories";
 import Stores from "./pages/Stores";
 import Shelves from "./pages/Shelves";
+import ShelfDetail from "./pages/ShelfDetail";
 import Tenants from "./pages/Tenants";
 import Activity from "./pages/Activity";
 import Settings from "./pages/Settings";
@@ -62,6 +63,11 @@ const App = () => (
             <Route path="/shelves" element={
               <ProtectedRoute requireTenant>
                 <Shelves />
+              </ProtectedRoute>
+            } />
+            <Route path="/shelves/:id" element={
+              <ProtectedRoute requireTenant>
+                <ShelfDetail />
               </ProtectedRoute>
             } />
             <Route path="/settings" element={

@@ -142,7 +142,15 @@ export function useShelves() {
   });
 
   const assignProducts = useMutation({
-    mutationFn: async ({ shelfId, skuIds }: { shelfId: string; skuIds: string[] }) => {
+    mutationFn: async ({ 
+      shelfId, 
+      skuIds, 
+      quantities 
+    }: { 
+      shelfId: string; 
+      skuIds: string[]; 
+      quantities?: Record<string, number>;
+    }) => {
       // First, remove existing assignments
       await supabase.from('shelf_products').delete().eq('shelf_id', shelfId);
 
@@ -153,6 +161,7 @@ export function useShelves() {
             shelf_id: shelfId,
             sku_id: skuId,
             position_order: index,
+            expected_facings: quantities?.[skuId] || 1,
           }))
         );
         if (error) throw error;
