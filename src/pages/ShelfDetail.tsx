@@ -177,9 +177,9 @@ export default function ShelfDetail() {
     }
   };
 
-  const MIN_CONFIDENCE = 0.9832;
+  const MIN_CONFIDENCE = 0.95;
 
-  // Parse detection results from image - filter by confidence and get top by class
+  // Parse detection results from image - return ALL predictions above confidence threshold
   const parseDetectionResults = (detectionResult: Json | null): RoboflowPrediction[] => {
     if (!detectionResult) return [];
     
@@ -187,21 +187,12 @@ export default function ShelfDetail() {
       const result = detectionResult as RoboflowResult;
       const predictions = result.outputs?.[0]?.predictions?.predictions || [];
       
-      // Filter by minimum confidence
-      const filtered = predictions.filter(p => p.confidence >= MIN_CONFIDENCE);
-      
-      // Group by class and get top prediction for each class (highest confidence)
-      const classMap = new Map<string, RoboflowPrediction>();
-      filtered.forEach(pred => {
-        const existing = classMap.get(pred.class);
-        if (!existing || pred.confidence > existing.confidence) {
-          classMap.set(pred.class, pred);
-        }
-      });
-      
-      // Return top predictions sorted by confidence
-      return Array.from(classMap.values()).sort((a, b) => b.confidence - a.confidence);
-    } catch {
+      // Filter by minimum confidence and return all
+      return predictions
+        .filter(p => p.confidence >= MIN_CONFIDENCE)
+        .sort((a, b) => b.confidence - a.confidence);
+    } catch (e) {
+      console.error('Error parsing detection results:', e);
       return [];
     }
   };
@@ -298,7 +289,7 @@ export default function ShelfDetail() {
               isProcessing={isUploading || isDetecting}
               preview={previewImage}
               onClear={() => setPreviewImage(null)}
-              processingText={isDetecting ? 'Running Roboflow detection...' : 'Uploading...'}
+              processingText={isDetecting ? 'Analyzing shelf...' : 'Uploading...'}
               className="max-h-64"
             />
           </div>
