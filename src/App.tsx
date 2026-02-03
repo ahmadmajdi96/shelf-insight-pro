@@ -16,6 +16,7 @@ import Tenants from "./pages/Tenants";
 import Activity from "./pages/Activity";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
+import Data from "./pages/Data";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
@@ -92,6 +93,11 @@ const App = () => (
             <Route path="/activity" element={
               <ProtectedRoute requiredRoles={['admin']}>
                 <Activity />
+              </ProtectedRoute>
+            } />
+            <Route path="/data" element={
+              <ProtectedRoute requiredRoles={['admin', 'tenant_admin']}>
+                <Data />
               </ProtectedRoute>
             } />
             
