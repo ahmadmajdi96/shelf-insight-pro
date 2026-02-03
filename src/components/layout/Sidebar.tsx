@@ -15,7 +15,8 @@ import {
   Menu,
   X,
   UserCog,
-  LayoutGrid
+  LayoutGrid,
+  Database
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -44,6 +45,7 @@ const baseTenantNavItems = [
 // Tenant admin specific items
 const tenantAdminItems = [
   { icon: UserCog, label: 'Users', path: '/users' },
+  { icon: Database, label: 'Data', path: '/data' },
 ];
 
 // Build navigation based on role
