@@ -26,7 +26,7 @@ export default function Detection() {
   const navigate = useNavigate();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedSkuId, setSelectedSkuId] = useState<string | null>(null);
-  const [selectedStoreId, setSelectedStoreId] = useState<string>(searchParams.get('storeId') || '');
+  const [selectedStoreId, setSelectedStoreId] = useState<string>(searchParams.get('storeId') || 'all');
   const [copied, setCopied] = useState(false);
   const { toast } = useToast();
   const { isDetecting, result, detectSkus, reset } = useDetection();
@@ -73,7 +73,7 @@ export default function Detection() {
         base64, 
         tenantId, 
         trainedSkus,
-        selectedStoreId || undefined
+        selectedStoreId !== 'all' ? selectedStoreId : undefined
       );
     }
   };
@@ -89,7 +89,7 @@ export default function Detection() {
     return JSON.stringify({
       detectionId: `det_${Date.now()}`,
       timestamp: new Date().toISOString(),
-      storeId: selectedStoreId || null,
+      storeId: selectedStoreId !== 'all' ? selectedStoreId : null,
       skus: result.detections.map(d => ({
         id: d.skuId,
         name: d.skuName,
@@ -159,7 +159,7 @@ export default function Detection() {
               <SelectValue placeholder="All stores" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">All stores</SelectItem>
+              <SelectItem value="all">All stores</SelectItem>
               {stores.map(store => (
                 <SelectItem key={store.id} value={store.id}>
                   {store.name}
