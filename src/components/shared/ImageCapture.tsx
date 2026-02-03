@@ -4,13 +4,23 @@ import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
 import { useIsMobile } from '@/hooks/use-mobile';
 
-interface ImageUploaderProps {
-  onImageSelect: (base64: string) => void;
+interface ImageCaptureProps {
+  onImageCapture: (file: File, base64: string) => void;
   isProcessing?: boolean;
+  preview?: string | null;
+  onClear?: () => void;
+  processingText?: string;
+  className?: string;
 }
 
-export function ImageUploader({ onImageSelect, isProcessing }: ImageUploaderProps) {
-  const [preview, setPreview] = useState<string | null>(null);
+export function ImageCapture({
+  onImageCapture,
+  isProcessing,
+  preview,
+  onClear,
+  processingText = 'Processing...',
+  className,
+}: ImageCaptureProps) {
   const [isDragging, setIsDragging] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const cameraInputRef = useRef<HTMLInputElement>(null);
@@ -24,11 +34,10 @@ export function ImageUploader({ onImageSelect, isProcessing }: ImageUploaderProp
     const reader = new FileReader();
     reader.onload = (e) => {
       const base64 = e.target?.result as string;
-      setPreview(base64);
-      onImageSelect(base64);
+      onImageCapture(file, base64);
     };
     reader.readAsDataURL(file);
-  }, [onImageSelect]);
+  }, [onImageCapture]);
 
   const handleDrop = useCallback((e: React.DragEvent) => {
     e.preventDefault();
@@ -51,16 +60,6 @@ export function ImageUploader({ onImageSelect, isProcessing }: ImageUploaderProp
     if (file) processFile(file);
   }, [processFile]);
 
-  const clearImage = () => {
-    setPreview(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = '';
-    }
-    if (cameraInputRef.current) {
-      cameraInputRef.current.value = '';
-    }
-  };
-
   const openCamera = () => {
     cameraInputRef.current?.click();
   };
@@ -71,27 +70,26 @@ export function ImageUploader({ onImageSelect, isProcessing }: ImageUploaderProp
 
   if (preview) {
     return (
-      <div className="relative rounded-xl overflow-hidden bg-secondary">
+      <div className={cn("relative rounded-xl overflow-hidden bg-secondary", className)}>
         <img 
           src={preview} 
-          alt="Shelf preview" 
+          alt="Preview" 
           className="w-full aspect-video object-cover"
         />
         {isProcessing && (
           <div className="absolute inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center">
             <div className="text-center">
               <Loader2 className="w-10 h-10 text-primary animate-spin mx-auto mb-3" />
-              <p className="text-foreground font-medium">Analyzing shelf...</p>
-              <p className="text-sm text-muted-foreground">Detecting products and counting facings</p>
+              <p className="text-foreground font-medium">{processingText}</p>
             </div>
           </div>
         )}
-        {!isProcessing && (
+        {!isProcessing && onClear && (
           <Button
             variant="destructive"
             size="icon"
             className="absolute top-3 right-3"
-            onClick={clearImage}
+            onClick={onClear}
           >
             <X className="w-4 h-4" />
           </Button>
@@ -106,7 +104,8 @@ export function ImageUploader({ onImageSelect, isProcessing }: ImageUploaderProp
         "border-2 border-dashed rounded-xl p-8 md:p-12 text-center transition-colors cursor-pointer",
         isDragging 
           ? "border-primary bg-primary/5" 
-          : "border-border hover:border-primary/50"
+          : "border-border hover:border-primary/50",
+        className
       )}
       onDrop={handleDrop}
       onDragOver={handleDragOver}
@@ -138,10 +137,10 @@ export function ImageUploader({ onImageSelect, isProcessing }: ImageUploaderProp
         </div>
         <div>
           <h3 className="text-lg font-semibold text-foreground mb-1">
-            Upload Shelf Image
+            Upload Image
           </h3>
           <p className="text-sm text-muted-foreground max-w-md mx-auto">
-            Drag and drop an image of your retail shelf, or click to browse. 
+            Drag and drop an image, or click to browse. 
             Supports JPG, PNG up to 10MB.
           </p>
         </div>

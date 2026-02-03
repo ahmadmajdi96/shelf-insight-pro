@@ -14,7 +14,8 @@ import {
   Activity,
   Menu,
   X,
-  UserCog
+  UserCog,
+  LayoutGrid
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -35,6 +36,7 @@ const adminOnlyNavItems = [
 const baseTenantNavItems = [
   { icon: Boxes, label: 'Categories', path: '/categories' },
   { icon: Package, label: 'Products', path: '/products' },
+  { icon: LayoutGrid, label: 'Shelves', path: '/shelves' },
   { icon: ScanLine, label: 'Detection', path: '/detection' },
   { icon: Store, label: 'Stores', path: '/stores' },
 ];

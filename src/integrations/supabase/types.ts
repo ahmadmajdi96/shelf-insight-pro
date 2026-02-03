@@ -353,6 +353,131 @@ export type Database = {
           },
         ]
       }
+      shelf_images: {
+        Row: {
+          created_at: string
+          detection_result: Json | null
+          id: string
+          image_url: string
+          processed_at: string | null
+          shelf_id: string
+        }
+        Insert: {
+          created_at?: string
+          detection_result?: Json | null
+          id?: string
+          image_url: string
+          processed_at?: string | null
+          shelf_id: string
+        }
+        Update: {
+          created_at?: string
+          detection_result?: Json | null
+          id?: string
+          image_url?: string
+          processed_at?: string | null
+          shelf_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shelf_images_shelf_id_fkey"
+            columns: ["shelf_id"]
+            isOneToOne: false
+            referencedRelation: "shelves"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shelf_products: {
+        Row: {
+          created_at: string
+          expected_facings: number | null
+          id: string
+          position_order: number | null
+          shelf_id: string
+          sku_id: string
+        }
+        Insert: {
+          created_at?: string
+          expected_facings?: number | null
+          id?: string
+          position_order?: number | null
+          shelf_id: string
+          sku_id: string
+        }
+        Update: {
+          created_at?: string
+          expected_facings?: number | null
+          id?: string
+          position_order?: number | null
+          shelf_id?: string
+          sku_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shelf_products_shelf_id_fkey"
+            columns: ["shelf_id"]
+            isOneToOne: false
+            referencedRelation: "shelves"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shelf_products_sku_id_fkey"
+            columns: ["sku_id"]
+            isOneToOne: false
+            referencedRelation: "skus"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      shelves: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          location_in_store: string | null
+          name: string
+          store_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          location_in_store?: string | null
+          name: string
+          store_id?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          location_in_store?: string | null
+          name?: string
+          store_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "shelves_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shelves_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       sku_images: {
         Row: {
           created_at: string
