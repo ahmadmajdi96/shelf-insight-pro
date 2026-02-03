@@ -10,6 +10,7 @@ import Products from "./pages/Products";
 import Detection from "./pages/Detection";
 import Categories from "./pages/Categories";
 import Stores from "./pages/Stores";
+import Shelves from "./pages/Shelves";
 import Tenants from "./pages/Tenants";
 import Activity from "./pages/Activity";
 import Settings from "./pages/Settings";
@@ -56,6 +57,11 @@ const App = () => (
             <Route path="/stores" element={
               <ProtectedRoute requireTenant>
                 <Stores />
+              </ProtectedRoute>
+            } />
+            <Route path="/shelves" element={
+              <ProtectedRoute requireTenant>
+                <Shelves />
               </ProtectedRoute>
             } />
             <Route path="/settings" element={
