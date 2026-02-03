@@ -1,10 +1,12 @@
-import { Bell, Lock, Palette, Database, Globe, Shield } from 'lucide-react';
+import { Bell, Lock, Palette, Database, Globe, Shield, SlidersHorizontal } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Slider } from '@/components/ui/slider';
 import { cn } from '@/lib/utils';
+import { useConfidenceSettings } from '@/hooks/useConfidenceSettings';
 
 const settingsSections = [
   {
@@ -38,6 +40,8 @@ const settingsSections = [
 ];
 
 export default function Settings() {
+  const { confidence, setConfidence, confidencePercent } = useConfidenceSettings();
+
   return (
     <MainLayout title="Settings" subtitle="Manage your account and application preferences.">
       <div className="max-w-3xl space-y-6">
@@ -64,6 +68,46 @@ export default function Settings() {
           </div>
           <div className="mt-4 flex justify-end">
             <Button variant="default">Save Changes</Button>
+          </div>
+        </div>
+
+        {/* Detection Settings */}
+        <div className="rounded-xl bg-card border border-border p-6 animate-fade-in">
+          <div className="flex items-center gap-3 mb-4">
+            <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center">
+              <SlidersHorizontal className="w-5 h-5 text-primary" />
+            </div>
+            <div>
+              <h3 className="font-semibold text-foreground">Detection Settings</h3>
+              <p className="text-sm text-muted-foreground">Configure AI detection parameters</p>
+            </div>
+          </div>
+
+          <div className="space-y-6">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label className="text-base">Confidence Threshold</Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Only show detections above this confidence level
+                  </p>
+                </div>
+                <span className="text-2xl font-bold text-primary">{confidencePercent}%</span>
+              </div>
+              <Slider
+                value={[confidence]}
+                onValueChange={([value]) => setConfidence(value)}
+                min={0.5}
+                max={1}
+                step={0.01}
+                className="w-full"
+              />
+              <div className="flex justify-between text-xs text-muted-foreground">
+                <span>50%</span>
+                <span>75%</span>
+                <span>100%</span>
+              </div>
+            </div>
           </div>
         </div>
 
