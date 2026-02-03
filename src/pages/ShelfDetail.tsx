@@ -177,16 +177,54 @@ export default function ShelfDetail() {
     }
   };
 
-  // Parse detection results from image
+  const MIN_CONFIDENCE = 0.9832;
+
+  // Parse detection results from image - filter by confidence and get top by class
   const parseDetectionResults = (detectionResult: Json | null): RoboflowPrediction[] => {
     if (!detectionResult) return [];
     
     try {
       const result = detectionResult as RoboflowResult;
       const predictions = result.outputs?.[0]?.predictions?.predictions || [];
-      return predictions;
+      
+      // Filter by minimum confidence
+      const filtered = predictions.filter(p => p.confidence >= MIN_CONFIDENCE);
+      
+      // Group by class and get top prediction for each class (highest confidence)
+      const classMap = new Map<string, RoboflowPrediction>();
+      filtered.forEach(pred => {
+        const existing = classMap.get(pred.class);
+        if (!existing || pred.confidence > existing.confidence) {
+          classMap.set(pred.class, pred);
+        }
+      });
+      
+      // Return top predictions sorted by confidence
+      return Array.from(classMap.values()).sort((a, b) => b.confidence - a.confidence);
     } catch {
       return [];
+    }
+  };
+
+  // Get all predictions with counts per class
+  const getProductCounts = (detectionResult: Json | null): Record<string, number> => {
+    if (!detectionResult) return {};
+    
+    try {
+      const result = detectionResult as RoboflowResult;
+      const predictions = result.outputs?.[0]?.predictions?.predictions || [];
+      
+      // Filter by minimum confidence and count per class
+      const counts: Record<string, number> = {};
+      predictions
+        .filter(p => p.confidence >= MIN_CONFIDENCE)
+        .forEach(pred => {
+          counts[pred.class] = (counts[pred.class] || 0) + 1;
+        });
+      
+      return counts;
+    } catch {
+      return {};
     }
   };
 
@@ -286,6 +324,7 @@ export default function ShelfDetail() {
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 pr-4">
                   {images.map((image) => {
                     const predictions = parseDetectionResults(image.detection_result);
+                    const productCounts = getProductCounts(image.detection_result);
                     const imageDimensions = getImageDimensions(image.detection_result);
                     
                     return (
@@ -294,27 +333,28 @@ export default function ShelfDetail() {
                         className="group relative rounded-xl overflow-hidden border border-border bg-secondary cursor-pointer hover:border-primary/50 transition-colors"
                         onClick={() => setViewingImage(image)}
                       >
-                        <div className="relative">
+                        <div className="relative aspect-video">
                           <img
                             src={image.image_url}
                             alt="Shelf scan"
-                            className="w-full aspect-video object-cover"
+                            className="absolute inset-0 w-full h-full object-cover"
                           />
                           
                           {/* Detection overlays */}
                           {predictions.length > 0 && imageDimensions && (
-                            <div className="absolute inset-0">
+                            <>
                               {predictions.map((pred, idx) => {
                                 const left = ((pred.x - pred.width / 2) / imageDimensions.width) * 100;
                                 const top = ((pred.y - pred.height / 2) / imageDimensions.height) * 100;
                                 const width = (pred.width / imageDimensions.width) * 100;
                                 const height = (pred.height / imageDimensions.height) * 100;
+                                const count = productCounts[pred.class] || 0;
                                 
                                 return (
                                   <div
                                     key={pred.detection_id || idx}
                                     className={cn(
-                                      "absolute",
+                                      "absolute border-2 rounded-sm pointer-events-none",
                                       classColors[pred.class] || 'detection-box'
                                     )}
                                     style={{
@@ -326,16 +366,16 @@ export default function ShelfDetail() {
                                   >
                                     <span 
                                       className={cn(
-                                        "absolute -top-5 left-0 text-[10px] px-1.5 py-0.5 rounded font-medium text-white",
+                                        "absolute -top-5 left-0 text-[10px] px-1.5 py-0.5 rounded font-medium text-white whitespace-nowrap",
                                         classBgColors[pred.class] || 'bg-primary'
                                       )}
                                     >
-                                      {pred.class} {Math.round(pred.confidence * 100)}%
+                                      {pred.class.toUpperCase()} ({count})
                                     </span>
                                   </div>
                                 );
                               })}
-                            </div>
+                            </>
                           )}
                           
                           {/* Hover overlay */}
@@ -353,10 +393,18 @@ export default function ShelfDetail() {
                             <Clock className="w-3 h-3" />
                             {formatDistanceToNow(new Date(image.created_at), { addSuffix: true })}
                           </div>
-                          {predictions.length > 0 && (
-                            <Badge variant="secondary" className="text-xs">
-                              {predictions.length} detections
-                            </Badge>
+                          {Object.keys(productCounts).length > 0 && (
+                            <div className="flex gap-1">
+                              {Object.entries(productCounts).map(([cls, count]) => (
+                                <Badge 
+                                  key={cls} 
+                                  variant="secondary" 
+                                  className={cn("text-xs", classBgColors[cls], "text-white")}
+                                >
+                                  {cls}: {count}
+                                </Badge>
+                              ))}
+                            </div>
                           )}
                           <Button
                             size="icon"
@@ -538,107 +586,115 @@ export default function ShelfDetail() {
       {/* Full Image Viewer Modal */}
       <Dialog open={!!viewingImage} onOpenChange={() => setViewingImage(null)}>
         <DialogContent className="max-w-6xl p-0 overflow-hidden bg-card">
-          {viewingImage && (
-            <>
-              <div className="relative">
-                <img
-                  src={viewingImage.image_url}
-                  alt="Shelf scan"
-                  className="w-full max-h-[70vh] object-contain bg-background"
-                />
-                
-                {/* Detection overlays on full view */}
-                {(() => {
-                  const predictions = parseDetectionResults(viewingImage.detection_result);
-                  const imageDimensions = getImageDimensions(viewingImage.detection_result);
-                  
-                  if (predictions.length === 0 || !imageDimensions) return null;
-                  
-                  return (
-                    <div className="absolute inset-0">
-                      {predictions.map((pred, idx) => {
-                        const left = ((pred.x - pred.width / 2) / imageDimensions.width) * 100;
-                        const top = ((pred.y - pred.height / 2) / imageDimensions.height) * 100;
-                        const width = (pred.width / imageDimensions.width) * 100;
-                        const height = (pred.height / imageDimensions.height) * 100;
-                        
-                        return (
-                          <div
-                            key={pred.detection_id || idx}
-                            className={cn(
-                              "absolute",
-                              classColors[pred.class] || 'detection-box'
-                            )}
-                            style={{
-                              left: `${left}%`,
-                              top: `${top}%`,
-                              width: `${width}%`,
-                              height: `${height}%`,
-                            }}
-                          >
-                            <span 
+          {viewingImage && (() => {
+            const predictions = parseDetectionResults(viewingImage.detection_result);
+            const productCounts = getProductCounts(viewingImage.detection_result);
+            const imageDimensions = getImageDimensions(viewingImage.detection_result);
+            
+            return (
+              <>
+                <div className="relative">
+                  <div className="relative w-full" style={{ maxHeight: '70vh' }}>
+                    <img
+                      src={viewingImage.image_url}
+                      alt="Shelf scan"
+                      className="w-full h-auto max-h-[70vh] object-contain bg-background"
+                    />
+                    
+                    {/* Detection overlays - positioned relative to image */}
+                    {predictions.length > 0 && imageDimensions && (
+                      <div className="absolute inset-0 pointer-events-none">
+                        {predictions.map((pred, idx) => {
+                          const left = ((pred.x - pred.width / 2) / imageDimensions.width) * 100;
+                          const top = ((pred.y - pred.height / 2) / imageDimensions.height) * 100;
+                          const width = (pred.width / imageDimensions.width) * 100;
+                          const height = (pred.height / imageDimensions.height) * 100;
+                          const count = productCounts[pred.class] || 0;
+                          
+                          return (
+                            <div
+                              key={pred.detection_id || idx}
                               className={cn(
-                                "absolute -top-6 left-0 text-xs px-2 py-1 rounded font-medium text-white whitespace-nowrap",
+                                "absolute border-2 rounded-sm",
+                                classColors[pred.class] || 'detection-box'
+                              )}
+                              style={{
+                                left: `${left}%`,
+                                top: `${top}%`,
+                                width: `${width}%`,
+                                height: `${height}%`,
+                              }}
+                            >
+                              <span 
+                                className={cn(
+                                  "absolute -top-6 left-0 text-xs px-2 py-1 rounded font-medium text-white whitespace-nowrap shadow-lg",
+                                  classBgColors[pred.class] || 'bg-primary'
+                                )}
+                              >
+                                {pred.class.toUpperCase()} ({count}) - {(pred.confidence * 100).toFixed(2)}%
+                              </span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+                  
+                  <Button
+                    size="icon"
+                    variant="secondary"
+                    className="absolute top-4 right-4 z-10"
+                    onClick={() => setViewingImage(null)}
+                  >
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                
+                {/* Detection Results Panel */}
+                <div className="p-6 border-t border-border">
+                  <div className="flex items-center justify-between mb-4">
+                    <h4 className="font-semibold text-foreground">Detection Results (≥{(MIN_CONFIDENCE * 100).toFixed(2)}% confidence)</h4>
+                    <span className="text-sm text-muted-foreground">
+                      Captured {formatDistanceToNow(new Date(viewingImage.created_at), { addSuffix: true })}
+                    </span>
+                  </div>
+                  
+                  {Object.keys(productCounts).length > 0 ? (
+                    <div className="space-y-3">
+                      {predictions.map((pred, idx) => {
+                        const count = productCounts[pred.class] || 0;
+                        return (
+                          <div 
+                            key={pred.detection_id || idx}
+                            className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50"
+                          >
+                            <div 
+                              className={cn(
+                                "w-3 h-3 rounded-full",
                                 classBgColors[pred.class] || 'bg-primary'
                               )}
-                            >
-                              {pred.class.toUpperCase()} - {Math.round(pred.confidence * 100)}%
+                            />
+                            <span className="font-medium text-foreground">{pred.class.toUpperCase()}</span>
+                            <Badge variant="outline" className="font-bold">
+                              {count} units
+                            </Badge>
+                            <Badge variant="secondary">
+                              {(pred.confidence * 100).toFixed(2)}% confidence
+                            </Badge>
+                            <span className="text-xs text-muted-foreground ml-auto">
+                              Top detection position: ({Math.round(pred.x)}, {Math.round(pred.y)})
                             </span>
                           </div>
                         );
                       })}
                     </div>
-                  );
-                })()}
-                
-                <Button
-                  size="icon"
-                  variant="secondary"
-                  className="absolute top-4 right-4"
-                  onClick={() => setViewingImage(null)}
-                >
-                  <X className="w-4 h-4" />
-                </Button>
-              </div>
-              
-              {/* Detection Results Panel */}
-              <div className="p-6 border-t border-border">
-                <div className="flex items-center justify-between mb-4">
-                  <h4 className="font-semibold text-foreground">Detection Results</h4>
-                  <span className="text-sm text-muted-foreground">
-                    Captured {formatDistanceToNow(new Date(viewingImage.created_at), { addSuffix: true })}
-                  </span>
+                  ) : (
+                    <p className="text-muted-foreground text-sm">No detections with ≥{(MIN_CONFIDENCE * 100).toFixed(2)}% confidence found.</p>
+                  )}
                 </div>
-                
-                {viewingImage.detection_result ? (
-                  <div className="space-y-3">
-                    {parseDetectionResults(viewingImage.detection_result).map((pred, idx) => (
-                      <div 
-                        key={pred.detection_id || idx}
-                        className="flex items-center gap-3 p-3 rounded-lg bg-secondary/50"
-                      >
-                        <div 
-                          className={cn(
-                            "w-3 h-3 rounded-full",
-                            classBgColors[pred.class] || 'bg-primary'
-                          )}
-                        />
-                        <span className="font-medium text-foreground">{pred.class.toUpperCase()}</span>
-                        <Badge variant="outline">
-                          {Math.round(pred.confidence * 100)}% confidence
-                        </Badge>
-                        <span className="text-xs text-muted-foreground ml-auto">
-                          Position: ({Math.round(pred.x)}, {Math.round(pred.y)})
-                        </span>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <p className="text-muted-foreground text-sm">No detection data available for this image.</p>
-                )}
-              </div>
-            </>
-          )}
+              </>
+            );
+          })()}
         </DialogContent>
       </Dialog>
     </MainLayout>
