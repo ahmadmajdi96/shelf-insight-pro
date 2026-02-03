@@ -60,7 +60,7 @@ export function AddShelfModal({ open, onOpenChange }: AddShelfModalProps) {
     resolver: zodResolver(shelfSchema),
     defaultValues: {
       name: '',
-      store_id: '',
+      store_id: 'none',
       description: '',
       location_in_store: '',
     },
@@ -147,7 +147,7 @@ export function AddShelfModal({ open, onOpenChange }: AddShelfModalProps) {
                         <FormLabel>Store (Optional)</FormLabel>
                         <Select 
                           onValueChange={field.onChange} 
-                          value={field.value || 'none'}
+                          value={field.value}
                         >
                           <FormControl>
                             <SelectTrigger>
