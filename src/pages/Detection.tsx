@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { Upload, History, Settings2, Download, Copy, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { useState, useMemo, useCallback } from 'react';
+import { Upload, History, Settings2, Download, Copy, Check, AlertCircle, Loader2, X, ZoomIn } from 'lucide-react';
 import { useSearchParams } from 'react-router-dom';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { ImageUploader } from '@/components/detection/ImageUploader';
@@ -8,9 +8,11 @@ import { useRoboflowDetection } from '@/hooks/useRoboflowDetection';
 import { useStores } from '@/hooks/useStores';
 import { useQuota } from '@/hooks/useQuota';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfidenceSettings } from '@/hooks/useConfidenceSettings';
 import { cn } from '@/lib/utils';
 import { useToast } from '@/hooks/use-toast';
 import { Badge } from '@/components/ui/badge';
+import { Dialog, DialogContent } from '@/components/ui/dialog';
 import {
   Select,
   SelectContent,
@@ -54,21 +56,23 @@ const classBgColors: Record<string, string> = {
   h3: 'bg-warning',
 };
 
-const MIN_CONFIDENCE = 0.95;
-
 export default function Detection() {
   const [searchParams] = useSearchParams();
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedStoreId, setSelectedStoreId] = useState<string>(searchParams.get('storeId') || 'all');
   const [copied, setCopied] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isFullView, setIsFullView] = useState(false);
   const { toast } = useToast();
   const { isDetecting, result, detectWithRoboflow, reset } = useRoboflowDetection();
   const { stores } = useStores();
   const { quota, canProcess, isNearLimit } = useQuota();
   const { tenantId, isAdmin } = useAuth();
+  const { confidence } = useConfidenceSettings();
 
-  // Parse Roboflow result
+  const MIN_CONFIDENCE = confidence;
+
+  // Parse result
   const parsedResult = useMemo(() => {
     if (!result) return null;
     
@@ -91,7 +95,7 @@ export default function Detection() {
       counts,
       totalDetections: filtered.length,
     };
-  }, [result]);
+  }, [result, MIN_CONFIDENCE]);
 
   const handleImageSelect = async (base64: string) => {
     if (!canProcess && !isAdmin) {
@@ -127,7 +131,7 @@ export default function Detection() {
 
       setIsUploading(false);
 
-      // Run detection with raw Roboflow response
+      // Run detection
       await detectWithRoboflow(
         publicUrl,
         undefined,
@@ -146,8 +150,23 @@ export default function Detection() {
 
   const handleNewImage = () => {
     setSelectedImage(null);
+    setIsFullView(false);
     reset();
   };
+
+  const handleDownload = useCallback(() => {
+    if (!selectedImage) return;
+    
+    // Create a link element
+    const link = document.createElement('a');
+    link.href = selectedImage;
+    link.download = `detection-${Date.now()}.jpg`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    toast({ title: 'Image downloaded' });
+  }, [selectedImage, toast]);
 
   const jsonOutput = useMemo(() => {
     if (!result) return null;
@@ -164,6 +183,48 @@ export default function Detection() {
   };
 
   const isProcessing = isUploading || isDetecting;
+
+  // Render detection boxes overlay
+  const renderDetectionBoxes = (containerClass?: string) => {
+    if (!parsedResult?.predictions || !parsedResult.imageDimensions) return null;
+    
+    return (
+      <div className={cn("absolute inset-0 pointer-events-none", containerClass)}>
+        {parsedResult.predictions.map((pred, idx) => {
+          const imgDims = parsedResult.imageDimensions!;
+          const left = ((pred.x - pred.width / 2) / imgDims.width) * 100;
+          const top = ((pred.y - pred.height / 2) / imgDims.height) * 100;
+          const width = (pred.width / imgDims.width) * 100;
+          const height = (pred.height / imgDims.height) * 100;
+          
+          return (
+            <div
+              key={pred.detection_id || idx}
+              className={cn(
+                "absolute border-2 rounded-sm",
+                classColors[pred.class] || 'border-primary shadow-[0_0_8px_hsl(var(--primary)/0.5)]'
+              )}
+              style={{
+                left: `${left}%`,
+                top: `${top}%`,
+                width: `${width}%`,
+                height: `${height}%`,
+              }}
+            >
+              <span 
+                className={cn(
+                  "absolute -top-5 left-0 text-[10px] px-1.5 py-0.5 rounded font-medium text-white whitespace-nowrap",
+                  classBgColors[pred.class] || 'bg-primary'
+                )}
+              >
+                {pred.class.toUpperCase()} {(pred.confidence * 100).toFixed(1)}%
+              </span>
+            </div>
+          );
+        })}
+      </div>
+    );
+  };
 
   return (
     <MainLayout 
@@ -189,14 +250,14 @@ export default function Detection() {
               <Upload className="w-4 h-4 mr-2" />
               New Image
             </Button>
-            <Button variant="outline" size="sm">
-              <History className="w-4 h-4 mr-2" />
-              History
+            <Button variant="outline" size="sm" onClick={() => setIsFullView(true)}>
+              <ZoomIn className="w-4 h-4 mr-2" />
+              Full View
             </Button>
           </div>
-          <Button variant="outline" size="sm">
-            <Settings2 className="w-4 h-4 mr-2" />
-            Detection Settings
+          <Button variant="outline" size="sm" onClick={handleDownload}>
+            <Download className="w-4 h-4 mr-2" />
+            Download
           </Button>
         </div>
       )}
@@ -232,56 +293,27 @@ export default function Detection() {
           <div className="lg:col-span-2 rounded-xl bg-card border border-border overflow-hidden">
             <div className="p-4 border-b border-border flex items-center justify-between">
               <h3 className="font-semibold text-foreground">Shelf Image</h3>
-              <Button variant="ghost" size="sm">
-                <Download className="w-4 h-4 mr-2" />
-                Download
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" size="sm" onClick={() => setIsFullView(true)}>
+                  <ZoomIn className="w-4 h-4 mr-2" />
+                  Full View
+                </Button>
+                <Button variant="ghost" size="sm" onClick={handleDownload}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
+                </Button>
+              </div>
             </div>
             
-            <div className="relative aspect-video">
+            <div className="relative aspect-video cursor-pointer" onClick={() => setIsFullView(true)}>
               <img 
                 src={selectedImage} 
                 alt="Shelf" 
-                className="absolute inset-0 w-full h-full object-cover"
+                className="absolute inset-0 w-full h-full object-contain bg-background"
               />
               
               {/* Detection boxes overlay */}
-              {parsedResult?.predictions && parsedResult.imageDimensions && (
-                <>
-                  {parsedResult.predictions.map((pred, idx) => {
-                    const imgDims = parsedResult.imageDimensions!;
-                    const left = ((pred.x - pred.width / 2) / imgDims.width) * 100;
-                    const top = ((pred.y - pred.height / 2) / imgDims.height) * 100;
-                    const width = (pred.width / imgDims.width) * 100;
-                    const height = (pred.height / imgDims.height) * 100;
-                    
-                    return (
-                      <div
-                        key={pred.detection_id || idx}
-                        className={cn(
-                          "absolute border-2 rounded-sm pointer-events-none",
-                          classColors[pred.class] || 'border-primary shadow-[0_0_8px_hsl(var(--primary)/0.5)]'
-                        )}
-                        style={{
-                          left: `${left}%`,
-                          top: `${top}%`,
-                          width: `${width}%`,
-                          height: `${height}%`,
-                        }}
-                      >
-                        <span 
-                          className={cn(
-                            "absolute -top-5 left-0 text-[10px] px-1.5 py-0.5 rounded font-medium text-white whitespace-nowrap",
-                            classBgColors[pred.class] || 'bg-primary'
-                          )}
-                        >
-                          {pred.class.toUpperCase()} {(pred.confidence * 100).toFixed(1)}%
-                        </span>
-                      </div>
-                    );
-                  })}
-                </>
-              )}
+              {renderDetectionBoxes()}
 
               {/* Loading overlay */}
               {isProcessing && (
@@ -383,6 +415,62 @@ export default function Detection() {
           </pre>
         </div>
       )}
+
+      {/* Full View Modal */}
+      <Dialog open={isFullView} onOpenChange={setIsFullView}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 overflow-hidden bg-background">
+          <div className="relative w-full h-full">
+            {/* Header */}
+            <div className="absolute top-0 left-0 right-0 z-20 p-4 bg-gradient-to-b from-background/90 to-transparent flex items-center justify-between">
+              <h3 className="font-semibold text-foreground">Full Image View</h3>
+              <div className="flex items-center gap-2">
+                <Button variant="secondary" size="sm" onClick={handleDownload}>
+                  <Download className="w-4 h-4 mr-2" />
+                  Download
+                </Button>
+                <Button variant="ghost" size="icon" onClick={() => setIsFullView(false)}>
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+            
+            {/* Image Container */}
+            <div className="relative w-full h-[85vh] flex items-center justify-center bg-background p-8">
+              {selectedImage && (
+                <div className="relative max-w-full max-h-full">
+                  <img 
+                    src={selectedImage} 
+                    alt="Shelf - Full View" 
+                    className="max-w-full max-h-[80vh] object-contain"
+                  />
+                  
+                  {/* Detection boxes overlay on full view */}
+                  {renderDetectionBoxes()}
+                </div>
+              )}
+            </div>
+            
+            {/* Detection Summary Footer */}
+            {parsedResult && Object.keys(parsedResult.counts).length > 0 && (
+              <div className="absolute bottom-0 left-0 right-0 z-20 p-4 bg-gradient-to-t from-background/90 to-transparent">
+                <div className="flex items-center justify-center gap-4 flex-wrap">
+                  <span className="text-sm text-muted-foreground">
+                    {parsedResult.totalDetections} detections (≥{(MIN_CONFIDENCE * 100).toFixed(0)}% confidence)
+                  </span>
+                  {Object.entries(parsedResult.counts).map(([cls, count]) => (
+                    <Badge 
+                      key={cls} 
+                      className={cn(classBgColors[cls], "text-white")}
+                    >
+                      {cls.toUpperCase()}: {count}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </MainLayout>
   );
 }

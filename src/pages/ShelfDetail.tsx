@@ -1,4 +1,4 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { 
   ArrowLeft, 
@@ -28,10 +28,12 @@ import { useShelves, useShelfImages } from '@/hooks/useShelves';
 import { useProducts } from '@/hooks/useProducts';
 import { useRoboflowDetection } from '@/hooks/useRoboflowDetection';
 import { useAuth } from '@/contexts/AuthContext';
+import { useConfidenceSettings } from '@/hooks/useConfidenceSettings';
 import { ImageCapture } from '@/components/shared/ImageCapture';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useQueryClient } from '@tanstack/react-query';
 import type { Tables, Json } from '@/integrations/supabase/types';
 
 interface RoboflowPrediction {
@@ -71,11 +73,13 @@ export default function ShelfDetail() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const queryClient = useQueryClient();
   const { shelves, assignProducts, deleteShelf, updateShelf } = useShelves();
   const { images, isLoading: imagesLoading, addImage, deleteImage } = useShelfImages(id || null);
   const { products } = useProducts();
   const { detectWithRoboflow, isDetecting } = useRoboflowDetection();
   const { tenantId, isAdmin } = useAuth();
+  const { confidence } = useConfidenceSettings();
 
   const [activeTab, setActiveTab] = useState('images');
   const [isUploading, setIsUploading] = useState(false);
@@ -100,6 +104,11 @@ export default function ShelfDetail() {
     }
   }, [shelf, isInitialized]);
 
+  const refreshImages = useCallback(() => {
+    queryClient.invalidateQueries({ queryKey: ['shelf-images', id] });
+    queryClient.invalidateQueries({ queryKey: ['shelves'] });
+  }, [queryClient, id]);
+
   const handleImageCapture = async (file: File, base64: string) => {
     if (!shelf || !id) return;
     
@@ -120,7 +129,7 @@ export default function ShelfDetail() {
         .from('shelf-images')
         .getPublicUrl(fileName);
 
-      // Run Roboflow detection
+      // Run detection
       const detectionResult = await detectWithRoboflow(publicUrl, id, tenantId || undefined);
 
       if (detectionResult.success) {
@@ -128,6 +137,8 @@ export default function ShelfDetail() {
           title: 'Detection complete',
           description: 'Image analyzed and saved successfully.',
         });
+        // Auto-refresh images after processing completes
+        refreshImages();
       }
 
       setPreviewImage(null);
@@ -177,7 +188,7 @@ export default function ShelfDetail() {
     }
   };
 
-  const MIN_CONFIDENCE = 0.95;
+  const MIN_CONFIDENCE = confidence;
 
   // Parse detection results from image - return ALL predictions above confidence threshold
   const parseDetectionResults = (detectionResult: Json | null): RoboflowPrediction[] => {
