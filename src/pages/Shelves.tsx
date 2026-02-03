@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Plus, LayoutGrid, Search, Filter, Package } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -8,7 +9,6 @@ import { useShelves } from '@/hooks/useShelves';
 import { useStores } from '@/hooks/useStores';
 import { ShelfCard } from '@/components/shelves/ShelfCard';
 import { AddShelfModal } from '@/components/shelves/AddShelfModal';
-import { ShelfDetailModal } from '@/components/shelves/ShelfDetailModal';
 import {
   Select,
   SelectContent,
@@ -18,13 +18,13 @@ import {
 } from '@/components/ui/select';
 
 export default function Shelves() {
+  const navigate = useNavigate();
   const { isAdmin } = useAuth();
   const { shelves, isLoading } = useShelves();
   const { stores } = useStores();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStoreId, setFilterStoreId] = useState<string>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [selectedShelfId, setSelectedShelfId] = useState<string | null>(null);
 
   const filteredShelves = shelves.filter((shelf) => {
     const matchesSearch = shelf.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -33,7 +33,9 @@ export default function Shelves() {
     return matchesSearch && matchesStore;
   });
 
-  const selectedShelf = shelves.find(s => s.id === selectedShelfId);
+  const handleShelfSelect = (shelfId: string) => {
+    navigate(`/shelves/${shelfId}`);
+  };
 
   return (
     <MainLayout
@@ -146,7 +148,7 @@ export default function Shelves() {
             <ShelfCard
               key={shelf.id}
               shelf={shelf}
-              onSelect={() => setSelectedShelfId(shelf.id)}
+              onSelect={() => handleShelfSelect(shelf.id)}
             />
           ))}
         </div>
@@ -157,14 +159,6 @@ export default function Shelves() {
         open={isAddModalOpen} 
         onOpenChange={setIsAddModalOpen} 
       />
-      
-      {selectedShelf && (
-        <ShelfDetailModal
-          shelf={selectedShelf}
-          open={!!selectedShelfId}
-          onOpenChange={(open) => !open && setSelectedShelfId(null)}
-        />
-      )}
     </MainLayout>
   );
 }
