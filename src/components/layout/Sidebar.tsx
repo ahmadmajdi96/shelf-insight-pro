@@ -16,7 +16,8 @@ import {
   X,
   UserCog,
   LayoutGrid,
-  Database
+  Database,
+  Grid3X3
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -38,6 +39,7 @@ const baseTenantNavItems = [
   { icon: Boxes, label: 'Categories', path: '/categories' },
   { icon: Package, label: 'Products', path: '/products' },
   { icon: LayoutGrid, label: 'Shelves', path: '/shelves' },
+  { icon: Grid3X3, label: 'Planogram', path: '/planogram' },
   { icon: ScanLine, label: 'Detection', path: '/detection' },
   { icon: Store, label: 'Stores', path: '/stores' },
 ];
