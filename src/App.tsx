@@ -17,6 +17,7 @@ import Activity from "./pages/Activity";
 import Settings from "./pages/Settings";
 import Users from "./pages/Users";
 import Data from "./pages/Data";
+import Planogram from "./pages/Planogram";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
@@ -69,6 +70,11 @@ const App = () => (
             <Route path="/shelves/:id" element={
               <ProtectedRoute requireTenant>
                 <ShelfDetail />
+              </ProtectedRoute>
+            } />
+            <Route path="/planogram" element={
+              <ProtectedRoute requireTenant>
+                <Planogram />
               </ProtectedRoute>
             } />
             <Route path="/settings" element={
