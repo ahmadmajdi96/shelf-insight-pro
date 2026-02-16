@@ -19,60 +19,42 @@ export function useProducts() {
   const queryClient = useQueryClient();
 
   const productsQuery = useQuery({
-    queryKey: ['products', tenantId, isAdmin],
+    queryKey: ['products'],
     queryFn: async () => {
-      let query = supabase
+      const { data, error } = await supabase
         .from('skus')
-        .select(`
-          *,
-          sku_images (*),
-          product_categories (name)
-        `)
+        .select(`*, sku_images (*), product_categories (name)`)
         .order('created_at', { ascending: false });
 
-      // Tenant users only see their products, admins see all
-      if (!isAdmin && tenantId) {
-        query = query.eq('tenant_id', tenantId);
-      }
-
-      const { data, error } = await query;
-
-      if (error) {
-        throw error;
-      }
-
+      if (error) throw error;
       return data as SKUWithImages[];
     },
-    enabled: !!tenantId || isAdmin,
+    enabled: isAdmin,
   });
 
   const createProduct = useMutation({
-    mutationFn: async (product: Omit<SKUInsert, 'tenant_id'> & { images?: File[] }) => {
-      if (!tenantId) throw new Error('No tenant ID');
+    mutationFn: async (product: Omit<SKUInsert, 'tenant_id'> & { images?: File[]; tenant_id?: string }) => {
+      const tid = product.tenant_id || tenantId;
+      if (!tid) throw new Error('No tenant ID');
 
       const { images, ...productData } = product;
 
-      // Insert the SKU
       const { data: sku, error: skuError } = await supabase
         .from('skus')
-        .insert({ ...productData, tenant_id: tenantId })
+        .insert({ ...productData, tenant_id: tid })
         .select()
         .single();
 
       if (skuError) throw skuError;
 
-      // Upload images if provided
       if (images && images.length > 0) {
         for (const image of images) {
-          const fileName = `${tenantId}/${sku.id}/${Date.now()}-${image.name}`;
+          const fileName = `${tid}/${sku.id}/${Date.now()}-${image.name}`;
           const { error: uploadError } = await supabase.storage
             .from('sku-training-images')
             .upload(fileName, image);
 
-          if (uploadError) {
-            console.error('Image upload error:', uploadError);
-            continue;
-          }
+          if (uploadError) continue;
 
           const { data: { publicUrl } } = supabase.storage
             .from('sku-training-images')
@@ -89,17 +71,10 @@ export function useProducts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      toast({
-        title: 'Product created',
-        description: 'Your product has been added successfully.',
-      });
+      toast({ title: 'Product created', description: 'Your product has been added successfully.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to create product',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to create product', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -117,17 +92,10 @@ export function useProducts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      toast({
-        title: 'Product updated',
-        description: 'Changes saved successfully.',
-      });
+      toast({ title: 'Product updated', description: 'Changes saved successfully.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to update product',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to update product', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -138,25 +106,19 @@ export function useProducts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      toast({
-        title: 'Product deleted',
-        description: 'The product has been removed.',
-      });
+      toast({ title: 'Product deleted', description: 'The product has been removed.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to delete product',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to delete product', description: error.message, variant: 'destructive' });
     },
   });
 
   const uploadProductImage = useMutation({
     mutationFn: async ({ skuId, file }: { skuId: string; file: File }) => {
-      if (!tenantId) throw new Error('No tenant ID');
+      const tid = tenantId;
+      if (!tid) throw new Error('No tenant ID');
 
-      const fileName = `${tenantId}/${skuId}/${Date.now()}-${file.name}`;
+      const fileName = `${tid}/${skuId}/${Date.now()}-${file.name}`;
       const { error: uploadError } = await supabase.storage
         .from('sku-training-images')
         .upload(fileName, file);
@@ -178,17 +140,10 @@ export function useProducts() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
-      toast({
-        title: 'Image uploaded',
-        description: 'Training image added successfully.',
-      });
+      toast({ title: 'Image uploaded', description: 'Training image added successfully.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to upload image',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to upload image', description: error.message, variant: 'destructive' });
     },
   });
 

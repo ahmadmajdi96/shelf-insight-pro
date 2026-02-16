@@ -43,12 +43,7 @@ export default function Stores() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createStore.mutateAsync({
-      name: formData.name,
-      address: formData.address || null,
-      city: formData.city || null,
-      country: formData.country || null,
-    });
+    // Stores page is no longer used directly - stores are managed under tenants
     setFormData({ name: '', address: '', city: '', country: '' });
     setIsModalOpen(false);
   };
@@ -68,7 +63,7 @@ export default function Stores() {
     <MainLayout 
       title="Stores" 
       subtitle="Manage your retail locations and view detection analytics."
-      userRole={isAdmin ? 'admin' : 'tenant'}
+      
     >
       <div className="flex justify-between items-center mb-6">
         <p className="text-muted-foreground">

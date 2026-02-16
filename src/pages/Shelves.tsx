@@ -1,10 +1,9 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Plus, LayoutGrid, Search, Filter, Package } from 'lucide-react';
+import { Plus, LayoutGrid, Search, Filter, Package, MoreVertical, Pencil, Trash2 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { useAuth } from '@/contexts/AuthContext';
 import { useShelves } from '@/hooks/useShelves';
 import { useStores } from '@/hooks/useStores';
 import { ShelfCard } from '@/components/shelves/ShelfCard';
@@ -16,15 +15,25 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 
 export default function Shelves() {
   const navigate = useNavigate();
-  const { isAdmin } = useAuth();
-  const { shelves, isLoading } = useShelves();
+  const { shelves, isLoading, deleteShelf } = useShelves();
   const { stores } = useStores();
   const [searchQuery, setSearchQuery] = useState('');
   const [filterStoreId, setFilterStoreId] = useState<string>('all');
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const filteredShelves = shelves.filter((shelf) => {
     const matchesSearch = shelf.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -37,13 +46,18 @@ export default function Shelves() {
     navigate(`/shelves/${shelfId}`);
   };
 
+  const handleDelete = async () => {
+    if (deleteId) {
+      await deleteShelf.mutateAsync(deleteId);
+      setDeleteId(null);
+    }
+  };
+
   return (
     <MainLayout
       title="Shelf Management"
       subtitle="Assign products to shelves and track detection history."
-      userRole={isAdmin ? 'admin' : 'tenant'}
     >
-      {/* Header Actions */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
@@ -76,7 +90,6 @@ export default function Shelves() {
         </div>
       </div>
 
-      {/* Stats Summary */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-6">
         <div className="bg-card border border-border rounded-xl p-4">
           <div className="flex items-center gap-3">
@@ -117,7 +130,6 @@ export default function Shelves() {
         </div>
       </div>
 
-      {/* Shelves Grid */}
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
           {[...Array(6)].map((_, i) => (
@@ -149,16 +161,33 @@ export default function Shelves() {
               key={shelf.id}
               shelf={shelf}
               onSelect={() => handleShelfSelect(shelf.id)}
+              onDelete={() => setDeleteId(shelf.id)}
             />
           ))}
         </div>
       )}
 
-      {/* Modals */}
       <AddShelfModal 
         open={isAddModalOpen} 
         onOpenChange={setIsAddModalOpen} 
       />
+
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Shelf</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this shelf? All assigned products and detection history will be removed.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }

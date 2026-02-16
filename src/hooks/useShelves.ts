@@ -22,25 +22,15 @@ export function useShelves() {
   const queryClient = useQueryClient();
 
   const shelvesQuery = useQuery({
-    queryKey: ['shelves', tenantId, isAdmin],
+    queryKey: ['shelves'],
     queryFn: async () => {
-      let query = supabase
+      const { data: shelves, error } = await supabase
         .from('shelves')
-        .select(`
-          *,
-          store:stores(*),
-          products:shelf_products(*, sku:skus(*))
-        `)
+        .select(`*, store:stores(*), products:shelf_products(*, sku:skus(*))`)
         .order('name', { ascending: true });
 
-      if (!isAdmin && tenantId) {
-        query = query.eq('tenant_id', tenantId);
-      }
-
-      const { data: shelves, error } = await query;
       if (error) throw error;
 
-      // Get image counts for each shelf
       const shelvesWithDetails: ShelfWithDetails[] = await Promise.all(
         (shelves || []).map(async (shelf) => {
           const { count, data: images } = await supabase
@@ -60,16 +50,17 @@ export function useShelves() {
 
       return shelvesWithDetails;
     },
-    enabled: !!tenantId || isAdmin,
+    enabled: isAdmin,
   });
 
   const createShelf = useMutation({
-    mutationFn: async (shelf: Omit<ShelfInsert, 'tenant_id'>) => {
-      if (!tenantId) throw new Error('No tenant ID');
+    mutationFn: async (shelf: Omit<ShelfInsert, 'tenant_id'> & { tenant_id?: string }) => {
+      const tid = shelf.tenant_id || tenantId;
+      if (!tid) throw new Error('No tenant ID');
 
       const { data, error } = await supabase
         .from('shelves')
-        .insert({ ...shelf, tenant_id: tenantId })
+        .insert({ ...shelf, tenant_id: tid })
         .select()
         .single();
 
@@ -78,17 +69,10 @@ export function useShelves() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
-      toast({
-        title: 'Shelf created',
-        description: 'Your shelf has been added successfully.',
-      });
+      toast({ title: 'Shelf created', description: 'Your shelf has been added successfully.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to create shelf',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to create shelf', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -106,17 +90,10 @@ export function useShelves() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
-      toast({
-        title: 'Shelf updated',
-        description: 'Changes saved successfully.',
-      });
+      toast({ title: 'Shelf updated', description: 'Changes saved successfully.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to update shelf',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to update shelf', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -127,34 +104,17 @@ export function useShelves() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
-      toast({
-        title: 'Shelf deleted',
-        description: 'The shelf has been removed.',
-      });
+      toast({ title: 'Shelf deleted', description: 'The shelf has been removed.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to delete shelf',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to delete shelf', description: error.message, variant: 'destructive' });
     },
   });
 
   const assignProducts = useMutation({
-    mutationFn: async ({ 
-      shelfId, 
-      skuIds, 
-      quantities 
-    }: { 
-      shelfId: string; 
-      skuIds: string[]; 
-      quantities?: Record<string, number>;
-    }) => {
-      // First, remove existing assignments
+    mutationFn: async ({ shelfId, skuIds, quantities }: { shelfId: string; skuIds: string[]; quantities?: Record<string, number> }) => {
       await supabase.from('shelf_products').delete().eq('shelf_id', shelfId);
 
-      // Then add new assignments
       if (skuIds.length > 0) {
         const { error } = await supabase.from('shelf_products').insert(
           skuIds.map((skuId, index) => ({
@@ -169,17 +129,10 @@ export function useShelves() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
-      toast({
-        title: 'Products assigned',
-        description: 'Shelf products updated successfully.',
-      });
+      toast({ title: 'Products assigned', description: 'Shelf products updated successfully.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to assign products',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to assign products', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -202,7 +155,6 @@ export function useShelfImages(shelfId: string | null) {
     queryKey: ['shelf-images', shelfId],
     queryFn: async () => {
       if (!shelfId) return [];
-
       const { data, error } = await supabase
         .from('shelf_images')
         .select('*')
@@ -219,10 +171,7 @@ export function useShelfImages(shelfId: string | null) {
     mutationFn: async ({ shelfId, imageUrl }: { shelfId: string; imageUrl: string }) => {
       const { data, error } = await supabase
         .from('shelf_images')
-        .insert({
-          shelf_id: shelfId,
-          image_url: imageUrl,
-        })
+        .insert({ shelf_id: shelfId, image_url: imageUrl })
         .select()
         .single();
 
@@ -234,11 +183,7 @@ export function useShelfImages(shelfId: string | null) {
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to save image',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to save image', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -250,17 +195,10 @@ export function useShelfImages(shelfId: string | null) {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelf-images'] });
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
-      toast({
-        title: 'Image deleted',
-        description: 'The image has been removed.',
-      });
+      toast({ title: 'Image deleted', description: 'The image has been removed.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to delete image',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to delete image', description: error.message, variant: 'destructive' });
     },
   });
 

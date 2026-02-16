@@ -243,7 +243,7 @@ export default function ShelfDetail() {
 
   if (!shelf) {
     return (
-      <MainLayout title="Loading..." userRole={isAdmin ? 'admin' : 'tenant'}>
+      <MainLayout title="Loading...">
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
@@ -255,7 +255,7 @@ export default function ShelfDetail() {
     <MainLayout
       title={shelf.name}
       subtitle={shelf.store ? `${shelf.store.name}${shelf.location_in_store ? ` • ${shelf.location_in_store}` : ''}` : 'Shelf Management'}
-      userRole={isAdmin ? 'admin' : 'tenant'}
+      
     >
       {/* Back button and stats */}
       <div className="flex items-center justify-between mb-6">

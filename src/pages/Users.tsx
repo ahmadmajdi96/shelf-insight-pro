@@ -57,7 +57,7 @@ export default function Users() {
     <MainLayout 
       title="User Management" 
       subtitle="Manage user accounts and permissions."
-      userRole={userRole}
+      
     >
       {/* Actions */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">

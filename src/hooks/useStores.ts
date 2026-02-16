@@ -14,26 +14,20 @@ interface StoreWithStats extends Store {
 }
 
 export function useStores() {
-  const { tenantId, isAdmin } = useAuth();
+  const { isAdmin } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const storesQuery = useQuery({
-    queryKey: ['stores', tenantId, isAdmin],
+    queryKey: ['stores'],
     queryFn: async () => {
-      let query = supabase
+      const { data: stores, error } = await supabase
         .from('stores')
         .select('*')
         .order('name', { ascending: true });
 
-      if (!isAdmin && tenantId) {
-        query = query.eq('tenant_id', tenantId);
-      }
-
-      const { data: stores, error } = await query;
       if (error) throw error;
 
-      // Get stats for each store
       const storesWithStats: StoreWithStats[] = await Promise.all(
         stores.map(async (store) => {
           const { data: detections, count } = await supabase
@@ -62,16 +56,14 @@ export function useStores() {
 
       return storesWithStats;
     },
-    enabled: !!tenantId || isAdmin,
+    enabled: isAdmin,
   });
 
   const createStore = useMutation({
-    mutationFn: async (store: Omit<StoreInsert, 'tenant_id'>) => {
-      if (!tenantId) throw new Error('No tenant ID');
-
+    mutationFn: async (store: StoreInsert) => {
       const { data, error } = await supabase
         .from('stores')
-        .insert({ ...store, tenant_id: tenantId })
+        .insert(store)
         .select()
         .single();
 
@@ -80,17 +72,10 @@ export function useStores() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stores'] });
-      toast({
-        title: 'Store created',
-        description: 'Your store has been added successfully.',
-      });
+      toast({ title: 'Store created', description: 'Your store has been added successfully.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to create store',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to create store', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -108,17 +93,10 @@ export function useStores() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stores'] });
-      toast({
-        title: 'Store updated',
-        description: 'Changes saved successfully.',
-      });
+      toast({ title: 'Store updated', description: 'Changes saved successfully.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to update store',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to update store', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -129,17 +107,10 @@ export function useStores() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stores'] });
-      toast({
-        title: 'Store deleted',
-        description: 'The store has been removed.',
-      });
+      toast({ title: 'Store deleted', description: 'The store has been removed.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to delete store',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to delete store', description: error.message, variant: 'destructive' });
     },
   });
 

@@ -34,7 +34,7 @@ export default function Activity() {
     <MainLayout 
       title="Tenant Activity" 
       subtitle="Monitor usage and activity across all tenants."
-      userRole="admin"
+      
     >
       {/* Weekly Chart */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-6">

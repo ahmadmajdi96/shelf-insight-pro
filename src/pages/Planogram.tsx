@@ -209,7 +209,7 @@ export default function Planogram() {
     <MainLayout
       title="Planogram Designer"
       subtitle="Design shelf layouts and assign products to shelf positions."
-      userRole={isAdmin ? 'admin' : 'tenant'}
+      
     >
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Left Panel - Configuration & Products */}

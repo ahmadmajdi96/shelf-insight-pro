@@ -2,20 +2,18 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
 import Detection from "./pages/Detection";
 import Categories from "./pages/Categories";
-import Stores from "./pages/Stores";
 import Shelves from "./pages/Shelves";
 import ShelfDetail from "./pages/ShelfDetail";
 import Tenants from "./pages/Tenants";
 import Activity from "./pages/Activity";
 import Settings from "./pages/Settings";
-import Users from "./pages/Users";
 import Data from "./pages/Data";
 import Planogram from "./pages/Planogram";
 import Login from "./pages/Login";
@@ -36,64 +34,45 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             
-            {/* Protected routes - any authenticated user */}
+            {/* All protected routes - admin only */}
             <Route path="/" element={
-              <ProtectedRoute>
+              <ProtectedRoute requiredRoles={['admin']}>
                 <Dashboard />
               </ProtectedRoute>
             } />
-            <Route path="/products" element={
-              <ProtectedRoute requireTenant>
-                <Products />
-              </ProtectedRoute>
-            } />
-            <Route path="/detection" element={
-              <ProtectedRoute requireTenant>
-                <Detection />
+            <Route path="/tenants" element={
+              <ProtectedRoute requiredRoles={['admin']}>
+                <Tenants />
               </ProtectedRoute>
             } />
             <Route path="/categories" element={
-              <ProtectedRoute requireTenant>
+              <ProtectedRoute requiredRoles={['admin']}>
                 <Categories />
               </ProtectedRoute>
             } />
-            <Route path="/stores" element={
-              <ProtectedRoute requireTenant>
-                <Stores />
+            <Route path="/products" element={
+              <ProtectedRoute requiredRoles={['admin']}>
+                <Products />
               </ProtectedRoute>
             } />
             <Route path="/shelves" element={
-              <ProtectedRoute requireTenant>
+              <ProtectedRoute requiredRoles={['admin']}>
                 <Shelves />
               </ProtectedRoute>
             } />
             <Route path="/shelves/:id" element={
-              <ProtectedRoute requireTenant>
+              <ProtectedRoute requiredRoles={['admin']}>
                 <ShelfDetail />
               </ProtectedRoute>
             } />
             <Route path="/planogram" element={
-              <ProtectedRoute requireTenant>
+              <ProtectedRoute requiredRoles={['admin']}>
                 <Planogram />
               </ProtectedRoute>
             } />
-            <Route path="/settings" element={
-              <ProtectedRoute>
-                <Settings />
-              </ProtectedRoute>
-            } />
-            
-            {/* Admin/Tenant Admin routes */}
-            <Route path="/users" element={
-              <ProtectedRoute requiredRoles={['admin', 'tenant_admin']}>
-                <Users />
-              </ProtectedRoute>
-            } />
-            
-            {/* Admin only routes */}
-            <Route path="/tenants" element={
+            <Route path="/detection" element={
               <ProtectedRoute requiredRoles={['admin']}>
-                <Tenants />
+                <Detection />
               </ProtectedRoute>
             } />
             <Route path="/activity" element={
@@ -102,8 +81,13 @@ const App = () => (
               </ProtectedRoute>
             } />
             <Route path="/data" element={
-              <ProtectedRoute requiredRoles={['admin', 'tenant_admin']}>
+              <ProtectedRoute requiredRoles={['admin']}>
                 <Data />
+              </ProtectedRoute>
+            } />
+            <Route path="/settings" element={
+              <ProtectedRoute requiredRoles={['admin']}>
+                <Settings />
               </ProtectedRoute>
             } />
             

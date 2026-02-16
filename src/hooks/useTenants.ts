@@ -27,7 +27,6 @@ export function useTenants() {
 
       if (error) throw error;
 
-      // Get counts for each tenant
       const tenantsWithStats: TenantWithStats[] = await Promise.all(
         tenants.map(async (tenant) => {
           const { count: skuCount } = await supabase
@@ -54,7 +53,7 @@ export function useTenants() {
   });
 
   const createTenant = useMutation({
-    mutationFn: async (tenant: TenantInsert) => {
+    mutationFn: async (tenant: Omit<TenantInsert, 'id'>) => {
       const { data, error } = await supabase
         .from('tenants')
         .insert(tenant)
@@ -66,17 +65,10 @@ export function useTenants() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
-      toast({
-        title: 'Tenant created',
-        description: 'The new tenant has been added successfully.',
-      });
+      toast({ title: 'Tenant created', description: 'The new tenant has been added successfully.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to create tenant',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to create tenant', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -94,17 +86,10 @@ export function useTenants() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
-      toast({
-        title: 'Tenant updated',
-        description: 'Changes saved successfully.',
-      });
+      toast({ title: 'Tenant updated', description: 'Changes saved successfully.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to update tenant',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to update tenant', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -128,16 +113,26 @@ export function useTenants() {
       toast({
         title: suspend ? 'Tenant suspended' : 'Tenant activated',
         description: suspend 
-          ? 'The tenant has been suspended and cannot process images.'
+          ? 'The tenant has been suspended.'
           : 'The tenant has been activated.',
       });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to update tenant status',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to update tenant status', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const deleteTenant = useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from('tenants').delete().eq('id', id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      toast({ title: 'Tenant deleted', description: 'The tenant has been removed.' });
+    },
+    onError: (error) => {
+      toast({ title: 'Failed to delete tenant', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -148,5 +143,6 @@ export function useTenants() {
     createTenant,
     updateTenant,
     suspendTenant,
+    deleteTenant,
   };
 }
