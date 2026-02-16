@@ -28,25 +28,43 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { useCategories } from '@/hooks/useCategories';
-import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 
 export default function Categories() {
   const [isModalOpen, setIsModalOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<any | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [formData, setFormData] = useState({ name: '', description: '' });
   
-  const { categories, isLoading, createCategory, deleteCategory } = useCategories();
-  const { isAdmin } = useAuth();
+  const { categories, isLoading, createCategory, updateCategory, deleteCategory } = useCategories();
+
+  const resetForm = () => {
+    setFormData({ name: '', description: '' });
+    setEditingCategory(null);
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    await createCategory.mutateAsync({
-      name: formData.name,
-      description: formData.description || null,
-    });
-    setFormData({ name: '', description: '' });
+    if (editingCategory) {
+      await updateCategory.mutateAsync({
+        id: editingCategory.id,
+        name: formData.name,
+        description: formData.description || null,
+      });
+    } else {
+      await createCategory.mutateAsync({
+        name: formData.name,
+        description: formData.description || null,
+      });
+    }
+    resetForm();
     setIsModalOpen(false);
+  };
+
+  const handleEdit = (category: any) => {
+    setFormData({ name: category.name, description: category.description || '' });
+    setEditingCategory(category);
+    setIsModalOpen(true);
   };
 
   const handleDelete = async () => {
@@ -62,13 +80,12 @@ export default function Categories() {
     <MainLayout 
       title="Categories" 
       subtitle="Organize your products into categories for better management."
-      userRole={isAdmin ? 'admin' : 'tenant'}
     >
       <div className="flex justify-between items-center mb-6">
         <p className="text-muted-foreground">
           {categories.length} categories • {totalProducts} total products
         </p>
-        <Button variant="glow" onClick={() => setIsModalOpen(true)}>
+        <Button variant="glow" onClick={() => { resetForm(); setIsModalOpen(true); }}>
           <Plus className="w-4 h-4 mr-2" />
           Add Category
         </Button>
@@ -106,7 +123,7 @@ export default function Categories() {
                     </Button>
                   </DropdownMenuTrigger>
                   <DropdownMenuContent align="end">
-                    <DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => handleEdit(category)}>
                       <Pencil className="w-4 h-4 mr-2" />
                       Edit
                     </DropdownMenuItem>
@@ -155,11 +172,11 @@ export default function Categories() {
         </div>
       )}
 
-      {/* Add Category Modal */}
-      <Dialog open={isModalOpen} onOpenChange={setIsModalOpen}>
+      {/* Add/Edit Category Modal */}
+      <Dialog open={isModalOpen} onOpenChange={(open) => { setIsModalOpen(open); if (!open) resetForm(); }}>
         <DialogContent className="bg-card border-border">
           <DialogHeader>
-            <DialogTitle>Add New Category</DialogTitle>
+            <DialogTitle>{editingCategory ? 'Edit Category' : 'Add New Category'}</DialogTitle>
           </DialogHeader>
           <form onSubmit={handleSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -184,16 +201,12 @@ export default function Categories() {
               />
             </div>
             <div className="flex justify-end gap-3 pt-2">
-              <Button type="button" variant="outline" onClick={() => setIsModalOpen(false)}>
+              <Button type="button" variant="outline" onClick={() => { setIsModalOpen(false); resetForm(); }}>
                 Cancel
               </Button>
-              <Button type="submit" variant="glow" disabled={createCategory.isPending}>
-                {createCategory.isPending ? (
-                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-                ) : (
-                  <Plus className="w-4 h-4 mr-2" />
-                )}
-                Create Category
+              <Button type="submit" variant="glow" disabled={createCategory.isPending || updateCategory.isPending}>
+                {(createCategory.isPending || updateCategory.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                {editingCategory ? 'Save Changes' : 'Create Category'}
               </Button>
             </div>
           </form>

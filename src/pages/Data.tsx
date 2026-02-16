@@ -228,7 +228,7 @@ export default function Data() {
     <MainLayout 
       title="Data Explorer" 
       subtitle="View and export all system data with advanced filtering."
-      userRole={isAdmin ? 'admin' : 'tenant'}
+      
     >
       {/* Filters */}
       <div className="bg-card border border-border rounded-xl p-4 mb-6">

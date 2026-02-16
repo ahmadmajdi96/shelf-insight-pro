@@ -1,10 +1,10 @@
 import { useState } from 'react';
-import { Plus, Search, Filter, Loader2 } from 'lucide-react';
+import { Plus, Search, Loader2, Pencil, Trash2, MoreVertical, Package, CheckCircle2, Clock, AlertCircle, Image } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { ProductCard } from '@/components/products/ProductCard';
 import { AddProductModal } from '@/components/products/AddProductModal';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import {
   Select,
   SelectContent,
@@ -12,21 +12,50 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { useProducts } from '@/hooks/useProducts';
 import { useCategories } from '@/hooks/useCategories';
-import { useAuth } from '@/contexts/AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
+
+const statusConfig = {
+  pending: { icon: Clock, label: 'Pending', className: 'text-muted-foreground bg-muted' },
+  training: { icon: Clock, label: 'Training...', className: 'text-warning bg-warning/10' },
+  completed: { icon: CheckCircle2, label: 'Trained', className: 'text-success bg-success/10' },
+  failed: { icon: AlertCircle, label: 'Failed', className: 'text-destructive bg-destructive/10' },
+};
 
 export default function Products() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [categoryFilter, setCategoryFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [editingProduct, setEditingProduct] = useState<any | null>(null);
+  const [editFormData, setEditFormData] = useState({ name: '', description: '', barcode: '', category_id: '' });
   
-  const { products, isLoading, deleteProduct } = useProducts();
+  const { products, isLoading, deleteProduct, updateProduct } = useProducts();
   const { categories } = useCategories();
-  const { isAdmin } = useAuth();
-  const { toast } = useToast();
 
   const filteredProducts = products.filter(product => {
     const matchesSearch = product.name.toLowerCase().includes(searchQuery.toLowerCase());
@@ -39,13 +68,34 @@ export default function Products() {
   const trainingCount = products.filter(p => p.training_status === 'training').length;
   const pendingCount = products.filter(p => p.training_status === 'pending').length;
 
-  const handleDeleteProduct = async (productId: string, productName: string) => {
-    if (confirm(`Are you sure you want to delete "${productName}"? This action cannot be undone.`)) {
-      try {
-        await deleteProduct.mutateAsync(productId);
-      } catch (error) {
-        // Error is handled by the mutation
-      }
+  const handleDelete = async () => {
+    if (deleteId) {
+      await deleteProduct.mutateAsync(deleteId);
+      setDeleteId(null);
+    }
+  };
+
+  const handleEdit = (product: any) => {
+    setEditFormData({
+      name: product.name,
+      description: product.description || '',
+      barcode: product.barcode || '',
+      category_id: product.category_id || '',
+    });
+    setEditingProduct(product);
+  };
+
+  const handleEditSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingProduct) {
+      await updateProduct.mutateAsync({
+        id: editingProduct.id,
+        name: editFormData.name,
+        description: editFormData.description || null,
+        barcode: editFormData.barcode || null,
+        category_id: editFormData.category_id || null,
+      });
+      setEditingProduct(null);
     }
   };
 
@@ -53,7 +103,6 @@ export default function Products() {
     <MainLayout 
       title="Products" 
       subtitle="Manage your product catalog and training data."
-      userRole={isAdmin ? 'admin' : 'tenant'}
     >
       {/* Actions Bar */}
       <div className="flex flex-col sm:flex-row gap-4 mb-6">
@@ -97,7 +146,7 @@ export default function Products() {
         </div>
       </div>
 
-      {/* Stats Summary */}
+      {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
         <div className="p-4 rounded-lg bg-card border border-border">
           <p className="text-2xl font-bold text-foreground">{products.length}</p>
@@ -117,33 +166,77 @@ export default function Products() {
         </div>
       </div>
 
-      {/* Loading State */}
       {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="w-8 h-8 animate-spin text-primary" />
         </div>
       ) : (
         <>
-          {/* Products Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-            {filteredProducts.map((product, index) => (
-              <div 
-                key={product.id} 
-                className="animate-fade-in"
-                style={{ animationDelay: `${index * 50}ms` }}
-              >
-                <ProductCard
-                  id={product.id}
-                  name={product.name}
-                  category={product.product_categories?.name || 'Uncategorized'}
-                  barcode={product.barcode || undefined}
-                  imageCount={product.sku_images?.length || 0}
-                  imageUrl={product.sku_images?.[0]?.image_url}
-                  trainingStatus={product.training_status}
-                  onDelete={() => handleDeleteProduct(product.id, product.name)}
-                />
-              </div>
-            ))}
+            {filteredProducts.map((product, index) => {
+              const status = statusConfig[product.training_status];
+              const StatusIcon = status.icon;
+              const imageUrl = product.sku_images?.[0]?.image_url;
+              const imageCount = product.sku_images?.length || 0;
+
+              return (
+                <div 
+                  key={product.id} 
+                  className="rounded-xl bg-card border border-border hover:border-primary/30 transition-all duration-300 overflow-hidden group animate-fade-in"
+                  style={{ animationDelay: `${index * 50}ms` }}
+                >
+                  <div className="aspect-square bg-secondary relative overflow-hidden">
+                    {imageUrl ? (
+                      <img src={imageUrl} alt={product.name} className="w-full h-full object-cover" />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <Package className="w-12 h-12 text-muted-foreground/50" />
+                      </div>
+                    )}
+                    <div className="absolute top-2 right-2">
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="icon" className="h-8 w-8 bg-background/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity">
+                            <MoreVertical className="w-4 h-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEdit(product)}>
+                            <Pencil className="w-4 h-4 mr-2" />
+                            Edit
+                          </DropdownMenuItem>
+                          <DropdownMenuItem className="text-destructive" onClick={() => setDeleteId(product.id)}>
+                            <Trash2 className="w-4 h-4 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-1 rounded-md bg-background/80 backdrop-blur-sm text-xs">
+                      <Image className="w-3 h-3" />
+                      {imageCount} images
+                    </div>
+                  </div>
+                  <div className="p-4 space-y-3">
+                    <div>
+                      <h4 className="font-medium text-foreground truncate">{product.name}</h4>
+                      <p className="text-sm text-muted-foreground">{product.product_categories?.name || 'Uncategorized'}</p>
+                    </div>
+                    {product.barcode && (
+                      <p className="text-xs font-mono text-muted-foreground bg-secondary px-2 py-1 rounded inline-block">
+                        {product.barcode}
+                      </p>
+                    )}
+                    <div className="flex items-center pt-2">
+                      <span className={cn("inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium", status.className)}>
+                        <StatusIcon className="w-3 h-3" />
+                        {status.label}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
 
           {filteredProducts.length === 0 && (
@@ -158,10 +251,73 @@ export default function Products() {
         </>
       )}
 
-      <AddProductModal 
-        open={isAddModalOpen} 
-        onClose={() => setIsAddModalOpen(false)} 
-      />
+      <AddProductModal open={isAddModalOpen} onClose={() => setIsAddModalOpen(false)} />
+
+      {/* Edit Product Modal */}
+      <Dialog open={!!editingProduct} onOpenChange={(open) => { if (!open) setEditingProduct(null); }}>
+        <DialogContent className="bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Edit Product</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={handleEditSubmit} className="space-y-4">
+            <div className="space-y-2">
+              <Label>Product Name</Label>
+              <Input 
+                value={editFormData.name}
+                onChange={(e) => setEditFormData({ ...editFormData, name: e.target.value })}
+                className="bg-secondary border-border"
+                required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Barcode</Label>
+              <Input 
+                value={editFormData.barcode}
+                onChange={(e) => setEditFormData({ ...editFormData, barcode: e.target.value })}
+                className="bg-secondary border-border font-mono"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={editFormData.category_id} onValueChange={(v) => setEditFormData({ ...editFormData, category_id: v })}>
+                <SelectTrigger className="bg-secondary border-border">
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button type="button" variant="outline" onClick={() => setEditingProduct(null)}>Cancel</Button>
+              <Button type="submit" variant="glow" disabled={updateProduct.isPending}>
+                {updateProduct.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Save Changes
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Product</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete this product? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDelete} className="bg-destructive text-destructive-foreground">
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </MainLayout>
   );
 }

@@ -13,26 +13,20 @@ interface CategoryWithCounts extends Category {
 }
 
 export function useCategories() {
-  const { tenantId, isAdmin } = useAuth();
+  const { isAdmin, tenantId } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
   const categoriesQuery = useQuery({
-    queryKey: ['categories', tenantId, isAdmin],
+    queryKey: ['categories'],
     queryFn: async () => {
-      let query = supabase
+      const { data: categories, error } = await supabase
         .from('product_categories')
         .select('*')
         .order('name', { ascending: true });
 
-      if (!isAdmin && tenantId) {
-        query = query.eq('tenant_id', tenantId);
-      }
-
-      const { data: categories, error } = await query;
       if (error) throw error;
 
-      // Get product counts for each category
       const categoriesWithCounts: CategoryWithCounts[] = await Promise.all(
         categories.map(async (category) => {
           const { count: productCount } = await supabase
@@ -56,16 +50,18 @@ export function useCategories() {
 
       return categoriesWithCounts;
     },
-    enabled: !!tenantId || isAdmin,
+    enabled: isAdmin,
   });
 
   const createCategory = useMutation({
-    mutationFn: async (category: Omit<CategoryInsert, 'tenant_id'>) => {
-      if (!tenantId) throw new Error('No tenant ID');
+    mutationFn: async (category: Omit<CategoryInsert, 'tenant_id'> & { tenant_id?: string }) => {
+      // Use provided tenant_id or fall back to user's tenantId
+      const tid = category.tenant_id || tenantId;
+      if (!tid) throw new Error('No tenant ID');
 
       const { data, error } = await supabase
         .from('product_categories')
-        .insert({ ...category, tenant_id: tenantId })
+        .insert({ ...category, tenant_id: tid })
         .select()
         .single();
 
@@ -74,17 +70,10 @@ export function useCategories() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
-      toast({
-        title: 'Category created',
-        description: 'Your category has been added successfully.',
-      });
+      toast({ title: 'Category created', description: 'Your category has been added successfully.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to create category',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to create category', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -102,17 +91,10 @@ export function useCategories() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
-      toast({
-        title: 'Category updated',
-        description: 'Changes saved successfully.',
-      });
+      toast({ title: 'Category updated', description: 'Changes saved successfully.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to update category',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to update category', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -123,17 +105,10 @@ export function useCategories() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
-      toast({
-        title: 'Category deleted',
-        description: 'The category has been removed.',
-      });
+      toast({ title: 'Category deleted', description: 'The category has been removed.' });
     },
     onError: (error) => {
-      toast({
-        title: 'Failed to delete category',
-        description: error.message,
-        variant: 'destructive',
-      });
+      toast({ title: 'Failed to delete category', description: error.message, variant: 'destructive' });
     },
   });
 

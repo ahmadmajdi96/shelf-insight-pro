@@ -12,7 +12,7 @@ import { useQuota } from '@/hooks/useQuota';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { isAdmin, profile } = useAuth();
+  const { profile } = useAuth();
   const { products, isLoading: productsLoading } = useProducts();
   const { stores, isLoading: storesLoading } = useStores();
   const { quota, monthlyPercentage, isLoading: quotaLoading } = useQuota();
@@ -27,7 +27,6 @@ export default function Dashboard() {
     <MainLayout 
       title="Dashboard" 
       subtitle={`Welcome back${profile?.fullName ? `, ${profile.fullName}` : ''}! Here's your shelf detection overview.`}
-      userRole={isAdmin ? 'admin' : 'tenant'}
     >
       {/* Quick Actions */}
       <div className="flex flex-wrap gap-3 mb-6">
@@ -47,39 +46,13 @@ export default function Dashboard() {
         </div>
       ) : (
         <>
-          {/* Stats Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-            <StatsCard
-              title="Images Processed"
-              value={quota?.monthlyUsage?.toLocaleString() || '0'}
-              change={`${quota?.monthlyLimit?.toLocaleString() || '0'} monthly limit`}
-              changeType="neutral"
-              icon={ScanLine}
-            />
-            <StatsCard
-              title="Trained SKUs"
-              value={trainedCount.toString()}
-              change={`${pendingCount + trainingCount} pending`}
-              changeType="neutral"
-              icon={Package}
-            />
-            <StatsCard
-              title="Monitored Stores"
-              value={stores.length.toString()}
-              change="Active locations"
-              changeType="neutral"
-              icon={Store}
-            />
-            <StatsCard
-              title="Products"
-              value={products.length.toString()}
-              change={`${quota?.skuLimit || 0} max allowed`}
-              changeType="neutral"
-              icon={TrendingUp}
-            />
+            <StatsCard title="Images Processed" value={quota?.monthlyUsage?.toLocaleString() || '0'} change={`${quota?.monthlyLimit?.toLocaleString() || '0'} monthly limit`} changeType="neutral" icon={ScanLine} />
+            <StatsCard title="Trained SKUs" value={trainedCount.toString()} change={`${pendingCount + trainingCount} pending`} changeType="neutral" icon={Package} />
+            <StatsCard title="Monitored Stores" value={stores.length.toString()} change="Active locations" changeType="neutral" icon={Store} />
+            <StatsCard title="Products" value={products.length.toString()} change={`${quota?.skuLimit || 0} max allowed`} changeType="neutral" icon={TrendingUp} />
           </div>
 
-          {/* Main Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2">
               <RecentDetections />
@@ -89,7 +62,6 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Usage Stats */}
           <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="rounded-xl bg-card border border-border p-6">
               <div className="flex items-center justify-between mb-4">

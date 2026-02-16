@@ -613,11 +613,13 @@ export type Database = {
           max_images_per_year: number
           max_skus: number
           name: string
+          password: string | null
           processed_images_this_month: number
           processed_images_this_week: number
           processed_images_this_year: number
           status: string
           updated_at: string
+          username: string | null
         }
         Insert: {
           created_at?: string
@@ -629,11 +631,13 @@ export type Database = {
           max_images_per_year?: number
           max_skus?: number
           name: string
+          password?: string | null
           processed_images_this_month?: number
           processed_images_this_week?: number
           processed_images_this_year?: number
           status?: string
           updated_at?: string
+          username?: string | null
         }
         Update: {
           created_at?: string
@@ -645,11 +649,13 @@ export type Database = {
           max_images_per_year?: number
           max_skus?: number
           name?: string
+          password?: string | null
           processed_images_this_month?: number
           processed_images_this_week?: number
           processed_images_this_year?: number
           status?: string
           updated_at?: string
+          username?: string | null
         }
         Relationships: []
       }

@@ -230,7 +230,7 @@ export default function Detection() {
     <MainLayout 
       title="Shelf Detection" 
       subtitle="Upload an image to detect products and analyze shelf presence."
-      userRole={isAdmin ? 'admin' : 'tenant'}
+      
     >
       {/* Quota Warning */}
       {isNearLimit && !isAdmin && (

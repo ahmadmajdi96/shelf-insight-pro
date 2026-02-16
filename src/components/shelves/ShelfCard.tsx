@@ -1,6 +1,13 @@
-import { Package, MapPin, Image, Clock } from 'lucide-react';
+import { Package, MapPin, Image, Clock, MoreVertical, Trash2 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { formatDistanceToNow } from 'date-fns';
 import type { Tables } from '@/integrations/supabase/types';
 
@@ -14,9 +21,10 @@ interface ShelfWithDetails extends Tables<'shelves'> {
 interface ShelfCardProps {
   shelf: ShelfWithDetails;
   onSelect: () => void;
+  onDelete?: () => void;
 }
 
-export function ShelfCard({ shelf, onSelect }: ShelfCardProps) {
+export function ShelfCard({ shelf, onSelect, onDelete }: ShelfCardProps) {
   const productCount = shelf.products?.length || 0;
   const lastImageTime = shelf.lastImage?.created_at
     ? formatDistanceToNow(new Date(shelf.lastImage.created_at), { addSuffix: true })
@@ -28,7 +36,6 @@ export function ShelfCard({ shelf, onSelect }: ShelfCardProps) {
       onClick={onSelect}
     >
       <CardContent className="p-5">
-        {/* Header */}
         <div className="flex items-start justify-between mb-4">
           <div className="flex-1">
             <h3 className="font-semibold text-foreground text-lg group-hover:text-primary transition-colors">
@@ -40,12 +47,28 @@ export function ShelfCard({ shelf, onSelect }: ShelfCardProps) {
               </p>
             )}
           </div>
-          <Badge variant="secondary" className="ml-2">
-            {shelf.imageCount} scans
-          </Badge>
+          <div className="flex items-center gap-1 ml-2">
+            <Badge variant="secondary">
+              {shelf.imageCount} scans
+            </Badge>
+            {onDelete && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 opacity-0 group-hover:opacity-100" onClick={(e) => e.stopPropagation()}>
+                    <MoreVertical className="w-4 h-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem className="text-destructive" onClick={(e) => { e.stopPropagation(); onDelete(); }}>
+                    <Trash2 className="w-4 h-4 mr-2" />
+                    Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+          </div>
         </div>
 
-        {/* Store Info */}
         {shelf.store && (
           <div className="flex items-center gap-2 text-sm text-muted-foreground mb-3">
             <MapPin className="w-4 h-4" />
@@ -56,7 +79,6 @@ export function ShelfCard({ shelf, onSelect }: ShelfCardProps) {
           </div>
         )}
 
-        {/* Stats */}
         <div className="grid grid-cols-2 gap-3 mb-4">
           <div className="flex items-center gap-2 text-sm">
             <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center">
@@ -78,7 +100,6 @@ export function ShelfCard({ shelf, onSelect }: ShelfCardProps) {
           </div>
         </div>
 
-        {/* Last Activity */}
         {lastImageTime && (
           <div className="flex items-center gap-2 text-xs text-muted-foreground pt-3 border-t border-border">
             <Clock className="w-3 h-3" />
@@ -86,7 +107,6 @@ export function ShelfCard({ shelf, onSelect }: ShelfCardProps) {
           </div>
         )}
 
-        {/* Product Preview */}
         {productCount > 0 && (
           <div className="flex items-center gap-1 mt-3 pt-3 border-t border-border">
             <div className="flex -space-x-2">
