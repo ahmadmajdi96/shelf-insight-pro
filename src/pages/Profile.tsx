@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { User, Camera, Lock, Loader2, Mail, Shield, Clock } from 'lucide-react';
+import { User, Camera, Lock, Loader2, Mail, Shield, Clock, AtSign } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -7,7 +7,6 @@ import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { cn } from '@/lib/utils';
 
 export default function Profile() {
   const { user, profile, refreshProfile } = useAuth();
@@ -15,10 +14,10 @@ export default function Profile() {
   
   // Profile form
   const [fullName, setFullName] = useState(profile?.fullName || '');
+  const [username, setUsername] = useState((profile as any)?.username || '');
   const [saving, setSaving] = useState(false);
   
   // Password form
-  const [currentPassword, setCurrentPassword] = useState('');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [changingPassword, setChangingPassword] = useState(false);
@@ -32,7 +31,7 @@ export default function Profile() {
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({ full_name: fullName })
+        .update({ full_name: fullName, username } as any)
         .eq('user_id', user!.id);
 
       if (error) throw error;
@@ -51,8 +50,8 @@ export default function Profile() {
       toast({ title: 'Passwords do not match', variant: 'destructive' });
       return;
     }
-    if (newPassword.length < 6) {
-      toast({ title: 'Password must be at least 6 characters', variant: 'destructive' });
+    if (newPassword.length < 8) {
+      toast({ title: 'Password must be at least 8 characters', variant: 'destructive' });
       return;
     }
     setChangingPassword(true);
@@ -60,7 +59,6 @@ export default function Profile() {
       const { error } = await supabase.auth.updateUser({ password: newPassword });
       if (error) throw error;
       toast({ title: 'Password changed', description: 'Your password has been updated.' });
-      setCurrentPassword('');
       setNewPassword('');
       setConfirmPassword('');
     } catch (err: any) {
@@ -130,6 +128,10 @@ export default function Profile() {
             </div>
             <div className="flex-1">
               <h3 className="text-lg font-semibold text-foreground">{profile?.fullName || 'Admin User'}</h3>
+              <p className="text-sm text-muted-foreground flex items-center gap-1">
+                <AtSign className="w-3 h-3" />
+                {(profile as any)?.username || 'no-username'}
+              </p>
               <p className="text-sm text-muted-foreground">{user?.email}</p>
               <div className="flex items-center gap-2 mt-2">
                 <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary/10 text-primary text-xs font-medium">
@@ -163,6 +165,15 @@ export default function Profile() {
               />
             </div>
             <div className="space-y-2">
+              <Label>Username</Label>
+              <Input 
+                value={username} 
+                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))} 
+                placeholder="johndoe"
+                className="bg-secondary border-border" 
+              />
+            </div>
+            <div className="space-y-2">
               <Label>Email</Label>
               <Input value={user?.email || ''} disabled className="bg-secondary border-border opacity-60" />
             </div>
@@ -187,7 +198,7 @@ export default function Profile() {
             </div>
           </div>
 
-          <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>New Password</Label>
               <Input 
