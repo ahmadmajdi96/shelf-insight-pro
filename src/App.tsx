@@ -20,6 +20,7 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
 
+// App configuration
 const queryClient = new QueryClient();
 
 const App = () => (
