@@ -22,7 +22,7 @@ export function MainLayout({
       <Sidebar />
       <div className={cn(
         "transition-all duration-300",
-        isMobile ? "ml-0" : "ml-64"
+        isMobile ? "ml-0" : "ml-60"
       )}>
         <Header title={title} subtitle={subtitle} />
         <main className={cn(

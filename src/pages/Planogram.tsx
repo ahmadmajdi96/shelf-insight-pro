@@ -266,8 +266,8 @@ export default function Planogram() {
 
   return (
     <MainLayout
-      title="Planogram & Shelves"
-      subtitle="Manage shelves and design planogram layouts."
+      title="Management"
+      subtitle="Manage shelves, design planogram layouts, and oversee operations."
     >
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
         <TabsList>
