@@ -5,8 +5,9 @@ import {
   GripVertical, Save, RotateCcw, Search, Filter,
   Pencil, HelpCircle, Ruler, Copy, Eye, History,
   CheckCircle2, XCircle, AlertTriangle, BarChart3,
-  FileText, Clock, ArrowLeft
+  FileText, Clock, ArrowLeft, Upload, Loader2, TrendingUp
 } from 'lucide-react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,6 +35,7 @@ import { useShelves, useShelfImages } from '@/hooks/useShelves';
 import { useStores } from '@/hooks/useStores';
 import { useProducts } from '@/hooks/useProducts';
 import { usePlanogramTemplates, usePlanogramVersions, useComplianceScans, type PlanogramRow, type PlanogramTemplate } from '@/hooks/usePlanograms';
+import { useRoboflowDetection } from '@/hooks/useRoboflowDetection';
 import { useToast } from '@/hooks/use-toast';
 import { ShelfCard } from '@/components/shelves/ShelfCard';
 import { AddShelfModal } from '@/components/shelves/AddShelfModal';
@@ -48,6 +50,8 @@ export default function Planogram() {
   const { products } = useProducts();
   const { templates, createTemplate, updateTemplate, duplicateTemplate, deleteTemplate } = usePlanogramTemplates();
   const { toast } = useToast();
+  const { detectWithRoboflow, isDetecting } = useRoboflowDetection();
+  const [complianceImageUrl, setComplianceImageUrl] = useState('');
 
   const [activeTab, setActiveTab] = useState('templates');
 
@@ -207,44 +211,71 @@ export default function Planogram() {
   const totalProducts = rows.reduce((acc, r) => acc + r.products.length, 0);
   const totalFacings = rows.reduce((acc, r) => acc + r.products.reduce((a, p) => a + p.facings, 0), 0);
 
-  // ---- Compliance scoring ----
+  // ---- Compliance scoring with real Roboflow detection ----
   const runComplianceCheck = async (template: PlanogramTemplate, shelfImageUrl: string, shelfImageId?: string) => {
     const layout = template.layout || [];
-    const expectedProducts = new Map<string, number>();
+    const expectedProducts = new Map<string, { name: string; count: number }>();
     layout.forEach(row => {
       row.products.forEach(p => {
         if (p.skuId) {
-          expectedProducts.set(p.skuId, (expectedProducts.get(p.skuId) || 0) + p.facings);
+          const existing = expectedProducts.get(p.skuId);
+          expectedProducts.set(p.skuId, {
+            name: p.name,
+            count: (existing?.count || 0) + p.facings,
+          });
         }
       });
     });
 
-    // Simulate compliance based on detection results from shelf images
-    const totalExpected = Array.from(expectedProducts.values()).reduce((a, b) => a + b, 0);
-    const found = Math.floor(totalExpected * (0.6 + Math.random() * 0.35));
-    const missing = totalExpected - found;
-    const extra = Math.floor(Math.random() * 3);
-    const score = totalExpected > 0 ? Math.round((found / totalExpected) * 100) : 0;
+    // Run real Roboflow detection on the image
+    const detectionResult = await detectWithRoboflow(shelfImageUrl, template.shelf_id || undefined, tenantId || undefined);
+    
+    if (!detectionResult.success || !detectionResult.result) {
+      toast({ title: 'Compliance scan failed', description: 'Could not detect products in the image.', variant: 'destructive' });
+      return;
+    }
 
-    const details = Array.from(expectedProducts.entries()).map(([skuId, expected]) => {
-      const product = products.find(p => p.id === skuId);
-      const actual = Math.floor(expected * (0.5 + Math.random() * 0.6));
+    // Parse Roboflow detection output to count detected labels
+    const detectedCounts = new Map<string, number>();
+    const outputs = detectionResult.result?.outputs || detectionResult.result;
+    const predictions = Array.isArray(outputs) ? outputs.flatMap((o: any) => o?.predictions || []) : outputs?.predictions || [];
+    
+    predictions.forEach((pred: any) => {
+      const label = pred.class || pred.label || 'unknown';
+      detectedCounts.set(label, (detectedCounts.get(label) || 0) + 1);
+    });
+
+    const totalDetected = predictions.length;
+    const totalExpected = Array.from(expectedProducts.values()).reduce((a, b) => a + b.count, 0);
+    
+    // Map detected labels to expected products for compliance
+    const details = Array.from(expectedProducts.entries()).map(([skuId, { name, count }]) => {
+      // Try to match detected labels to product names (case-insensitive partial match)
+      const matchingLabel = Array.from(detectedCounts.entries()).find(([label]) => 
+        name.toLowerCase().includes(label.toLowerCase()) || label.toLowerCase().includes(name.toLowerCase())
+      );
+      const actual = matchingLabel ? Math.min(matchingLabel[1], count + 2) : 0;
       return {
-        skuId, skuName: product?.name || 'Unknown',
-        expected, actual: Math.min(actual, expected + 1),
-        status: actual >= expected ? 'compliant' : actual > 0 ? 'partial' : 'missing',
+        skuId, skuName: name,
+        expected: count, actual,
+        status: actual >= count ? 'compliant' : actual > 0 ? 'partial' : 'missing',
       };
     });
+
+    const totalFound = details.reduce((a, d) => a + d.actual, 0);
+    const totalMissing = details.filter(d => d.status === 'missing').reduce((a, d) => a + d.expected, 0);
+    const totalExtra = Math.max(0, totalDetected - totalFound);
+    const score = totalExpected > 0 ? Math.round((totalFound / totalExpected) * 100) : 0;
 
     await createScan.mutateAsync({
       template_id: template.id,
       shelf_image_id: shelfImageId,
       image_url: shelfImageUrl,
-      compliance_score: score,
+      compliance_score: Math.min(score, 100),
       total_expected: totalExpected,
-      total_found: found,
-      total_missing: missing,
-      total_extra: extra,
+      total_found: totalFound,
+      total_missing: totalMissing,
+      total_extra: totalExtra,
       details,
     });
   };
@@ -709,13 +740,22 @@ export default function Planogram() {
                   <div className="bg-card border border-border rounded-xl p-4 space-y-3">
                     <h3 className="font-semibold text-foreground">Run Compliance Scan</h3>
                     <p className="text-sm text-muted-foreground">
-                      Compare the planogram layout against an actual shelf photo. 
+                      Provide a shelf image URL to compare against the planogram layout using AI detection.
                       {template.layout.length === 0 && ' ⚠️ This template has no layout — design it first.'}
                     </p>
-                    <Button variant="glow" disabled={template.layout.length === 0}
-                      onClick={() => runComplianceCheck(template, `shelf-capture-${Date.now()}.jpg`)}>
-                      <BarChart3 className="w-4 h-4 mr-2" />Run Scan
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Input 
+                        value={complianceImageUrl} 
+                        onChange={e => setComplianceImageUrl(e.target.value)} 
+                        placeholder="Enter shelf image URL..." 
+                        className="flex-1"
+                      />
+                      <Button variant="glow" disabled={template.layout.length === 0 || !complianceImageUrl.trim() || isDetecting}
+                        onClick={() => { runComplianceCheck(template, complianceImageUrl.trim()); setComplianceImageUrl(''); }}>
+                        {isDetecting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <BarChart3 className="w-4 h-4 mr-2" />}
+                        {isDetecting ? 'Scanning...' : 'Run Scan'}
+                      </Button>
+                    </div>
                   </div>
                 );
               })()}
@@ -800,8 +840,68 @@ export default function Planogram() {
 
         {/* ========== SCAN HISTORY TAB ========== */}
         <TabsContent value="scan-history" className="space-y-4">
-          <h2 className="text-lg font-semibold text-foreground">Scan History</h2>
-          <p className="text-sm text-muted-foreground">All compliance scans across all templates.</p>
+          <div className="flex items-center gap-2">
+            <TrendingUp className="w-5 h-5 text-primary" />
+            <h2 className="text-lg font-semibold text-foreground">Scan History & Compliance Trends</h2>
+          </div>
+          <p className="text-sm text-muted-foreground">All compliance scans across all templates with trend visualization.</p>
+
+          {/* Compliance Trend Chart */}
+          {allScans.scans.length > 1 && (() => {
+            // Group scans by template and build chart data
+            const templateNames = new Map<string, string>();
+            allScans.scans.forEach(s => {
+              if (s.template?.name && !templateNames.has(s.template_id)) {
+                templateNames.set(s.template_id, s.template.name);
+              }
+            });
+
+            // Build time-series data sorted chronologically
+            const sortedScans = [...allScans.scans].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+            const chartData = sortedScans.map(s => {
+              const point: any = { date: format(new Date(s.created_at), 'MMM d HH:mm') };
+              point[s.template?.name || 'Unknown'] = s.compliance_score;
+              return point;
+            });
+
+            const colors = ['hsl(var(--primary))', 'hsl(142, 71%, 45%)', 'hsl(48, 96%, 53%)', 'hsl(0, 84%, 60%)', 'hsl(262, 83%, 58%)'];
+
+            return (
+              <div className="bg-card border border-border rounded-xl p-4">
+                <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2">
+                  <TrendingUp className="w-4 h-4 text-primary" />
+                  Compliance Score Trends
+                </h3>
+                <ResponsiveContainer width="100%" height={300}>
+                  <LineChart data={chartData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
+                    <Tooltip 
+                      contentStyle={{ 
+                        backgroundColor: 'hsl(var(--card))', 
+                        border: '1px solid hsl(var(--border))', 
+                        borderRadius: '8px',
+                        color: 'hsl(var(--foreground))',
+                      }} 
+                    />
+                    <Legend />
+                    {Array.from(templateNames.entries()).map(([, name], idx) => (
+                      <Line 
+                        key={name} 
+                        type="monotone" 
+                        dataKey={name} 
+                        stroke={colors[idx % colors.length]} 
+                        strokeWidth={2}
+                        dot={{ r: 4 }}
+                        connectNulls 
+                      />
+                    ))}
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            );
+          })()}
 
           {allScans.scans.length === 0 ? (
             <div className="text-center py-16 bg-card border border-border rounded-xl">
