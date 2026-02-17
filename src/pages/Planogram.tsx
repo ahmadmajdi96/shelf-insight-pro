@@ -7,7 +7,7 @@ import {
   CheckCircle2, XCircle, AlertTriangle, BarChart3,
   FileText, Clock, ArrowLeft, Upload, Loader2, TrendingUp,
   FolderOpen, MoreVertical, Image, Building2, Pause, Play,
-  MapPin, Shield, Users as UsersIcon
+  MapPin
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -43,7 +43,7 @@ import { useStores } from '@/hooks/useStores';
 import { useTenants } from '@/hooks/useTenants';
 import { useProducts } from '@/hooks/useProducts';
 import { useCategories } from '@/hooks/useCategories';
-import { useUsers } from '@/hooks/useUsers';
+
 import { useShelves } from '@/hooks/useShelves';
 import { usePlanogramTemplates, usePlanogramVersions, useComplianceScans, type PlanogramRow, type PlanogramTemplate } from '@/hooks/usePlanograms';
 import { useRoboflowDetection } from '@/hooks/useRoboflowDetection';
@@ -59,11 +59,8 @@ const statusConfig = {
   failed: { icon: AlertTriangle, label: 'Failed', className: 'text-destructive bg-destructive/10' },
 };
 
-const roleLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
-  admin: { label: 'Admin', variant: 'default' },
-  tenant_admin: { label: 'Tenant Admin', variant: 'secondary' },
-  tenant_user: { label: 'User', variant: 'outline' },
-};
+
+
 
 export default function Planogram() {
   const navigate = useNavigate();
@@ -73,7 +70,7 @@ export default function Planogram() {
   const { products, isLoading: productsLoading, deleteProduct, updateProduct } = useProducts();
   const { categories, isLoading: categoriesLoading, createCategory, updateCategory, deleteCategory } = useCategories();
   const { templates, createTemplate, updateTemplate, duplicateTemplate, deleteTemplate } = usePlanogramTemplates();
-  const { users, isLoading: usersLoading, updateUserRole, deleteUser } = useUsers();
+  
   const { shelves } = useShelves();
   const { toast } = useToast();
   const { detectWithRoboflow, isDetecting } = useRoboflowDetection();
@@ -84,13 +81,12 @@ export default function Planogram() {
   // Search states for each tab
   const [tenantSearch, setTenantSearch] = useState('');
   const [storeSearch, setStoreSearch] = useState('');
+  const [storeTenantFilter, setStoreTenantFilter] = useState('all');
   const [planogramSearch, setPlanogramSearch] = useState('');
   const [planogramStatusFilter, setPlanogramStatusFilter] = useState('all');
   const [complianceSearch, setComplianceSearch] = useState('');
   const [scanHistorySearch, setScanHistorySearch] = useState('');
   const [categorySearch, setCategorySearch] = useState('');
-  const [userSearch, setUserSearch] = useState('');
-  const [userRoleFilter, setUserRoleFilter] = useState('all');
   const [versionSearch, setVersionSearch] = useState('');
 
   // Tenant state
@@ -147,10 +143,8 @@ export default function Planogram() {
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [editFormData, setEditFormData] = useState({ name: '', description: '', barcode: '', category_id: '' });
 
-  // Users state
-  const [roleChangeUser, setRoleChangeUser] = useState<{ userId: string; currentRole: string } | null>(null);
-  const [newRole, setNewRole] = useState('');
-  const [deleteUserId, setDeleteUserId] = useState<string | null>(null);
+
+
 
   // ---- Tenant logic ----
   const filteredTenants = tenants.filter(t => t.name.toLowerCase().includes(tenantSearch.toLowerCase()));
@@ -187,7 +181,11 @@ export default function Planogram() {
   const handleStoreDelete = async () => { if (deleteStoreId) { await deleteStore.mutateAsync(deleteStoreId); setDeleteStoreId(null); } };
 
   // Filtered stores
-  const filteredStores = stores.filter(s => s.name.toLowerCase().includes(storeSearch.toLowerCase()) || (s.city || '').toLowerCase().includes(storeSearch.toLowerCase()));
+  const filteredStores = stores.filter(s => {
+    const matchesSearch = s.name.toLowerCase().includes(storeSearch.toLowerCase()) || (s.city || '').toLowerCase().includes(storeSearch.toLowerCase());
+    const matchesTenant = storeTenantFilter === 'all' || s.tenant_id === storeTenantFilter;
+    return matchesSearch && matchesTenant;
+  });
 
   // ---- Planogram CRUD ----
   const openNewTemplate = () => { setEditingTemplate(null); setTemplateName(''); setTemplateDesc(''); setTemplateStoreId(''); setTemplateStatus('draft'); setShowTemplateDialog(true); };
@@ -298,14 +296,8 @@ export default function Planogram() {
     if (editingProduct) { await updateProduct.mutateAsync({ id: editingProduct.id, name: editFormData.name, description: editFormData.description || null, barcode: editFormData.barcode || null, category_id: editFormData.category_id || null }); setEditingProduct(null); }
   };
 
-  // ---- Users logic ----
-  const filteredUsers = users.filter(user => {
-    const matchesSearch = (user.fullName || '').toLowerCase().includes(userSearch.toLowerCase()) || (user.username || '').toLowerCase().includes(userSearch.toLowerCase());
-    const matchesRole = userRoleFilter === 'all' || user.role === userRoleFilter;
-    return matchesSearch && matchesRole;
-  });
-  const handleRoleChange = () => { if (roleChangeUser && newRole) { updateUserRole.mutate({ userId: roleChangeUser.userId, role: newRole }); setRoleChangeUser(null); setNewRole(''); } };
-  const handleUserDelete = () => { if (deleteUserId) { deleteUser.mutate(deleteUserId); setDeleteUserId(null); } };
+
+
 
   const tabItems = [
     { value: 'tenants', label: 'Tenants', icon: Building2 },
@@ -315,7 +307,6 @@ export default function Planogram() {
     { value: 'scan-history', label: 'Scan History', icon: TrendingUp },
     { value: 'categories', label: 'Categories', icon: FolderOpen },
     { value: 'products', label: 'Products', icon: Package },
-    { value: 'users', label: 'Users', icon: UsersIcon },
     { value: 'versions', label: 'Version History', icon: History },
   ];
 
@@ -486,11 +477,18 @@ export default function Planogram() {
 
         {/* ========== STORES TAB ========== */}
         <TabsContent value="stores" className="space-y-4 animate-fade-in">
-          <div className="flex flex-col sm:flex-row gap-4">
+           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Search stores by name or city..." className="pl-9 bg-card border-border" value={storeSearch} onChange={e => setStoreSearch(e.target.value)} />
             </div>
+            <Select value={storeTenantFilter} onValueChange={setStoreTenantFilter}>
+              <SelectTrigger className="w-[200px] bg-card border-border"><Building2 className="w-3.5 h-3.5 mr-2" /><SelectValue placeholder="All Tenants" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Tenants</SelectItem>
+                {tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -1055,101 +1053,6 @@ export default function Planogram() {
           <AlertDialog open={!!deleteProductId} onOpenChange={() => setDeleteProductId(null)}>
             <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Product</AlertDialogTitle><AlertDialogDescription>Are you sure? This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
             <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleProductDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-          </AlertDialog>
-        </TabsContent>
-
-        {/* ========== USERS TAB ========== */}
-        <TabsContent value="users" className="space-y-4 animate-fade-in">
-          <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input placeholder="Search users..." className="pl-9 bg-card border-border" value={userSearch} onChange={e => setUserSearch(e.target.value)} />
-            </div>
-            <Select value={userRoleFilter} onValueChange={setUserRoleFilter}>
-              <SelectTrigger className="w-[160px] bg-card border-border"><Shield className="w-3.5 h-3.5 mr-2" /><SelectValue placeholder="All roles" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All roles</SelectItem>
-                <SelectItem value="admin">Admin</SelectItem>
-                <SelectItem value="tenant_admin">Tenant Admin</SelectItem>
-                <SelectItem value="tenant_user">User</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-foreground">{users.length}</p><p className="text-sm text-muted-foreground">Total Users</p></div>
-            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-primary">{users.filter(u => u.role === 'admin').length}</p><p className="text-sm text-muted-foreground">Admins</p></div>
-            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-accent">{users.filter(u => u.role === 'tenant_admin').length}</p><p className="text-sm text-muted-foreground">Tenant Admins</p></div>
-            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-foreground">{users.filter(u => u.role === 'tenant_user').length}</p><p className="text-sm text-muted-foreground">Users</p></div>
-          </div>
-
-          {usersLoading ? (
-            <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
-          ) : (
-            <div className="rounded-xl bg-card border border-border overflow-hidden">
-              <div className="overflow-x-auto">
-                <table className="w-full">
-                  <thead>
-                    <tr className="border-b border-border bg-muted/30">
-                      <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">User</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Username</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Role</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Tenant</th>
-                      <th className="text-left py-3 px-4 text-sm font-medium text-muted-foreground">Joined</th>
-                      <th className="text-right py-3 px-4 text-sm font-medium text-muted-foreground">Actions</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {filteredUsers.map((user, index) => (
-                      <tr key={user.id} className="border-b border-border last:border-0 hover:bg-muted/20 transition-colors animate-fade-in" style={{ animationDelay: `${index * 30}ms` }}>
-                        <td className="py-4 px-4">
-                          <div className="flex items-center gap-3">
-                            <div className="w-9 h-9 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
-                              {user.avatarUrl ? <img src={user.avatarUrl} alt="" className="w-full h-full object-cover" /> : <span className="text-sm font-medium text-primary">{(user.fullName || 'U').split(' ').map(n => n[0]).join('').slice(0, 2)}</span>}
-                            </div>
-                            <div><p className="font-medium text-foreground">{user.fullName || 'Unnamed'}</p><p className="text-xs text-muted-foreground">{user.userId.slice(0, 8)}...</p></div>
-                          </div>
-                        </td>
-                        <td className="py-4 px-4"><span className="text-sm text-foreground">{user.username || '—'}</span></td>
-                        <td className="py-4 px-4"><Badge variant={roleLabels[user.role]?.variant || 'outline'}>{roleLabels[user.role]?.label || user.role}</Badge></td>
-                        <td className="py-4 px-4 text-sm text-muted-foreground">{user.tenantId ? user.tenantId.slice(0, 8) + '...' : '—'}</td>
-                        <td className="py-4 px-4 text-sm text-muted-foreground">{new Date(user.createdAt).toLocaleDateString()}</td>
-                        <td className="py-4 px-4 text-right">
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => { setRoleChangeUser({ userId: user.userId, currentRole: user.role }); setNewRole(user.role); }}><Shield className="w-4 h-4 mr-2" />Change Role</DropdownMenuItem>
-                              <DropdownMenuItem className="text-destructive" onClick={() => setDeleteUserId(user.userId)}><Trash2 className="w-4 h-4 mr-2" />Remove User</DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                        </td>
-                      </tr>
-                    ))}
-                    {filteredUsers.length === 0 && <tr><td colSpan={6} className="py-12 text-center text-muted-foreground">No users found.</td></tr>}
-                  </tbody>
-                </table>
-              </div>
-            </div>
-          )}
-
-          <Dialog open={!!roleChangeUser} onOpenChange={() => setRoleChangeUser(null)}>
-            <DialogContent className="bg-card border-border max-w-sm">
-              <DialogHeader><DialogTitle className="flex items-center gap-2"><Shield className="w-5 h-5 text-primary" />Change User Role</DialogTitle></DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-2"><Label>New Role</Label>
-                  <Select value={newRole} onValueChange={setNewRole}><SelectTrigger className="bg-secondary border-border"><SelectValue /></SelectTrigger>
-                  <SelectContent><SelectItem value="admin">Admin</SelectItem><SelectItem value="tenant_admin">Tenant Admin</SelectItem><SelectItem value="tenant_user">User</SelectItem></SelectContent></Select>
-                </div>
-                <div className="flex justify-end gap-3">
-                  <Button variant="outline" onClick={() => setRoleChangeUser(null)}>Cancel</Button>
-                  <Button onClick={handleRoleChange} disabled={updateUserRole.isPending}>{updateUserRole.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}Save</Button>
-                </div>
-              </div>
-            </DialogContent>
-          </Dialog>
-          <AlertDialog open={!!deleteUserId} onOpenChange={() => setDeleteUserId(null)}>
-            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Remove User</AlertDialogTitle><AlertDialogDescription>This will remove the user's profile and role assignments.</AlertDialogDescription></AlertDialogHeader>
-            <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleUserDelete} className="bg-destructive text-destructive-foreground">Remove</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
           </AlertDialog>
         </TabsContent>
 
