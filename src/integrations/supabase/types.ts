@@ -440,6 +440,7 @@ export type Database = {
           store_id: string | null
           tenant_id: string
           updated_at: string
+          width_cm: number | null
         }
         Insert: {
           created_at?: string
@@ -450,6 +451,7 @@ export type Database = {
           store_id?: string | null
           tenant_id: string
           updated_at?: string
+          width_cm?: number | null
         }
         Update: {
           created_at?: string
@@ -460,6 +462,7 @@ export type Database = {
           store_id?: string | null
           tenant_id?: string
           updated_at?: string
+          width_cm?: number | null
         }
         Relationships: [
           {

@@ -7,9 +7,9 @@ import { AuthProvider } from "@/contexts/AuthContext";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import Dashboard from "./pages/Dashboard";
 import Products from "./pages/Products";
-import Detection from "./pages/Detection";
+
 import Categories from "./pages/Categories";
-import Shelves from "./pages/Shelves";
+
 import ShelfDetail from "./pages/ShelfDetail";
 import Tenants from "./pages/Tenants";
 import Activity from "./pages/Activity";
@@ -55,11 +55,6 @@ const App = () => (
                 <Products />
               </ProtectedRoute>
             } />
-            <Route path="/shelves" element={
-              <ProtectedRoute requiredRoles={['admin']}>
-                <Shelves />
-              </ProtectedRoute>
-            } />
             <Route path="/shelves/:id" element={
               <ProtectedRoute requiredRoles={['admin']}>
                 <ShelfDetail />
@@ -68,11 +63,6 @@ const App = () => (
             <Route path="/planogram" element={
               <ProtectedRoute requiredRoles={['admin']}>
                 <Planogram />
-              </ProtectedRoute>
-            } />
-            <Route path="/detection" element={
-              <ProtectedRoute requiredRoles={['admin']}>
-                <Detection />
               </ProtectedRoute>
             } />
             <Route path="/activity" element={
