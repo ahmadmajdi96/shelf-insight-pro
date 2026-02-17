@@ -9,7 +9,7 @@ import Dashboard from "./pages/Dashboard";
 import ShelfDetail from "./pages/ShelfDetail";
 import Tenants from "./pages/Tenants";
 import Activity from "./pages/Activity";
-import Settings from "./pages/Settings";
+import ApiDocs from "./pages/ApiDocs";
 import Data from "./pages/Data";
 import Planogram from "./pages/Planogram";
 import Profile from "./pages/Profile";
@@ -41,7 +41,7 @@ const App = () => (
             <Route path="/shelves/:id" element={<ProtectedRoute requiredRoles={['admin']}><ShelfDetail /></ProtectedRoute>} />
             <Route path="/activity" element={<ProtectedRoute requiredRoles={['admin']}><Activity /></ProtectedRoute>} />
             <Route path="/data" element={<ProtectedRoute requiredRoles={['admin']}><Data /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute requiredRoles={['admin']}><Settings /></ProtectedRoute>} />
+            <Route path="/api-docs" element={<ProtectedRoute requiredRoles={['admin']}><ApiDocs /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute requiredRoles={['admin']}><Profile /></ProtectedRoute>} />
             <Route path="/notifications" element={<ProtectedRoute requiredRoles={['admin']}><Notifications /></ProtectedRoute>} />
             

@@ -3,7 +3,6 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
   ScanLine, 
-  Settings, 
   ChevronLeft,
   ChevronRight,
   LogOut,
@@ -13,7 +12,8 @@ import {
   Database,
   Grid3X3,
   Bell,
-  Users
+  Users,
+  FileCode
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -28,7 +28,7 @@ const navItems = [
   { icon: Database, label: 'Data', path: '/data' },
   { icon: Users, label: 'Users', path: '/users' },
   { icon: Bell, label: 'Notifications', path: '/notifications' },
-  { icon: Settings, label: 'Settings', path: '/settings' },
+  { icon: FileCode, label: 'API Docs', path: '/api-docs' },
 ];
 
 export function Sidebar() {
