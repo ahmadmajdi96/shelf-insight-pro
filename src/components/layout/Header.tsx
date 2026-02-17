@@ -1,7 +1,6 @@
 import { useState, useRef, useEffect } from 'react';
-import { Bell, Search, User, LogOut, Settings, ChevronDown, Check, CheckCheck } from 'lucide-react';
+import { Bell, User, LogOut, Settings, ChevronDown, CheckCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/contexts/AuthContext';
@@ -51,15 +50,6 @@ export function Header({ title, subtitle }: HeaderProps) {
         </div>
 
         <div className="flex items-center gap-1.5 md:gap-2">
-          {/* Search */}
-          <div className="relative hidden lg:block">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-            <Input 
-              placeholder="Search..." 
-              className="w-56 pl-9 h-9 bg-secondary/50 border-border/50 focus:border-primary text-sm"
-            />
-          </div>
-
           {/* Notifications */}
           <div className="relative" ref={notifRef}>
             <Button 
