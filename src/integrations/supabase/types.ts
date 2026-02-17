@@ -14,6 +14,66 @@ export type Database = {
   }
   public: {
     Tables: {
+      compliance_scans: {
+        Row: {
+          compliance_score: number
+          created_at: string
+          details: Json | null
+          id: string
+          image_url: string
+          scanned_by: string | null
+          shelf_image_id: string | null
+          template_id: string
+          total_expected: number
+          total_extra: number
+          total_found: number
+          total_missing: number
+        }
+        Insert: {
+          compliance_score?: number
+          created_at?: string
+          details?: Json | null
+          id?: string
+          image_url: string
+          scanned_by?: string | null
+          shelf_image_id?: string | null
+          template_id: string
+          total_expected?: number
+          total_extra?: number
+          total_found?: number
+          total_missing?: number
+        }
+        Update: {
+          compliance_score?: number
+          created_at?: string
+          details?: Json | null
+          id?: string
+          image_url?: string
+          scanned_by?: string | null
+          shelf_image_id?: string | null
+          template_id?: string
+          total_expected?: number
+          total_extra?: number
+          total_found?: number
+          total_missing?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "compliance_scans_shelf_image_id_fkey"
+            columns: ["shelf_image_id"]
+            isOneToOne: false
+            referencedRelation: "shelf_images"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "compliance_scans_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "planogram_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       detection_results: {
         Row: {
           bounding_boxes: Json | null
@@ -206,6 +266,108 @@ export type Database = {
             columns: ["tenant_id"]
             isOneToOne: false
             referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planogram_templates: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          layout: Json
+          name: string
+          shelf_id: string | null
+          status: string
+          store_id: string | null
+          tenant_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          layout?: Json
+          name: string
+          shelf_id?: string | null
+          status?: string
+          store_id?: string | null
+          tenant_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          layout?: Json
+          name?: string
+          shelf_id?: string | null
+          status?: string
+          store_id?: string | null
+          tenant_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planogram_templates_shelf_id_fkey"
+            columns: ["shelf_id"]
+            isOneToOne: false
+            referencedRelation: "shelves"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planogram_templates_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "planogram_templates_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      planogram_versions: {
+        Row: {
+          change_notes: string | null
+          created_at: string
+          created_by: string | null
+          id: string
+          layout: Json
+          template_id: string
+          version_number: number
+        }
+        Insert: {
+          change_notes?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          layout?: Json
+          template_id: string
+          version_number?: number
+        }
+        Update: {
+          change_notes?: string | null
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          layout?: Json
+          template_id?: string
+          version_number?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "planogram_versions_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "planogram_templates"
             referencedColumns: ["id"]
           },
         ]
