@@ -12,8 +12,7 @@ import {
   X,
   Database,
   Grid3X3,
-  Bell,
-  Users
+  Bell
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -24,7 +23,6 @@ import { useNotifications } from '@/hooks/useNotifications';
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: Grid3X3, label: 'Management', path: '/management' },
-  { icon: Users, label: 'Users', path: '/users' },
   { icon: Activity, label: 'Activity', path: '/activity' },
   { icon: Database, label: 'Data', path: '/data' },
   { icon: Bell, label: 'Notifications', path: '/notifications' },

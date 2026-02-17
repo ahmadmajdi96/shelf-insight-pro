@@ -33,12 +33,12 @@ const App = () => (
             <Route path="/signup" element={<Signup />} />
             
             <Route path="/" element={<ProtectedRoute requiredRoles={['admin']}><Dashboard /></ProtectedRoute>} />
-            <Route path="/tenants" element={<ProtectedRoute requiredRoles={['admin']}><Tenants /></ProtectedRoute>} />
+            <Route path="/tenants" element={<ProtectedRoute requiredRoles={['admin']}><Planogram /></ProtectedRoute>} />
             <Route path="/categories" element={<ProtectedRoute requiredRoles={['admin']}><Planogram /></ProtectedRoute>} />
             <Route path="/products" element={<ProtectedRoute requiredRoles={['admin']}><Planogram /></ProtectedRoute>} />
             <Route path="/management" element={<ProtectedRoute requiredRoles={['admin']}><Planogram /></ProtectedRoute>} />
+            <Route path="/users" element={<ProtectedRoute requiredRoles={['admin']}><Planogram /></ProtectedRoute>} />
             <Route path="/shelves/:id" element={<ProtectedRoute requiredRoles={['admin']}><ShelfDetail /></ProtectedRoute>} />
-            <Route path="/users" element={<ProtectedRoute requiredRoles={['admin']}><Users /></ProtectedRoute>} />
             <Route path="/activity" element={<ProtectedRoute requiredRoles={['admin']}><Activity /></ProtectedRoute>} />
             <Route path="/data" element={<ProtectedRoute requiredRoles={['admin']}><Data /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute requiredRoles={['admin']}><Settings /></ProtectedRoute>} />
