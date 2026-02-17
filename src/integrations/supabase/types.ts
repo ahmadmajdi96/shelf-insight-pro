@@ -322,6 +322,7 @@ export type Database = {
           tenant_id: string | null
           updated_at: string
           user_id: string
+          username: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -332,6 +333,7 @@ export type Database = {
           tenant_id?: string | null
           updated_at?: string
           user_id: string
+          username?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -342,6 +344,7 @@ export type Database = {
           tenant_id?: string | null
           updated_at?: string
           user_id?: string
+          username?: string | null
         }
         Relationships: [
           {
@@ -720,6 +723,64 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_shelf_access: {
+        Row: {
+          created_at: string
+          id: string
+          shelf_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          shelf_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          shelf_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_shelf_access_shelf_id_fkey"
+            columns: ["shelf_id"]
+            isOneToOne: false
+            referencedRelation: "shelves"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_store_access: {
+        Row: {
+          created_at: string
+          id: string
+          store_id: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          store_id: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          store_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_store_access_store_id_fkey"
+            columns: ["store_id"]
+            isOneToOne: false
+            referencedRelation: "stores"
+            referencedColumns: ["id"]
+          },
+        ]
       }
     }
     Views: {

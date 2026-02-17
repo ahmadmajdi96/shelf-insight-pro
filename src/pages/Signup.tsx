@@ -9,6 +9,7 @@ import { cn } from '@/lib/utils';
 
 export default function Signup() {
   const [fullName, setFullName] = useState('');
+  const [username, setUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -35,7 +36,7 @@ export default function Signup() {
     
     setIsLoading(true);
     
-    const { error } = await signUp(email, password, fullName);
+    const { error } = await signUp(email, password, fullName, username);
     
     if (!error) {
       setSignupComplete(true);
@@ -83,24 +84,14 @@ export default function Signup() {
             Join hundreds of retail brands using ShelfVision to optimize their shelf presence and drive sales.
           </p>
           <div className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full bg-success/20 flex items-center justify-center">
-                <Check className="w-3 h-3 text-success" />
+            {['Train unlimited SKUs', 'Real-time share of shelf analytics', 'Multi-store monitoring'].map(text => (
+              <div key={text} className="flex items-center gap-3">
+                <div className="w-6 h-6 rounded-full bg-success/20 flex items-center justify-center">
+                  <Check className="w-3 h-3 text-success" />
+                </div>
+                <span className="text-foreground">{text}</span>
               </div>
-              <span className="text-foreground">Train unlimited SKUs</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full bg-success/20 flex items-center justify-center">
-                <Check className="w-3 h-3 text-success" />
-              </div>
-              <span className="text-foreground">Real-time share of shelf analytics</span>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="w-6 h-6 rounded-full bg-success/20 flex items-center justify-center">
-                <Check className="w-3 h-3 text-success" />
-              </div>
-              <span className="text-foreground">Multi-store monitoring</span>
-            </div>
+            ))}
           </div>
         </div>
         
@@ -126,17 +117,31 @@ export default function Signup() {
           </div>
 
           <form onSubmit={handleSubmit} className="space-y-5">
-            <div className="space-y-2">
-              <Label htmlFor="fullName">Full name</Label>
-              <Input
-                id="fullName"
-                type="text"
-                placeholder="John Doe"
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                required
-                className="bg-card border-border"
-              />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="fullName">Full name</Label>
+                <Input
+                  id="fullName"
+                  type="text"
+                  placeholder="John Doe"
+                  value={fullName}
+                  onChange={(e) => setFullName(e.target.value)}
+                  required
+                  className="bg-card border-border"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="username">Username</Label>
+                <Input
+                  id="username"
+                  type="text"
+                  placeholder="johndoe"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                  required
+                  className="bg-card border-border"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
@@ -173,7 +178,6 @@ export default function Signup() {
                 </button>
               </div>
               
-              {/* Password requirements */}
               {password.length > 0 && (
                 <div className="grid grid-cols-2 gap-2 mt-3 text-xs">
                   <PasswordRequirement met={hasMinLength} text="8+ characters" />
@@ -207,7 +211,7 @@ export default function Signup() {
               type="submit"
               variant="glow"
               className="w-full"
-              disabled={isLoading || !isPasswordValid || !passwordsMatch}
+              disabled={isLoading || !isPasswordValid || !passwordsMatch || !username}
             >
               {isLoading ? (
                 <Loader2 className="w-4 h-4 mr-2 animate-spin" />
