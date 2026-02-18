@@ -579,35 +579,58 @@ export default function Planogram() {
                   {templates.length === 0 && <Button variant="glow" onClick={openNewTemplate}><Plus className="w-4 h-4 mr-2" />Create Planogram</Button>}
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                  {filteredTemplates.map(t => (
-                    <div key={t.id} className="bg-card border border-border rounded-xl p-4 space-y-3 hover:border-primary/30 transition-all duration-300">
-                      <div className="flex items-start justify-between">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-foreground truncate">{t.name}</h3>
-                          {t.description && <p className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{t.description}</p>}
-                        </div>
-                        <Badge variant={t.status === 'active' ? 'default' : 'secondary'} className="text-[10px] ml-2 shrink-0">{t.status}</Badge>
-                      </div>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        <div className="flex items-center gap-1.5 text-muted-foreground"><Store className="w-3 h-3" /> {t.store?.name || 'No store'}</div>
-                        <div className="flex items-center gap-1.5 text-muted-foreground"><History className="w-3 h-3" /> {t.versions_count} version{t.versions_count !== 1 ? 's' : ''}</div>
-                        <div className="flex items-center gap-1.5 text-muted-foreground"><LayoutGrid className="w-3 h-3" /> {t.layout.length} shelves</div>
-                        <div className="flex items-center gap-1.5">
-                          <BarChart3 className="w-3 h-3" />
-                          {t.latest_compliance !== null ? <span className={getScoreColor(t.latest_compliance!)}>{t.latest_compliance}%</span> : <span className="text-muted-foreground">No scans</span>}
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-1.5 pt-1 border-t border-border">
-                        <Button size="sm" variant="ghost" className="h-7 text-xs flex-1" onClick={() => openDesigner(t)}><Pencil className="w-3 h-3 mr-1" />Design</Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setVersionTemplateId(t.id); setActiveTab('versions'); }}><History className="w-3 h-3 mr-1" />History</Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setComplianceTemplateId(t.id); setActiveTab('compliance'); }}><BarChart3 className="w-3 h-3 mr-1" />Scan</Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => openEditTemplate(t)}><Pencil className="w-3 h-3" /></Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => duplicateTemplate.mutate(t.id)}><Copy className="w-3 h-3" /></Button>
-                        <Button size="sm" variant="ghost" className="h-7 text-xs text-destructive" onClick={() => setDeleteTemplateId(t.id)}><Trash2 className="w-3 h-3" /></Button>
-                      </div>
-                    </div>
-                  ))}
+                <div className="bg-card border border-border rounded-xl overflow-hidden">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>Name</TableHead>
+                        <TableHead>Store</TableHead>
+                        <TableHead className="text-center">Status</TableHead>
+                        <TableHead className="text-center">Shelves</TableHead>
+                        <TableHead className="text-center">Versions</TableHead>
+                        <TableHead className="text-center">Compliance</TableHead>
+                        <TableHead className="text-center">Updated</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredTemplates.map(t => (
+                        <TableRow key={t.id} className="cursor-pointer" onClick={() => openDesigner(t)}>
+                          <TableCell>
+                            <div className="min-w-0">
+                              <p className="font-medium text-foreground truncate">{t.name}</p>
+                              {t.description && <p className="text-xs text-muted-foreground line-clamp-1">{t.description}</p>}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-muted-foreground text-sm">{t.store?.name || '—'}</TableCell>
+                          <TableCell className="text-center">
+                            <Badge variant={t.status === 'active' ? 'default' : 'secondary'} className="text-[10px]">{t.status}</Badge>
+                          </TableCell>
+                          <TableCell className="text-center text-sm">{t.layout.length}</TableCell>
+                          <TableCell className="text-center text-sm">{t.versions_count}</TableCell>
+                          <TableCell className="text-center text-sm">
+                            {t.latest_compliance !== null ? <span className={getScoreColor(t.latest_compliance!)}>{t.latest_compliance}%</span> : <span className="text-muted-foreground">—</span>}
+                          </TableCell>
+                          <TableCell className="text-center text-xs text-muted-foreground">{formatDistanceToNow(new Date(t.updated_at), { addSuffix: true })}</TableCell>
+                          <TableCell className="text-right" onClick={e => e.stopPropagation()}>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="w-4 h-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => openDesigner(t)}><Pencil className="w-4 h-4 mr-2" />Design</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => openEditTemplate(t)}><Pencil className="w-4 h-4 mr-2" />Edit Details</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setVersionTemplateId(t.id); setActiveTab('versions'); }}><History className="w-4 h-4 mr-2" />History</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => { setComplianceTemplateId(t.id); setActiveTab('compliance'); }}><BarChart3 className="w-4 h-4 mr-2" />Scan</DropdownMenuItem>
+                                <DropdownMenuItem onClick={() => duplicateTemplate.mutate(t.id)}><Copy className="w-4 h-4 mr-2" />Duplicate</DropdownMenuItem>
+                                <DropdownMenuItem className="text-destructive" onClick={() => setDeleteTemplateId(t.id)}><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </div>
               )}
             </>
