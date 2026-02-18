@@ -206,8 +206,9 @@ export default function Planogram() {
 
   // ---- Designer ----
   const designerTemplate = templates.find(t => t.id === designerTemplateId);
+  const normalizeRows = (layout: any[]): PlanogramRow[] => (layout || []).map(r => ({ ...r, products: (r.products || []).map((p: any) => ({ instanceId: p.instanceId || crypto.randomUUID(), skuId: p.skuId ?? null, name: p.name || 'Unknown', facings: p.facings ?? 1 })) }));
   const openDesigner = (t: PlanogramTemplate) => {
-    setDesignerTemplateId(t.id); setRows(t.layout || []); setChangeNotes('');
+    setDesignerTemplateId(t.id); setRows(normalizeRows(t.layout)); setChangeNotes('');
     const widths: Record<string, { value: string; unit: 'cm' | 'm' }> = {};
     (t.layout || []).forEach(r => { if ((r as any).widthCm) widths[r.id] = { value: String((r as any).widthCm), unit: 'cm' }; });
     setShelfWidths(widths);
@@ -232,14 +233,14 @@ export default function Planogram() {
     await updateTemplate.mutateAsync({ id: designerTemplateId, layout: enrichedRows as any, changeNotes: changeNotes || undefined });
     setChangeNotes('');
   };
-  const totalProducts = rows.reduce((acc, r) => acc + r.products.length, 0);
-  const totalFacings = rows.reduce((acc, r) => acc + r.products.reduce((a, p) => a + p.facings, 0), 0);
+  const totalProducts = rows.reduce((acc, r) => acc + (r.products || []).length, 0);
+  const totalFacings = rows.reduce((acc, r) => acc + (r.products || []).reduce((a, p) => a + p.facings, 0), 0);
 
   // ---- Compliance ----
   const runComplianceCheck = async (template: PlanogramTemplate, shelfImageUrl: string, shelfImageId?: string) => {
-    const layout = template.layout || [];
+    const layout = normalizeRows(template.layout);
     const expectedProducts = new Map<string, { name: string; count: number }>();
-    layout.forEach(row => { row.products.forEach(p => { if (p.skuId) { const existing = expectedProducts.get(p.skuId); expectedProducts.set(p.skuId, { name: p.name, count: (existing?.count || 0) + p.facings }); } }); });
+    layout.forEach(row => { (row.products || []).forEach(p => { if (p.skuId) { const existing = expectedProducts.get(p.skuId); expectedProducts.set(p.skuId, { name: p.name, count: (existing?.count || 0) + p.facings }); } }); });
     const detectionResult = await detectWithRoboflow(shelfImageUrl, template.shelf_id || undefined, tenantId || undefined);
     if (!detectionResult.success || !detectionResult.result) { toast({ title: 'Compliance scan failed', description: 'Could not detect products in the image.', variant: 'destructive' }); return; }
     const detectedCounts = new Map<string, number>();
@@ -261,7 +262,7 @@ export default function Planogram() {
   };
 
   // ---- Version restore ----
-  const restoreVersion = async (version: { layout: PlanogramRow[]; version_number: number }) => {
+  const restoreVersion = async (version: { layout: any[]; version_number: number }) => {
     if (!versionTemplateId) return;
     await updateTemplate.mutateAsync({ id: versionTemplateId, layout: version.layout, changeNotes: `Restored from version ${version.version_number}` });
     toast({ title: 'Version restored', description: `Layout reverted to version ${version.version_number}.` });
@@ -1104,8 +1105,8 @@ export default function Planogram() {
           ) : (
             <div className="space-y-3">
               {versions.map((v, idx) => {
-                const vProducts = v.layout.reduce((acc, r) => acc + r.products.length, 0);
-                const vFacings = v.layout.reduce((acc, r) => acc + r.products.reduce((a, p) => a + p.facings, 0), 0);
+                const vProducts = (v.layout || []).reduce((acc, r) => acc + (r.products || []).length, 0);
+                const vFacings = (v.layout || []).reduce((acc, r) => acc + (r.products || []).reduce((a, p) => a + (p.facings ?? 1), 0), 0);
                 return (
                   <div key={v.id} className={cn("bg-card border rounded-xl p-4", idx === 0 ? "border-primary/30" : "border-border")}>
                     <div className="flex items-center justify-between">
