@@ -19,6 +19,7 @@ import {
 } from '@/components/ui/select';
 import { useProducts } from '@/hooks/useProducts';
 import { useCategories } from '@/hooks/useCategories';
+import { useTenants } from '@/hooks/useTenants';
 import { useQuota } from '@/hooks/useQuota';
 import { useToast } from '@/hooks/use-toast';
 
@@ -33,12 +34,14 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
     description: '',
     categoryId: '',
     barcode: '',
+    tenantId: '',
   });
   const [images, setImages] = useState<File[]>([]);
   const [previewUrls, setPreviewUrls] = useState<string[]>([]);
   
   const { createProduct } = useProducts();
   const { categories } = useCategories();
+  const { tenants } = useTenants();
   const { canAddSku, quota } = useQuota();
   const { toast } = useToast();
 
@@ -75,7 +78,7 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', description: '', categoryId: '', barcode: '' });
+    setFormData({ name: '', description: '', categoryId: '', barcode: '', tenantId: '' });
     setImages([]);
     setPreviewUrls([]);
   };
@@ -106,6 +109,7 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
       description: formData.description || null,
       category_id: formData.categoryId || null,
       barcode: formData.barcode || null,
+      tenant_id: formData.tenantId || null,
       images,
     });
 
@@ -150,21 +154,39 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
             </div>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="category">Category</Label>
-            <Select
-              value={formData.categoryId}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, categoryId: value }))}
-            >
-              <SelectTrigger className="bg-secondary border-border">
-                <SelectValue placeholder="Select a category" />
-              </SelectTrigger>
-              <SelectContent>
-                {categories.map(cat => (
-                  <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Tenant *</Label>
+              <Select
+                value={formData.tenantId}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, tenantId: value }))}
+              >
+                <SelectTrigger className="bg-secondary border-border">
+                  <SelectValue placeholder="Select a tenant" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tenants.map(t => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="category">Category</Label>
+              <Select
+                value={formData.categoryId}
+                onValueChange={(value) => setFormData(prev => ({ ...prev, categoryId: value }))}
+              >
+                <SelectTrigger className="bg-secondary border-border">
+                  <SelectValue placeholder="Select a category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <div className="space-y-2">
