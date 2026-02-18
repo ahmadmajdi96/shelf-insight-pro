@@ -1,19 +1,22 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { rest } from '@/lib/api-client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import type { Tables, TablesInsert } from '@/integrations/supabase/types';
 
-type Shelf = Tables<'shelves'>;
-type ShelfInsert = TablesInsert<'shelves'>;
-type ShelfProduct = Tables<'shelf_products'>;
-type ShelfImage = Tables<'shelf_images'>;
-
-interface ShelfWithDetails extends Shelf {
-  store?: Tables<'stores'> | null;
-  products?: Array<ShelfProduct & { sku?: Tables<'skus'> | null }>;
+interface ShelfWithDetails {
+  id: string;
+  name: string;
+  store_id: string | null;
+  tenant_id: string;
+  description: string | null;
+  location_in_store: string | null;
+  width_cm: number | null;
+  created_at: string;
+  updated_at: string;
+  store?: any;
+  products?: any[];
   imageCount: number;
-  lastImage?: ShelfImage | null;
+  lastImage?: any;
 }
 
 export function useShelves() {
@@ -24,25 +27,23 @@ export function useShelves() {
   const shelvesQuery = useQuery({
     queryKey: ['shelves'],
     queryFn: async () => {
-      const { data: shelves, error } = await supabase
-        .from('shelves')
-        .select(`*, store:stores(*), products:shelf_products(*, sku:skus(*))`)
-        .order('name', { ascending: true });
-
-      if (error) throw error;
+      const { data: shelves } = await rest.list('shelves', {
+        select: '*,store:stores(*),products:shelf_products(*,sku:skus(*))',
+        order: 'name.asc',
+      });
 
       const shelvesWithDetails: ShelfWithDetails[] = await Promise.all(
-        (shelves || []).map(async (shelf) => {
-          const { count, data: images } = await supabase
-            .from('shelf_images')
-            .select('*', { count: 'exact' })
-            .eq('shelf_id', shelf.id)
-            .order('created_at', { ascending: false })
-            .limit(1);
+        (shelves || []).map(async (shelf: any) => {
+          const { data: images } = await rest.list('shelf_images', {
+            select: '*',
+            filters: { shelf_id: `eq.${shelf.id}` },
+            order: 'created_at.desc',
+            limit: 1,
+          });
 
           return {
             ...shelf,
-            imageCount: count ?? 0,
+            imageCount: images?.length ?? 0,
             lastImage: images?.[0] ?? null,
           };
         })
@@ -54,84 +55,74 @@ export function useShelves() {
   });
 
   const createShelf = useMutation({
-    mutationFn: async (shelf: Omit<ShelfInsert, 'tenant_id'> & { tenant_id?: string }) => {
+    mutationFn: async (shelf: any) => {
       const tid = shelf.tenant_id || tenantId;
       if (!tid) throw new Error('No tenant ID');
-
-      const { data, error } = await supabase
-        .from('shelves')
-        .insert({ ...shelf, tenant_id: tid })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      return await rest.create('shelves', { ...shelf, tenant_id: tid });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
       toast({ title: 'Shelf created', description: 'Your shelf has been added successfully.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to create shelf', description: error.message, variant: 'destructive' });
     },
   });
 
   const updateShelf = useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<Shelf> & { id: string }) => {
-      const { data, error } = await supabase
-        .from('shelves')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+    mutationFn: async ({ id, ...updates }: any) => {
+      return await rest.update('shelves', { id: `eq.${id}` }, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
       toast({ title: 'Shelf updated', description: 'Changes saved successfully.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to update shelf', description: error.message, variant: 'destructive' });
     },
   });
 
   const deleteShelf = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('shelves').delete().eq('id', id);
-      if (error) throw error;
+      await rest.remove('shelves', id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
       toast({ title: 'Shelf deleted', description: 'The shelf has been removed.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to delete shelf', description: error.message, variant: 'destructive' });
     },
   });
 
   const assignProducts = useMutation({
     mutationFn: async ({ shelfId, skuIds, quantities }: { shelfId: string; skuIds: string[]; quantities?: Record<string, number> }) => {
-      await supabase.from('shelf_products').delete().eq('shelf_id', shelfId);
+      // Delete existing assignments
+      const { data: existing } = await rest.list('shelf_products', {
+        select: 'id',
+        filters: { shelf_id: `eq.${shelfId}` },
+      });
+      for (const item of (existing || [])) {
+        await rest.remove('shelf_products', item.id);
+      }
 
+      // Insert new
       if (skuIds.length > 0) {
-        const { error } = await supabase.from('shelf_products').insert(
-          skuIds.map((skuId, index) => ({
+        for (let i = 0; i < skuIds.length; i++) {
+          await rest.create('shelf_products', {
             shelf_id: shelfId,
-            sku_id: skuId,
-            position_order: index,
-            expected_facings: quantities?.[skuId] || 1,
-          }))
-        );
-        if (error) throw error;
+            sku_id: skuIds[i],
+            position_order: i,
+            expected_facings: quantities?.[skuIds[i]] || 1,
+          });
+        }
       }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
       toast({ title: 'Products assigned', description: 'Shelf products updated successfully.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to assign products', description: error.message, variant: 'destructive' });
     },
   });
@@ -155,49 +146,39 @@ export function useShelfImages(shelfId: string | null) {
     queryKey: ['shelf-images', shelfId],
     queryFn: async () => {
       if (!shelfId) return [];
-      const { data, error } = await supabase
-        .from('shelf_images')
-        .select('*')
-        .eq('shelf_id', shelfId)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data;
+      const { data } = await rest.list('shelf_images', {
+        select: '*',
+        filters: { shelf_id: `eq.${shelfId}` },
+        order: 'created_at.desc',
+      });
+      return data || [];
     },
     enabled: !!shelfId,
   });
 
   const addImage = useMutation({
     mutationFn: async ({ shelfId, imageUrl }: { shelfId: string; imageUrl: string }) => {
-      const { data, error } = await supabase
-        .from('shelf_images')
-        .insert({ shelf_id: shelfId, image_url: imageUrl })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      return await rest.create('shelf_images', { shelf_id: shelfId, image_url: imageUrl });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelf-images'] });
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to save image', description: error.message, variant: 'destructive' });
     },
   });
 
   const deleteImage = useMutation({
     mutationFn: async (imageId: string) => {
-      const { error } = await supabase.from('shelf_images').delete().eq('id', imageId);
-      if (error) throw error;
+      await rest.remove('shelf_images', imageId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelf-images'] });
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
       toast({ title: 'Image deleted', description: 'The image has been removed.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to delete image', description: error.message, variant: 'destructive' });
     },
   });

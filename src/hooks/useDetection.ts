@@ -1,12 +1,6 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { invoke } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
-
-interface SKUToDetect {
-  id: string;
-  name: string;
-  imageUrls: string[];
-}
 
 interface DetectionResult {
   detections: Array<{
@@ -25,6 +19,12 @@ interface DetectionResult {
   };
   totalFacings: number;
   summary: string;
+}
+
+interface SKUToDetect {
+  id: string;
+  name: string;
+  imageUrls: string[];
 }
 
 interface UseDetectionReturn {
@@ -51,18 +51,12 @@ export function useDetection(): UseDetectionReturn {
     setError(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('detect-skus', {
-        body: {
-          imageBase64,
-          tenantId,
-          storeId,
-          skusToDetect,
-        },
+      const data = await invoke('detect-skus', {
+        imageBase64,
+        tenantId,
+        storeId,
+        skusToDetect,
       });
-
-      if (fnError) {
-        throw new Error(fnError.message);
-      }
 
       if (data.error) {
         throw new Error(data.error);

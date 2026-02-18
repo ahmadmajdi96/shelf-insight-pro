@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { rpc } from '@/lib/api-client';
 import { useAuth } from '@/contexts/AuthContext';
 
 interface QuotaInfo {
@@ -23,15 +23,11 @@ export function useQuota() {
     queryKey: ['quota', tenantId],
     queryFn: async () => {
       if (!tenantId) return null;
-
-      const { data, error } = await supabase
-        .rpc('check_tenant_quota', { _tenant_id: tenantId });
-
-      if (error) throw error;
+      const data = await rpc('check_tenant_quota', { _tenant_id: tenantId });
       return data as unknown as QuotaInfo;
     },
     enabled: !!tenantId,
-    refetchInterval: 60000, // Refresh every minute
+    refetchInterval: 60000,
   });
 
   const monthlyPercentage = quotaQuery.data 
