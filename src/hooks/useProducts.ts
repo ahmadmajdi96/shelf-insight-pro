@@ -19,7 +19,7 @@ interface SKUWithImages {
 }
 
 export function useProducts() {
-  const { tenantId, isAdmin } = useAuth();
+  const { tenantId, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -32,7 +32,7 @@ export function useProducts() {
       });
       return (data || []) as SKUWithImages[];
     },
-    enabled: isAdmin,
+    enabled: !!user,
   });
 
   const createProduct = useMutation({

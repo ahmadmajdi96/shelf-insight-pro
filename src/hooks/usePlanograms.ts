@@ -59,7 +59,7 @@ export interface ComplianceScan {
 }
 
 export function usePlanogramTemplates() {
-  const { tenantId, isAdmin } = useAuth();
+  const { tenantId, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -96,7 +96,7 @@ export function usePlanogramTemplates() {
 
       return enriched;
     },
-    enabled: isAdmin,
+    enabled: !!user,
   });
 
   const createTemplate = useMutation({

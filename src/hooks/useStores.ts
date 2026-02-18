@@ -18,7 +18,7 @@ interface StoreWithStats {
 }
 
 export function useStores() {
-  const { isAdmin } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -58,7 +58,7 @@ export function useStores() {
 
       return storesWithStats;
     },
-    enabled: isAdmin,
+    enabled: !!user,
   });
 
   const createStore = useMutation({
