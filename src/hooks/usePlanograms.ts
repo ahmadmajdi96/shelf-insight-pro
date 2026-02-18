@@ -107,14 +107,16 @@ export function usePlanogramTemplates() {
       shelf_id?: string;
       layout: PlanogramRow[];
       status?: string;
+      tenantIdOverride?: string;
     }) => {
-      const tid = tenantId;
+      const tid = template.tenantIdOverride || tenantId;
       if (!tid) throw new Error('No tenant ID');
 
       const user = apiAuth.getUser();
+      const { tenantIdOverride: _override, ...templateData } = template;
 
       const data = await rest.create('planogram_templates', {
-        ...template,
+        ...templateData,
         tenant_id: tid,
         created_by: user?.id,
         layout: template.layout,
