@@ -51,7 +51,9 @@ export function useProducts() {
             await storage.upload('sku-training-images', fileName, image);
             const publicUrl = storage.getPublicUrl('sku-training-images', fileName);
             await rest.create('sku_images', { sku_id: sku.id, image_url: publicUrl });
-          } catch { /* continue */ }
+          } catch (err) {
+            console.error('Image upload failed:', err);
+          }
         }
       }
 

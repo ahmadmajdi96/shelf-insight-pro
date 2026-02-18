@@ -95,13 +95,11 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
       return;
     }
 
-    if (images.length < 5) {
+    if (images.length > 0 && images.length < 5) {
       toast({
-        title: 'More images needed',
-        description: 'Please upload at least 5 training images for better detection accuracy.',
-        variant: 'destructive',
+        title: 'Tip: More images improve accuracy',
+        description: 'Consider uploading at least 5 training images for better detection.',
       });
-      return;
     }
 
     await createProduct.mutateAsync({
