@@ -216,6 +216,34 @@ export const storage = {
     return await res.json();
   },
 
+  async uploadMultiple(bucket: string, path: string, files: File[], metadata?: Record<string, string>) {
+    const base = getApiBaseUrl();
+    const token = getToken();
+    const formData = new FormData();
+
+    if (metadata) {
+      Object.entries(metadata).forEach(([k, v]) => formData.append(k, v));
+    }
+
+    files.forEach(file => formData.append('files', file));
+
+    const headers: Record<string, string> = {};
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(`${base}/storage/v1/object/${bucket}/${path}`, {
+      method: 'POST',
+      headers,
+      body: formData,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ error: 'Upload failed' }));
+      throw new Error(err?.error || err?.detail || 'Upload failed');
+    }
+
+    return await res.json();
+  },
+
   getPublicUrl(bucket: string, path: string) {
     return `${getApiBaseUrl()}/storage/v1/object/${bucket}/${path}`;
   },

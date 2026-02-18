@@ -45,15 +45,25 @@ export function useProducts() {
 
       if (images && images.length > 0 && sku?.id) {
         const { storage } = await import('@/lib/api-client');
-        for (const image of images) {
-          const fileName = `${tid}/${sku.id}/${Date.now()}-${image.name}`;
-          try {
-            await storage.upload('sku-training-images', fileName, image);
-            const publicUrl = storage.getPublicUrl('sku-training-images', fileName);
-            await rest.create('sku_images', { sku_id: sku.id, image_url: publicUrl });
-          } catch (err) {
-            console.error('Image upload failed:', err);
+        try {
+          const result = await storage.uploadMultiple(
+            'sku-training-images',
+            'uploads',
+            images,
+            {
+              tenant_id: tid,
+              category_id: product.category_id || 'uncategorized',
+            }
+          );
+
+          // Save each uploaded image URL to sku_images
+          if (result?.items) {
+            for (const item of result.items) {
+              await rest.create('sku_images', { sku_id: sku.id, image_url: item.url });
+            }
           }
+        } catch (err) {
+          console.error('Image upload failed:', err);
         }
       }
 
@@ -95,15 +105,25 @@ export function useProducts() {
   });
 
   const uploadProductImage = useMutation({
-    mutationFn: async ({ skuId, file }: { skuId: string; file: File }) => {
+    mutationFn: async ({ skuId, file, categoryId }: { skuId: string; file: File; categoryId?: string }) => {
       const tid = tenantId;
       if (!tid) throw new Error('No tenant ID');
 
       const { storage } = await import('@/lib/api-client');
-      const fileName = `${tid}/${skuId}/${Date.now()}-${file.name}`;
-      await storage.upload('sku-training-images', fileName, file);
-      const publicUrl = storage.getPublicUrl('sku-training-images', fileName);
-      return await rest.create('sku_images', { sku_id: skuId, image_url: publicUrl });
+      const result = await storage.uploadMultiple(
+        'sku-training-images',
+        'uploads',
+        [file],
+        {
+          tenant_id: tid,
+          category_id: categoryId || 'uncategorized',
+        }
+      );
+
+      if (result?.items?.[0]) {
+        return await rest.create('sku_images', { sku_id: skuId, image_url: result.items[0].url });
+      }
+      throw new Error('No URL returned from upload');
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
