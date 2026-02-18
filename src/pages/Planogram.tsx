@@ -109,6 +109,7 @@ export default function Planogram() {
   const [templateName, setTemplateName] = useState('');
   const [templateDesc, setTemplateDesc] = useState('');
   const [templateStoreId, setTemplateStoreId] = useState('');
+  const [templateTenantId, setTemplateTenantId] = useState('');
   const [templateStatus, setTemplateStatus] = useState('draft');
   const [deleteTemplateId, setDeleteTemplateId] = useState<string | null>(null);
 
@@ -188,12 +189,14 @@ export default function Planogram() {
   });
 
   // ---- Planogram CRUD ----
-  const openNewTemplate = () => { setEditingTemplate(null); setTemplateName(''); setTemplateDesc(''); setTemplateStoreId(''); setTemplateStatus('draft'); setShowTemplateDialog(true); };
-  const openEditTemplate = (t: PlanogramTemplate) => { setEditingTemplate(t); setTemplateName(t.name); setTemplateDesc(t.description || ''); setTemplateStoreId(t.store_id || ''); setTemplateStatus(t.status); setShowTemplateDialog(true); };
+  const openNewTemplate = () => { setEditingTemplate(null); setTemplateName(''); setTemplateDesc(''); setTemplateStoreId(''); setTemplateTenantId(tenantId || (tenants.length > 0 ? tenants[0].id : '')); setTemplateStatus('draft'); setShowTemplateDialog(true); };
+  const openEditTemplate = (t: PlanogramTemplate) => { setEditingTemplate(t); setTemplateName(t.name); setTemplateDesc(t.description || ''); setTemplateStoreId(t.store_id || ''); setTemplateTenantId(t.tenant_id || ''); setTemplateStatus(t.status); setShowTemplateDialog(true); };
   const handleSaveTemplate = async () => {
     if (!templateName.trim()) return;
+    const selectedTenant = templateTenantId || tenantId;
+    if (!selectedTenant) { toast({ title: 'Tenant required', description: 'Please select a tenant for this planogram.', variant: 'destructive' }); return; }
     if (editingTemplate) await updateTemplate.mutateAsync({ id: editingTemplate.id, name: templateName, description: templateDesc || undefined, store_id: templateStoreId || undefined, status: templateStatus });
-    else await createTemplate.mutateAsync({ name: templateName, description: templateDesc || undefined, store_id: templateStoreId || undefined, status: templateStatus, layout: [] });
+    else await createTemplate.mutateAsync({ name: templateName, description: templateDesc || undefined, store_id: templateStoreId || undefined, status: templateStatus, layout: [], tenantIdOverride: selectedTenant });
     setShowTemplateDialog(false);
   };
   const handleDeleteTemplate = async () => { if (deleteTemplateId) { await deleteTemplate.mutateAsync(deleteTemplateId); setDeleteTemplateId(null); } };
@@ -223,7 +226,7 @@ export default function Planogram() {
   const updateProductFacings = (rowId: string, instanceId: string, facings: number) => { setRows(prev => prev.map(r => r.id !== rowId ? r : { ...r, products: r.products.map(p => p.instanceId === instanceId ? { ...p, facings: Math.max(1, facings) } : p) })); };
   const handleDragStart = (skuId: string | null, name: string) => setDragProduct({ skuId, name });
   const handleDragOver = (e: React.DragEvent) => { e.preventDefault(); e.dataTransfer.dropEffect = 'copy'; };
-  const handleDrop = (e: React.DragEvent, rowId: string) => { e.preventDefault(); if (dragProduct) { addProductToRow(rowId, dragProduct.skuId, dragProduct.name); setDragProduct(null); } };
+  const handleDrop = (e: React.DragEvent, rowId: string) => { e.preventDefault(); e.stopPropagation(); if (dragProduct) { addProductToRow(rowId, dragProduct.skuId, dragProduct.name); setDragProduct(null); } };
   const updateShelfWidth = (rowId: string, value: string, unit: 'cm' | 'm') => { setShelfWidths(prev => ({ ...prev, [rowId]: { value, unit } })); };
   const getShelfWidthCm = (rowId: string): number | null => { const w = shelfWidths[rowId]; if (!w || !w.value) return null; const num = parseFloat(w.value); if (isNaN(num) || num <= 0) return null; return w.unit === 'm' ? num * 100 : num; };
   const formatWidth = (cm: number | null) => { if (!cm) return null; return cm >= 100 ? `${(cm / 100).toFixed(2)}m` : `${cm}cm`; };
@@ -752,9 +755,12 @@ export default function Planogram() {
               <div className="space-y-4">
                 <div className="space-y-1.5"><Label>Name</Label><Input value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder="e.g. Aisle 3 - Beverages" /></div>
                 <div className="space-y-1.5"><Label>Description</Label><Textarea value={templateDesc} onChange={e => setTemplateDesc(e.target.value)} placeholder="Optional description..." rows={2} /></div>
-                <div className="grid grid-cols-2 gap-3">
+                <div className="grid grid-cols-3 gap-3">
+                  <div className="space-y-1.5"><Label>Tenant</Label>
+                    <Select value={templateTenantId} onValueChange={(v) => { setTemplateTenantId(v); setTemplateStoreId(''); }}><SelectTrigger><SelectValue placeholder="Select tenant..." /></SelectTrigger><SelectContent>{tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select>
+                  </div>
                   <div className="space-y-1.5"><Label>Store</Label>
-                    <Select value={templateStoreId} onValueChange={setTemplateStoreId}><SelectTrigger><SelectValue placeholder="Select store..." /></SelectTrigger><SelectContent>{stores.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select>
+                    <Select value={templateStoreId} onValueChange={setTemplateStoreId}><SelectTrigger><SelectValue placeholder="Select store..." /></SelectTrigger><SelectContent>{stores.filter(s => !templateTenantId || s.tenant_id === templateTenantId).map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select>
                   </div>
                   <div className="space-y-1.5"><Label>Status</Label>
                     <Select value={templateStatus} onValueChange={setTemplateStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="active">Active</SelectItem><SelectItem value="archived">Archived</SelectItem></SelectContent></Select>
