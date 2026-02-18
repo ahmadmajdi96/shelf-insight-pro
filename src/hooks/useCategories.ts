@@ -15,7 +15,7 @@ interface CategoryWithCounts {
 }
 
 export function useCategories() {
-  const { isAdmin, tenantId } = useAuth();
+  const { user, tenantId } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -49,7 +49,7 @@ export function useCategories() {
 
       return categoriesWithCounts;
     },
-    enabled: isAdmin,
+    enabled: !!user,
   });
 
   const createCategory = useMutation({

@@ -20,7 +20,7 @@ interface ShelfWithDetails {
 }
 
 export function useShelves() {
-  const { tenantId, isAdmin } = useAuth();
+  const { tenantId, user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -51,7 +51,7 @@ export function useShelves() {
 
       return shelvesWithDetails;
     },
-    enabled: isAdmin,
+    enabled: !!user,
   });
 
   const createShelf = useMutation({

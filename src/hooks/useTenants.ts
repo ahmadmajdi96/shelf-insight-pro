@@ -25,7 +25,7 @@ interface TenantWithStats {
 }
 
 export function useTenants() {
-  const { isAdmin } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -59,7 +59,7 @@ export function useTenants() {
 
       return tenantsWithStats;
     },
-    enabled: isAdmin,
+    enabled: !!user,
   });
 
   const createTenant = useMutation({
