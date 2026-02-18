@@ -22,7 +22,7 @@ import {
 } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useQuery } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { rest } from '@/lib/api-client';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
@@ -41,8 +41,7 @@ export default function Data() {
   const { data: tenants = [], isLoading: tenantsLoading, refetch: refetchTenants } = useQuery({
     queryKey: ['data-tenants'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('tenants').select('*').order('name');
-      if (error) throw error;
+      const { data } = await rest.list('tenants', { order: 'name.asc' });
       return data;
     },
     enabled: isAdmin,
@@ -51,11 +50,7 @@ export default function Data() {
   const { data: stores = [], isLoading: storesLoading, refetch: refetchStores } = useQuery({
     queryKey: ['data-stores'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('stores')
-        .select('*, tenant:tenants(name)')
-        .order('name');
-      if (error) throw error;
+      const { data } = await rest.list('stores', { select: '*,tenant:tenants(name)', order: 'name.asc' });
       return data;
     },
   });
@@ -63,11 +58,7 @@ export default function Data() {
   const { data: categories = [], isLoading: categoriesLoading, refetch: refetchCategories } = useQuery({
     queryKey: ['data-categories'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('product_categories')
-        .select('*, tenant:tenants(name)')
-        .order('name');
-      if (error) throw error;
+      const { data } = await rest.list('product_categories', { select: '*,tenant:tenants(name)', order: 'name.asc' });
       return data;
     },
   });
@@ -75,11 +66,7 @@ export default function Data() {
   const { data: products = [], isLoading: productsLoading, refetch: refetchProducts } = useQuery({
     queryKey: ['data-products'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('skus')
-        .select('*, tenant:tenants(name), category:product_categories(name)')
-        .order('name');
-      if (error) throw error;
+      const { data } = await rest.list('skus', { select: '*,tenant:tenants(name),category:product_categories(name)', order: 'name.asc' });
       return data;
     },
   });
@@ -87,11 +74,7 @@ export default function Data() {
   const { data: shelves = [], isLoading: shelvesLoading, refetch: refetchShelves } = useQuery({
     queryKey: ['data-shelves'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('shelves')
-        .select('*, tenant:tenants(name), store:stores(name)')
-        .order('name');
-      if (error) throw error;
+      const { data } = await rest.list('shelves', { select: '*,tenant:tenants(name),store:stores(name)', order: 'name.asc' });
       return data;
     },
   });
@@ -99,12 +82,11 @@ export default function Data() {
   const { data: scans = [], isLoading: scansLoading, refetch: refetchScans } = useQuery({
     queryKey: ['data-scans'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('shelf_images')
-        .select('*, shelf:shelves(name, tenant:tenants(name), store:stores(name))')
-        .order('created_at', { ascending: false })
-        .limit(500);
-      if (error) throw error;
+      const { data } = await rest.list('shelf_images', {
+        select: '*,shelf:shelves(name,tenant:tenants(name),store:stores(name))',
+        order: 'created_at.desc',
+        limit: 500,
+      });
       return data;
     },
   });
