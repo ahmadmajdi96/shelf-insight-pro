@@ -34,7 +34,6 @@ import { storage } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
-type Json = any;
 type ShelfImageRow = { id: string; shelf_id: string; image_url: string; detection_result: any; created_at: string; processed_at: string | null };
 
 interface RoboflowPrediction {
@@ -85,7 +84,7 @@ export default function ShelfDetail() {
   const [activeTab, setActiveTab] = useState('images');
   const [isUploading, setIsUploading] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
-  const [viewingImage, setViewingImage] = useState<Tables<'shelf_images'> | null>(null);
+  const [viewingImage, setViewingImage] = useState<ShelfImageRow | null>(null);
   const [selectedProducts, setSelectedProducts] = useState<Record<string, number>>({});
   const [isInitialized, setIsInitialized] = useState(false);
 
@@ -117,18 +116,12 @@ export default function ShelfDetail() {
     setIsUploading(true);
 
     try {
-      // Upload to Supabase storage
+      // Upload to storage
       const fileName = `${id}/${Date.now()}-${file.name}`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('shelf-images')
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
+      await storage.upload('shelf-images', fileName, file);
 
       // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('shelf-images')
-        .getPublicUrl(fileName);
+      const publicUrl = storage.getPublicUrl('shelf-images', fileName);
 
       // Run detection
       const detectionResult = await detectWithRoboflow(publicUrl, id, tenantId || undefined);
@@ -192,7 +185,7 @@ export default function ShelfDetail() {
   const MIN_CONFIDENCE = confidence;
 
   // Parse detection results from image - return ALL predictions above confidence threshold
-  const parseDetectionResults = (detectionResult: Json | null): RoboflowPrediction[] => {
+  const parseDetectionResults = (detectionResult: any): RoboflowPrediction[] => {
     if (!detectionResult) return [];
     
     try {
@@ -210,7 +203,7 @@ export default function ShelfDetail() {
   };
 
   // Get all predictions with counts per class
-  const getProductCounts = (detectionResult: Json | null): Record<string, number> => {
+  const getProductCounts = (detectionResult: any): Record<string, number> => {
     if (!detectionResult) return {};
     
     try {
@@ -231,7 +224,7 @@ export default function ShelfDetail() {
     }
   };
 
-  const getImageDimensions = (detectionResult: Json | null): { width: number; height: number } | null => {
+  const getImageDimensions = (detectionResult: any): { width: number; height: number } | null => {
     if (!detectionResult) return null;
     
     try {
