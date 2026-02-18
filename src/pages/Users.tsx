@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Search, UserPlus, MoreVertical, Shield, Trash2, Store, LayoutGrid, Loader2, X, Plus } from 'lucide-react';
+import { Search, UserPlus, MoreVertical, Shield, Trash2, Store, LayoutGrid, Loader2, X, Plus, Pencil, Eye, KeyRound } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,6 +23,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -35,10 +36,10 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { useUsers } from '@/hooks/useUsers';
+import { useUsers, UserWithProfile } from '@/hooks/useUsers';
 import { useStores } from '@/hooks/useStores';
 import { useShelves } from '@/hooks/useShelves';
-import { cn } from '@/lib/utils';
+import { useTenants } from '@/hooks/useTenants';
 
 const roleLabels: Record<string, { label: string; variant: 'default' | 'secondary' | 'outline' }> = {
   admin: { label: 'Admin', variant: 'default' },
@@ -47,12 +48,24 @@ const roleLabels: Record<string, { label: string; variant: 'default' | 'secondar
 };
 
 export default function Users() {
-  const { users, isLoading, updateUserRole, deleteUser } = useUsers();
+  const { users, isLoading, createUser, updateUserProfile, updateUserRole, deleteUser } = useUsers();
   const { stores } = useStores();
   const { shelves } = useShelves();
+  const { tenants } = useTenants();
   const [searchQuery, setSearchQuery] = useState('');
   const [roleFilter, setRoleFilter] = useState<string>('all');
   const [activeTab, setActiveTab] = useState('users');
+
+  // Add user
+  const [showAddUser, setShowAddUser] = useState(false);
+  const [addForm, setAddForm] = useState({ email: '', password: '', fullName: '', username: '', role: 'tenant_user', tenantId: '' });
+
+  // Edit user
+  const [editUser, setEditUser] = useState<UserWithProfile | null>(null);
+  const [editForm, setEditForm] = useState({ fullName: '', username: '', tenantId: '' });
+
+  // View user
+  const [viewUser, setViewUser] = useState<UserWithProfile | null>(null);
 
   // Role change
   const [roleChangeUser, setRoleChangeUser] = useState<{ userId: string; currentRole: string } | null>(null);
@@ -65,12 +78,41 @@ export default function Users() {
   const [accessUser, setAccessUser] = useState<{ userId: string; fullName: string } | null>(null);
 
   const filteredUsers = users.filter(user => {
-    const matchesSearch = 
+    const matchesSearch =
       (user.fullName || '').toLowerCase().includes(searchQuery.toLowerCase()) ||
       (user.username || '').toLowerCase().includes(searchQuery.toLowerCase());
     const matchesRole = roleFilter === 'all' || user.role === roleFilter;
     return matchesSearch && matchesRole;
   });
+
+  const handleAddUser = () => {
+    if (!addForm.email || !addForm.password || !addForm.fullName) return;
+    createUser.mutate({
+      email: addForm.email,
+      password: addForm.password,
+      fullName: addForm.fullName,
+      username: addForm.username || undefined,
+      role: addForm.role,
+      tenantId: addForm.tenantId || undefined,
+    }, {
+      onSuccess: () => {
+        setShowAddUser(false);
+        setAddForm({ email: '', password: '', fullName: '', username: '', role: 'tenant_user', tenantId: '' });
+      }
+    });
+  };
+
+  const handleEditUser = () => {
+    if (!editUser) return;
+    updateUserProfile.mutate({
+      userId: editUser.userId,
+      fullName: editForm.fullName,
+      username: editForm.username || undefined,
+      tenantId: editForm.tenantId || undefined,
+    }, {
+      onSuccess: () => setEditUser(null),
+    });
+  };
 
   const handleRoleChange = () => {
     if (roleChangeUser && newRole) {
@@ -85,6 +127,16 @@ export default function Users() {
       deleteUser.mutate(deleteUserId);
       setDeleteUserId(null);
     }
+  };
+
+  const openEdit = (user: UserWithProfile) => {
+    setEditUser(user);
+    setEditForm({ fullName: user.fullName || '', username: user.username || '', tenantId: user.tenantId || '' });
+  };
+
+  const openAccessControl = (user: UserWithProfile) => {
+    setAccessUser({ userId: user.userId, fullName: user.fullName || 'User' });
+    setActiveTab('access');
   };
 
   return (
@@ -119,6 +171,10 @@ export default function Users() {
                 <SelectItem value="tenant_user">User</SelectItem>
               </SelectContent>
             </Select>
+            <Button onClick={() => setShowAddUser(true)}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Add User
+            </Button>
           </div>
 
           {/* Stats */}
@@ -193,7 +249,9 @@ export default function Users() {
                           </Badge>
                         </td>
                         <td className="py-4 px-4 text-sm text-muted-foreground">
-                          {user.tenantId ? user.tenantId.slice(0, 8) + '...' : '—'}
+                          {user.tenantId
+                            ? tenants.find(t => t.id === user.tenantId)?.name || user.tenantId.slice(0, 8) + '...'
+                            : '—'}
                         </td>
                         <td className="py-4 px-4 text-sm text-muted-foreground">
                           {new Date(user.createdAt).toLocaleDateString()}
@@ -206,6 +264,14 @@ export default function Users() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => setViewUser(user)}>
+                                <Eye className="w-4 h-4 mr-2" />
+                                View Details
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => openEdit(user)}>
+                                <Pencil className="w-4 h-4 mr-2" />
+                                Edit User
+                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => {
                                 setRoleChangeUser({ userId: user.userId, currentRole: user.role });
                                 setNewRole(user.role);
@@ -213,13 +279,12 @@ export default function Users() {
                                 <Shield className="w-4 h-4 mr-2" />
                                 Change Role
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => {
-                                setAccessUser({ userId: user.userId, fullName: user.fullName || 'User' });
-                                setActiveTab('access');
-                              }}>
-                                <Store className="w-4 h-4 mr-2" />
-                                Manage Access
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem onClick={() => openAccessControl(user)}>
+                                <KeyRound className="w-4 h-4 mr-2" />
+                                Access Control
                               </DropdownMenuItem>
+                              <DropdownMenuSeparator />
                               <DropdownMenuItem className="text-destructive" onClick={() => setDeleteUserId(user.userId)}>
                                 <Trash2 className="w-4 h-4 mr-2" />
                                 Remove User
@@ -245,15 +310,195 @@ export default function Users() {
 
         {/* ========== ACCESS CONTROL TAB ========== */}
         <TabsContent value="access" className="space-y-4">
-          <AccessControlPanel 
-            users={users} 
-            stores={stores} 
+          <AccessControlPanel
+            users={users}
+            stores={stores}
             shelves={shelves}
             selectedUser={accessUser}
             onSelectUser={setAccessUser}
           />
         </TabsContent>
       </Tabs>
+
+      {/* ===== ADD USER DIALOG ===== */}
+      <Dialog open={showAddUser} onOpenChange={setShowAddUser}>
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="w-5 h-5 text-primary" />
+              Add New User
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2 col-span-2">
+                <Label>Full Name *</Label>
+                <Input value={addForm.fullName} onChange={e => setAddForm(f => ({ ...f, fullName: e.target.value }))} placeholder="John Doe" className="bg-secondary border-border" />
+              </div>
+              <div className="space-y-2">
+                <Label>Email *</Label>
+                <Input type="email" value={addForm.email} onChange={e => setAddForm(f => ({ ...f, email: e.target.value }))} placeholder="john@example.com" className="bg-secondary border-border" />
+              </div>
+              <div className="space-y-2">
+                <Label>Username</Label>
+                <Input value={addForm.username} onChange={e => setAddForm(f => ({ ...f, username: e.target.value }))} placeholder="johndoe" className="bg-secondary border-border" />
+              </div>
+              <div className="space-y-2 col-span-2">
+                <Label>Password *</Label>
+                <Input type="password" value={addForm.password} onChange={e => setAddForm(f => ({ ...f, password: e.target.value }))} placeholder="Min 6 characters" className="bg-secondary border-border" />
+              </div>
+              <div className="space-y-2">
+                <Label>Role</Label>
+                <Select value={addForm.role} onValueChange={v => setAddForm(f => ({ ...f, role: v }))}>
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="admin">Admin</SelectItem>
+                    <SelectItem value="tenant_admin">Tenant Admin</SelectItem>
+                    <SelectItem value="tenant_user">User</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
+                <Label>Tenant</Label>
+                <Select value={addForm.tenantId} onValueChange={v => setAddForm(f => ({ ...f, tenantId: v }))}>
+                  <SelectTrigger className="bg-secondary border-border">
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">None</SelectItem>
+                    {tenants.map(t => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setShowAddUser(false)}>Cancel</Button>
+              <Button onClick={handleAddUser} disabled={createUser.isPending || !addForm.email || !addForm.password || !addForm.fullName}>
+                {createUser.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Create User
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== EDIT USER DIALOG ===== */}
+      <Dialog open={!!editUser} onOpenChange={() => setEditUser(null)}>
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-primary" />
+              Edit User
+            </DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Full Name</Label>
+              <Input value={editForm.fullName} onChange={e => setEditForm(f => ({ ...f, fullName: e.target.value }))} className="bg-secondary border-border" />
+            </div>
+            <div className="space-y-2">
+              <Label>Username</Label>
+              <Input value={editForm.username} onChange={e => setEditForm(f => ({ ...f, username: e.target.value }))} className="bg-secondary border-border" />
+            </div>
+            <div className="space-y-2">
+              <Label>Tenant</Label>
+              <Select value={editForm.tenantId || 'none'} onValueChange={v => setEditForm(f => ({ ...f, tenantId: v === 'none' ? '' : v }))}>
+                <SelectTrigger className="bg-secondary border-border">
+                  <SelectValue placeholder="None" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">None</SelectItem>
+                  {tenants.map(t => (
+                    <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex justify-end gap-3 pt-2">
+              <Button variant="outline" onClick={() => setEditUser(null)}>Cancel</Button>
+              <Button onClick={handleEditUser} disabled={updateUserProfile.isPending}>
+                {updateUserProfile.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                Save Changes
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ===== VIEW USER DIALOG ===== */}
+      <Dialog open={!!viewUser} onOpenChange={() => setViewUser(null)}>
+        <DialogContent className="bg-card border-border max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Eye className="w-5 h-5 text-primary" />
+              User Details
+            </DialogTitle>
+          </DialogHeader>
+          {viewUser && (
+            <div className="space-y-4">
+              <div className="flex items-center gap-4">
+                <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                  {viewUser.avatarUrl ? (
+                    <img src={viewUser.avatarUrl} alt="" className="w-full h-full object-cover" />
+                  ) : (
+                    <span className="text-lg font-bold text-primary">
+                      {(viewUser.fullName || 'U').split(' ').map(n => n[0]).join('').slice(0, 2)}
+                    </span>
+                  )}
+                </div>
+                <div>
+                  <p className="text-lg font-semibold text-foreground">{viewUser.fullName || 'Unnamed'}</p>
+                  <p className="text-sm text-muted-foreground">@{viewUser.username || 'no-username'}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="p-3 bg-secondary/50 rounded-lg">
+                  <p className="text-xs text-muted-foreground">Role</p>
+                  <Badge variant={roleLabels[viewUser.role]?.variant || 'outline'} className="mt-1">
+                    {roleLabels[viewUser.role]?.label || viewUser.role}
+                  </Badge>
+                </div>
+                <div className="p-3 bg-secondary/50 rounded-lg">
+                  <p className="text-xs text-muted-foreground">Tenant</p>
+                  <p className="text-sm font-medium text-foreground mt-1">
+                    {viewUser.tenantId
+                      ? tenants.find(t => t.id === viewUser.tenantId)?.name || viewUser.tenantId.slice(0, 8)
+                      : 'None'}
+                  </p>
+                </div>
+                <div className="p-3 bg-secondary/50 rounded-lg">
+                  <p className="text-xs text-muted-foreground">Joined</p>
+                  <p className="text-sm font-medium text-foreground mt-1">{new Date(viewUser.createdAt).toLocaleDateString()}</p>
+                </div>
+                <div className="p-3 bg-secondary/50 rounded-lg">
+                  <p className="text-xs text-muted-foreground">Last Login</p>
+                  <p className="text-sm font-medium text-foreground mt-1">
+                    {viewUser.lastLogin ? new Date(viewUser.lastLogin).toLocaleDateString() : 'Never'}
+                  </p>
+                </div>
+                <div className="p-3 bg-secondary/50 rounded-lg col-span-2">
+                  <p className="text-xs text-muted-foreground">User ID</p>
+                  <p className="text-xs font-mono text-foreground mt-1 break-all">{viewUser.userId}</p>
+                </div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <Button variant="outline" onClick={() => { setViewUser(null); openEdit(viewUser); }}>
+                  <Pencil className="w-4 h-4 mr-2" />
+                  Edit
+                </Button>
+                <Button variant="outline" onClick={() => { setViewUser(null); openAccessControl(viewUser); }}>
+                  <KeyRound className="w-4 h-4 mr-2" />
+                  Access Control
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
       {/* Change Role Dialog */}
       <Dialog open={!!roleChangeUser} onOpenChange={() => setRoleChangeUser(null)}>
@@ -311,11 +556,11 @@ export default function Users() {
 }
 
 // Access Control Panel Component
-function AccessControlPanel({ 
-  users, stores, shelves, selectedUser, onSelectUser 
-}: { 
-  users: any[]; 
-  stores: any[]; 
+function AccessControlPanel({
+  users, stores, shelves, selectedUser, onSelectUser
+}: {
+  users: any[];
+  stores: any[];
   shelves: any[];
   selectedUser: { userId: string; fullName: string } | null;
   onSelectUser: (u: { userId: string; fullName: string } | null) => void;
@@ -386,12 +631,12 @@ function AccessControlPanel({
                   ))}
                 </SelectContent>
               </Select>
-              <Button 
-                size="icon" 
+              <Button
+                size="icon"
                 disabled={!storeToAssign || assignStore.isPending}
-                onClick={() => { 
-                  assignStore.mutate({ userId, storeId: storeToAssign }); 
-                  setStoreToAssign(''); 
+                onClick={() => {
+                  assignStore.mutate({ userId, storeId: storeToAssign });
+                  setStoreToAssign('');
                 }}
               >
                 <Plus className="w-4 h-4" />
@@ -404,9 +649,9 @@ function AccessControlPanel({
                     <Store className="w-3.5 h-3.5 text-muted-foreground" />
                     <span className="text-sm text-foreground">{sa.storeName}</span>
                   </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-destructive"
                     onClick={() => revokeStore.mutate({ id: sa.id, userId })}
                   >
@@ -443,12 +688,12 @@ function AccessControlPanel({
                   ))}
                 </SelectContent>
               </Select>
-              <Button 
-                size="icon" 
+              <Button
+                size="icon"
                 disabled={!shelfToAssign || assignShelf.isPending}
-                onClick={() => { 
-                  assignShelf.mutate({ userId, shelfId: shelfToAssign }); 
-                  setShelfToAssign(''); 
+                onClick={() => {
+                  assignShelf.mutate({ userId, shelfId: shelfToAssign });
+                  setShelfToAssign('');
                 }}
               >
                 <Plus className="w-4 h-4" />
@@ -461,9 +706,9 @@ function AccessControlPanel({
                     <LayoutGrid className="w-3.5 h-3.5 text-muted-foreground" />
                     <span className="text-sm text-foreground">{sa.shelfName}</span>
                   </div>
-                  <Button 
-                    variant="ghost" 
-                    size="icon" 
+                  <Button
+                    variant="ghost"
+                    size="icon"
                     className="h-7 w-7 text-muted-foreground hover:text-destructive"
                     onClick={() => revokeShelf.mutate({ id: sa.id, userId })}
                   >

@@ -99,16 +99,62 @@ export function useUsers() {
     },
   });
 
+  const createUser = useMutation({
+    mutationFn: async ({ email, password, fullName, username, role, tenantId }: {
+      email: string; password: string; fullName: string; username?: string; role: string; tenantId?: string;
+    }) => {
+      const { data, error } = await supabase.auth.signUp({ email, password });
+      if (error) throw error;
+      if (!data.user) throw new Error('User creation failed');
+
+      // Update profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({ full_name: fullName, username: username || null, tenant_id: tenantId || null })
+        .eq('user_id', data.user.id);
+      if (profileError) throw profileError;
+
+      // Assign role
+      const { error: roleError } = await supabase
+        .from('user_roles')
+        .insert({ user_id: data.user.id, role: role as any });
+      if (roleError) throw roleError;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({ title: 'User created successfully' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Failed to create user', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  const updateUserProfile = useMutation({
+    mutationFn: async ({ userId, fullName, username, tenantId }: {
+      userId: string; fullName: string; username?: string; tenantId?: string;
+    }) => {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ full_name: fullName, username: username || null, tenant_id: tenantId || null })
+        .eq('user_id', userId);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['users'] });
+      toast({ title: 'User updated successfully' });
+    },
+    onError: (err: any) => {
+      toast({ title: 'Failed to update user', description: err.message, variant: 'destructive' });
+    },
+  });
+
   const deleteUser = useMutation({
     mutationFn: async (userId: string) => {
-      // Delete profile (cascade will handle related records)
       const { error } = await supabase
         .from('profiles')
         .delete()
         .eq('user_id', userId);
       if (error) throw error;
-
-      // Delete role
       await supabase.from('user_roles').delete().eq('user_id', userId);
     },
     onSuccess: () => {
@@ -221,6 +267,8 @@ export function useUsers() {
   return {
     users: usersQuery.data ?? [],
     isLoading: usersQuery.isLoading,
+    createUser,
+    updateUserProfile,
     updateUserRole,
     deleteUser,
     useUserStoreAccess,
