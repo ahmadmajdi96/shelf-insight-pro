@@ -44,8 +44,8 @@ export function useQuota() {
     error: quotaQuery.error,
     monthlyPercentage,
     skuPercentage,
-    canProcess: quotaQuery.data?.canProcess ?? false,
-    canAddSku: quotaQuery.data?.canAddSku ?? false,
+    canProcess: quotaQuery.data?.canProcess ?? true,
+    canAddSku: quotaQuery.data?.canAddSku ?? true,
     isNearLimit: monthlyPercentage >= 80,
     isAtLimit: monthlyPercentage >= 100,
   };
