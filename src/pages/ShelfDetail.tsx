@@ -30,11 +30,12 @@ import { useRoboflowDetection } from '@/hooks/useRoboflowDetection';
 import { useAuth } from '@/contexts/AuthContext';
 import { useConfidenceSettings } from '@/hooks/useConfidenceSettings';
 import { ImageCapture } from '@/components/shared/ImageCapture';
-import { supabase } from '@/integrations/supabase/client';
+import { storage } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useQueryClient } from '@tanstack/react-query';
-import type { Tables, Json } from '@/integrations/supabase/types';
+type Json = any;
+type ShelfImageRow = { id: string; shelf_id: string; image_url: string; detection_result: any; created_at: string; processed_at: string | null };
 
 interface RoboflowPrediction {
   x: number;

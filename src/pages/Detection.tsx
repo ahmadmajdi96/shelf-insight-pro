@@ -21,7 +21,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { supabase } from '@/integrations/supabase/client';
+import { storage } from '@/lib/api-client';
 
 interface RoboflowPrediction {
   x: number;
@@ -116,18 +116,10 @@ export default function Detection() {
       const blob = await response.blob();
       const file = new File([blob], `detection-${Date.now()}.jpg`, { type: 'image/jpeg' });
 
-      // Upload to Supabase storage
+      // Upload to storage
       const fileName = `detections/${tenantId}/${Date.now()}.jpg`;
-      const { error: uploadError } = await supabase.storage
-        .from('shelf-images')
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      // Get public URL
-      const { data: { publicUrl } } = supabase.storage
-        .from('shelf-images')
-        .getPublicUrl(fileName);
+      await storage.upload('shelf-images', fileName, file);
+      const publicUrl = storage.getPublicUrl('shelf-images', fileName);
 
       setIsUploading(false);
 

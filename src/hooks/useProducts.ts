@@ -1,15 +1,20 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { rest } from '@/lib/api-client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import type { Tables, TablesInsert } from '@/integrations/supabase/types';
 
-type SKU = Tables<'skus'>;
-type SKUInsert = TablesInsert<'skus'>;
-type SKUImage = Tables<'sku_images'>;
-
-interface SKUWithImages extends SKU {
-  sku_images: SKUImage[];
+interface SKUWithImages {
+  id: string;
+  tenant_id: string;
+  category_id: string | null;
+  name: string;
+  description: string | null;
+  barcode: string | null;
+  training_status: string;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  sku_images: any[];
   product_categories: { name: string } | null;
 }
 
@@ -21,49 +26,32 @@ export function useProducts() {
   const productsQuery = useQuery({
     queryKey: ['products'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('skus')
-        .select(`*, sku_images (*), product_categories (name)`)
-        .order('created_at', { ascending: false });
-
-      if (error) throw error;
-      return data as SKUWithImages[];
+      const { data } = await rest.list('skus', {
+        select: '*,sku_images(*),product_categories(name)',
+        order: 'created_at.desc',
+      });
+      return (data || []) as SKUWithImages[];
     },
     enabled: isAdmin,
   });
 
   const createProduct = useMutation({
-    mutationFn: async (product: Omit<SKUInsert, 'tenant_id'> & { images?: File[]; tenant_id?: string }) => {
+    mutationFn: async (product: any) => {
       const tid = product.tenant_id || tenantId;
       if (!tid) throw new Error('No tenant ID');
 
       const { images, ...productData } = product;
+      const sku = await rest.create('skus', { ...productData, tenant_id: tid });
 
-      const { data: sku, error: skuError } = await supabase
-        .from('skus')
-        .insert({ ...productData, tenant_id: tid })
-        .select()
-        .single();
-
-      if (skuError) throw skuError;
-
-      if (images && images.length > 0) {
+      if (images && images.length > 0 && sku?.id) {
+        const { storage } = await import('@/lib/api-client');
         for (const image of images) {
           const fileName = `${tid}/${sku.id}/${Date.now()}-${image.name}`;
-          const { error: uploadError } = await supabase.storage
-            .from('sku-training-images')
-            .upload(fileName, image);
-
-          if (uploadError) continue;
-
-          const { data: { publicUrl } } = supabase.storage
-            .from('sku-training-images')
-            .getPublicUrl(fileName);
-
-          await supabase.from('sku_images').insert({
-            sku_id: sku.id,
-            image_url: publicUrl,
-          });
+          try {
+            await storage.upload('sku-training-images', fileName, image);
+            const publicUrl = storage.getPublicUrl('sku-training-images', fileName);
+            await rest.create('sku_images', { sku_id: sku.id, image_url: publicUrl });
+          } catch { /* continue */ }
         }
       }
 
@@ -73,42 +61,33 @@ export function useProducts() {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       toast({ title: 'Product created', description: 'Your product has been added successfully.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to create product', description: error.message, variant: 'destructive' });
     },
   });
 
   const updateProduct = useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<SKU> & { id: string }) => {
-      const { data, error } = await supabase
-        .from('skus')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+    mutationFn: async ({ id, ...updates }: any) => {
+      return await rest.update('skus', { id: `eq.${id}` }, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       toast({ title: 'Product updated', description: 'Changes saved successfully.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to update product', description: error.message, variant: 'destructive' });
     },
   });
 
   const deleteProduct = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('skus').delete().eq('id', id);
-      if (error) throw error;
+      await rest.remove('skus', id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       toast({ title: 'Product deleted', description: 'The product has been removed.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to delete product', description: error.message, variant: 'destructive' });
     },
   });
@@ -118,31 +97,17 @@ export function useProducts() {
       const tid = tenantId;
       if (!tid) throw new Error('No tenant ID');
 
+      const { storage } = await import('@/lib/api-client');
       const fileName = `${tid}/${skuId}/${Date.now()}-${file.name}`;
-      const { error: uploadError } = await supabase.storage
-        .from('sku-training-images')
-        .upload(fileName, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('sku-training-images')
-        .getPublicUrl(fileName);
-
-      const { data, error } = await supabase
-        .from('sku_images')
-        .insert({ sku_id: skuId, image_url: publicUrl })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      await storage.upload('sku-training-images', fileName, file);
+      const publicUrl = storage.getPublicUrl('sku-training-images', fileName);
+      return await rest.create('sku_images', { sku_id: skuId, image_url: publicUrl });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['products'] });
       toast({ title: 'Image uploaded', description: 'Training image added successfully.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to upload image', description: error.message, variant: 'destructive' });
     },
   });

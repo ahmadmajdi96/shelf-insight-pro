@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { rest, auth as apiAuth } from '@/lib/api-client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -66,33 +66,30 @@ export function usePlanogramTemplates() {
   const templatesQuery = useQuery({
     queryKey: ['planogram-templates'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('planogram_templates')
-        .select('*, store:stores(name), shelf:shelves(name)')
-        .order('updated_at', { ascending: false });
+      const { data } = await rest.list('planogram_templates', {
+        select: '*,store:stores(name),shelf:shelves(name)',
+        order: 'updated_at.desc',
+      });
 
-      if (error) throw error;
-
-      // Get version counts and latest compliance for each template
       const enriched = await Promise.all(
         (data || []).map(async (t: any) => {
-          const { count } = await supabase
-            .from('planogram_versions')
-            .select('*', { count: 'exact', head: true })
-            .eq('template_id', t.id);
+          const { data: versions } = await rest.list('planogram_versions', {
+            select: '*',
+            filters: { template_id: `eq.${t.id}` },
+          });
 
-          const { data: latestScan } = await supabase
-            .from('compliance_scans')
-            .select('compliance_score')
-            .eq('template_id', t.id)
-            .order('created_at', { ascending: false })
-            .limit(1);
+          const { data: scans } = await rest.list('compliance_scans', {
+            select: 'compliance_score',
+            filters: { template_id: `eq.${t.id}` },
+            order: 'created_at.desc',
+            limit: 1,
+          });
 
           return {
             ...t,
             layout: (t.layout || []) as PlanogramRow[],
-            versions_count: count ?? 0,
-            latest_compliance: latestScan?.[0]?.compliance_score ?? null,
+            versions_count: versions?.length ?? 0,
+            latest_compliance: scans?.[0]?.compliance_score ?? null,
           } as PlanogramTemplate;
         })
       );
@@ -114,29 +111,25 @@ export function usePlanogramTemplates() {
       const tid = tenantId;
       if (!tid) throw new Error('No tenant ID');
 
-      const { data: { user } } = await supabase.auth.getUser();
+      const user = apiAuth.getUser();
 
-      const { data, error } = await supabase
-        .from('planogram_templates')
-        .insert({
-          ...template,
-          tenant_id: tid,
-          created_by: user?.id,
-          layout: template.layout as any,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
+      const data = await rest.create('planogram_templates', {
+        ...template,
+        tenant_id: tid,
+        created_by: user?.id,
+        layout: template.layout,
+      });
 
       // Create initial version
-      await supabase.from('planogram_versions').insert({
-        template_id: data.id,
-        version_number: 1,
-        layout: template.layout as any,
-        change_notes: 'Initial version',
-        created_by: user?.id,
-      });
+      if (data?.id) {
+        await rest.create('planogram_versions', {
+          template_id: data.id,
+          version_number: 1,
+          layout: template.layout,
+          change_notes: 'Initial version',
+          created_by: user?.id,
+        });
+      }
 
       return data;
     },
@@ -144,51 +137,31 @@ export function usePlanogramTemplates() {
       queryClient.invalidateQueries({ queryKey: ['planogram-templates'] });
       toast({ title: 'Template created', description: 'Planogram template saved successfully.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to create template', description: error.message, variant: 'destructive' });
     },
   });
 
   const updateTemplate = useMutation({
-    mutationFn: async ({ id, changeNotes, ...updates }: {
-      id: string;
-      name?: string;
-      description?: string;
-      store_id?: string;
-      shelf_id?: string;
-      layout?: PlanogramRow[];
-      status?: string;
-      changeNotes?: string;
-    }) => {
-      const { data: { user } } = await supabase.auth.getUser();
+    mutationFn: async ({ id, changeNotes, ...updates }: any) => {
+      const user = apiAuth.getUser();
 
-      const updatePayload: any = { ...updates };
-      if (updates.layout) updatePayload.layout = updates.layout as any;
+      const data = await rest.update('planogram_templates', { id: `eq.${id}` }, updates);
 
-      const { data, error } = await supabase
-        .from('planogram_templates')
-        .update(updatePayload)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      // Create new version if layout changed
       if (updates.layout) {
-        const { data: lastVersion } = await supabase
-          .from('planogram_versions')
-          .select('version_number')
-          .eq('template_id', id)
-          .order('version_number', { ascending: false })
-          .limit(1);
+        const { data: versions } = await rest.list('planogram_versions', {
+          select: 'version_number',
+          filters: { template_id: `eq.${id}` },
+          order: 'version_number.desc',
+          limit: 1,
+        });
 
-        const nextVersion = (lastVersion?.[0]?.version_number ?? 0) + 1;
+        const nextVersion = (versions?.[0]?.version_number ?? 0) + 1;
 
-        await supabase.from('planogram_versions').insert({
+        await rest.create('planogram_versions', {
           template_id: id,
           version_number: nextVersion,
-          layout: updates.layout as any,
+          layout: updates.layout,
           change_notes: changeNotes || `Version ${nextVersion}`,
           created_by: user?.id,
         });
@@ -201,47 +174,36 @@ export function usePlanogramTemplates() {
       queryClient.invalidateQueries({ queryKey: ['planogram-versions'] });
       toast({ title: 'Template updated', description: 'Changes saved with new version.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to update template', description: error.message, variant: 'destructive' });
     },
   });
 
   const duplicateTemplate = useMutation({
     mutationFn: async (templateId: string) => {
-      const { data: original, error: fetchError } = await supabase
-        .from('planogram_templates')
-        .select('*')
-        .eq('id', templateId)
-        .single();
+      const original = await rest.get('planogram_templates', templateId);
+      const user = apiAuth.getUser();
 
-      if (fetchError) throw fetchError;
-
-      const { data: { user } } = await supabase.auth.getUser();
-
-      const { data, error } = await supabase
-        .from('planogram_templates')
-        .insert({
-          tenant_id: original.tenant_id,
-          store_id: original.store_id,
-          shelf_id: original.shelf_id,
-          name: `${original.name} (Copy)`,
-          description: original.description,
-          layout: original.layout,
-          status: 'draft',
-          created_by: user?.id,
-        })
-        .select()
-        .single();
-
-      if (error) throw error;
-
-      await supabase.from('planogram_versions').insert({
-        template_id: data.id,
-        version_number: 1,
+      const data = await rest.create('planogram_templates', {
+        tenant_id: original.tenant_id,
+        store_id: original.store_id,
+        shelf_id: original.shelf_id,
+        name: `${original.name} (Copy)`,
+        description: original.description,
         layout: original.layout,
-        change_notes: `Duplicated from "${original.name}"`,
+        status: 'draft',
         created_by: user?.id,
       });
+
+      if (data?.id) {
+        await rest.create('planogram_versions', {
+          template_id: data.id,
+          version_number: 1,
+          layout: original.layout,
+          change_notes: `Duplicated from "${original.name}"`,
+          created_by: user?.id,
+        });
+      }
 
       return data;
     },
@@ -249,21 +211,20 @@ export function usePlanogramTemplates() {
       queryClient.invalidateQueries({ queryKey: ['planogram-templates'] });
       toast({ title: 'Template duplicated', description: 'A copy has been created.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to duplicate', description: error.message, variant: 'destructive' });
     },
   });
 
   const deleteTemplate = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('planogram_templates').delete().eq('id', id);
-      if (error) throw error;
+      await rest.remove('planogram_templates', id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planogram-templates'] });
       toast({ title: 'Template deleted', description: 'The planogram template has been removed.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to delete template', description: error.message, variant: 'destructive' });
     },
   });
@@ -283,13 +244,11 @@ export function usePlanogramVersions(templateId: string | null) {
     queryKey: ['planogram-versions', templateId],
     queryFn: async () => {
       if (!templateId) return [];
-      const { data, error } = await supabase
-        .from('planogram_versions')
-        .select('*')
-        .eq('template_id', templateId)
-        .order('version_number', { ascending: false });
-
-      if (error) throw error;
+      const { data } = await rest.list('planogram_versions', {
+        select: '*',
+        filters: { template_id: `eq.${templateId}` },
+        order: 'version_number.desc',
+      });
       return (data || []).map((v: any) => ({
         ...v,
         layout: (v.layout || []) as PlanogramRow[],
@@ -311,50 +270,33 @@ export function useComplianceScans(templateId?: string | null) {
   const scansQuery = useQuery({
     queryKey: ['compliance-scans', templateId],
     queryFn: async () => {
-      let query = supabase
-        .from('compliance_scans')
-        .select('*, template:planogram_templates(name)')
-        .order('created_at', { ascending: false });
+      const filters: Record<string, string> = {};
+      if (templateId) filters.template_id = `eq.${templateId}`;
 
-      if (templateId) {
-        query = query.eq('template_id', templateId);
-      }
-
-      const { data, error } = await query;
-      if (error) throw error;
+      const { data } = await rest.list('compliance_scans', {
+        select: '*,template:planogram_templates(name)',
+        order: 'created_at.desc',
+        filters,
+      });
       return (data || []) as ComplianceScan[];
     },
   });
 
   const createScan = useMutation({
-    mutationFn: async (scan: {
-      template_id: string;
-      shelf_image_id?: string;
-      image_url: string;
-      compliance_score: number;
-      total_expected: number;
-      total_found: number;
-      total_missing: number;
-      total_extra: number;
-      details?: any[];
-    }) => {
-      const { data: { user } } = await supabase.auth.getUser();
-
-      const { data, error } = await supabase
-        .from('compliance_scans')
-        .insert({ ...scan, scanned_by: user?.id, details: (scan.details || []) as any })
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+    mutationFn: async (scan: any) => {
+      const user = apiAuth.getUser();
+      return await rest.create('compliance_scans', {
+        ...scan,
+        scanned_by: user?.id,
+        details: scan.details || [],
+      });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['compliance-scans'] });
       queryClient.invalidateQueries({ queryKey: ['planogram-templates'] });
       toast({ title: 'Compliance scan saved', description: 'Results have been recorded.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to save scan', description: error.message, variant: 'destructive' });
     },
   });

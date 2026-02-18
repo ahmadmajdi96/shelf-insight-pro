@@ -1,13 +1,25 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { rest } from '@/lib/api-client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
-import type { Tables, TablesInsert } from '@/integrations/supabase/types';
 
-type Tenant = Tables<'tenants'>;
-type TenantInsert = TablesInsert<'tenants'>;
-
-interface TenantWithStats extends Tenant {
+interface TenantWithStats {
+  id: string;
+  name: string;
+  logo_url: string | null;
+  max_skus: number;
+  max_images_per_month: number;
+  max_images_per_week: number;
+  max_images_per_year: number;
+  processed_images_this_month: number;
+  processed_images_this_week: number;
+  processed_images_this_year: number;
+  is_active: boolean;
+  status: string;
+  created_at: string;
+  updated_at: string;
+  username: string | null;
+  password: string | null;
   skuCount: number;
   userCount: number;
 }
@@ -20,29 +32,27 @@ export function useTenants() {
   const tenantsQuery = useQuery({
     queryKey: ['tenants'],
     queryFn: async () => {
-      const { data: tenants, error } = await supabase
-        .from('tenants')
-        .select('*')
-        .order('name', { ascending: true });
-
-      if (error) throw error;
+      const { data: tenants } = await rest.list('tenants', {
+        select: '*',
+        order: 'name.asc',
+      });
 
       const tenantsWithStats: TenantWithStats[] = await Promise.all(
-        tenants.map(async (tenant) => {
-          const { count: skuCount } = await supabase
-            .from('skus')
-            .select('*', { count: 'exact', head: true })
-            .eq('tenant_id', tenant.id);
+        (tenants || []).map(async (tenant: any) => {
+          const { data: skus } = await rest.list('skus', {
+            select: '*',
+            filters: { tenant_id: `eq.${tenant.id}` },
+          });
 
-          const { count: userCount } = await supabase
-            .from('profiles')
-            .select('*', { count: 'exact', head: true })
-            .eq('tenant_id', tenant.id);
+          const { data: profiles } = await rest.list('profiles', {
+            select: '*',
+            filters: { tenant_id: `eq.${tenant.id}` },
+          });
 
           return {
             ...tenant,
-            skuCount: skuCount ?? 0,
-            userCount: userCount ?? 0,
+            skuCount: skus?.length ?? 0,
+            userCount: profiles?.length ?? 0,
           };
         })
       );
@@ -53,85 +63,59 @@ export function useTenants() {
   });
 
   const createTenant = useMutation({
-    mutationFn: async (tenant: Omit<TenantInsert, 'id'>) => {
-      const { data, error } = await supabase
-        .from('tenants')
-        .insert(tenant)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+    mutationFn: async (tenant: any) => {
+      return await rest.create('tenants', tenant);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       toast({ title: 'Tenant created', description: 'The new tenant has been added successfully.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to create tenant', description: error.message, variant: 'destructive' });
     },
   });
 
   const updateTenant = useMutation({
-    mutationFn: async ({ id, ...updates }: Partial<Tenant> & { id: string }) => {
-      const { data, error } = await supabase
-        .from('tenants')
-        .update(updates)
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+    mutationFn: async ({ id, ...updates }: any) => {
+      return await rest.update('tenants', { id: `eq.${id}` }, updates);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       toast({ title: 'Tenant updated', description: 'Changes saved successfully.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to update tenant', description: error.message, variant: 'destructive' });
     },
   });
 
   const suspendTenant = useMutation({
     mutationFn: async ({ id, suspend }: { id: string; suspend: boolean }) => {
-      const { data, error } = await supabase
-        .from('tenants')
-        .update({ 
-          status: suspend ? 'suspended' : 'active',
-          is_active: !suspend 
-        })
-        .eq('id', id)
-        .select()
-        .single();
-
-      if (error) throw error;
-      return data;
+      return await rest.update('tenants', { id: `eq.${id}` }, {
+        status: suspend ? 'suspended' : 'active',
+        is_active: !suspend,
+      });
     },
     onSuccess: (_, { suspend }) => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       toast({
         title: suspend ? 'Tenant suspended' : 'Tenant activated',
-        description: suspend 
-          ? 'The tenant has been suspended.'
-          : 'The tenant has been activated.',
+        description: suspend ? 'The tenant has been suspended.' : 'The tenant has been activated.',
       });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to update tenant status', description: error.message, variant: 'destructive' });
     },
   });
 
   const deleteTenant = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('tenants').delete().eq('id', id);
-      if (error) throw error;
+      await rest.remove('tenants', id);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       toast({ title: 'Tenant deleted', description: 'The tenant has been removed.' });
     },
-    onError: (error) => {
+    onError: (error: Error) => {
       toast({ title: 'Failed to delete tenant', description: error.message, variant: 'destructive' });
     },
   });

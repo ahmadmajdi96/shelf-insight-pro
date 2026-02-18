@@ -5,7 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/integrations/supabase/client';
+import { rest, storage } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 
 export default function Profile() {
@@ -29,12 +29,9 @@ export default function Profile() {
     e.preventDefault();
     setSaving(true);
     try {
-      const { error } = await supabase
-        .from('profiles')
-        .update({ full_name: fullName, username } as any)
-        .eq('user_id', user!.id);
+      await rest.update('profiles', { user_id: `eq.${user!.id}` }, { full_name: fullName, username });
 
-      if (error) throw error;
+      const error = null;
       await refreshProfile();
       toast({ title: 'Profile updated', description: 'Your profile has been saved.' });
     } catch (err: any) {
@@ -56,8 +53,8 @@ export default function Profile() {
     }
     setChangingPassword(true);
     try {
-      const { error } = await supabase.auth.updateUser({ password: newPassword });
-      if (error) throw error;
+      // Password change via new API not yet supported
+      throw new Error('Password change is not available via the current API');
       toast({ title: 'Password changed', description: 'Your password has been updated.' });
       setNewPassword('');
       setConfirmPassword('');
@@ -77,22 +74,10 @@ export default function Profile() {
       const ext = file.name.split('.').pop();
       const path = `avatars/${user!.id}.${ext}`;
       
-      const { error: uploadError } = await supabase.storage
-        .from('sku-training-images')
-        .upload(path, file, { upsert: true });
+      await storage.upload('sku-training-images', path, file);
+      const publicUrl = storage.getPublicUrl('sku-training-images', path);
 
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabase.storage
-        .from('sku-training-images')
-        .getPublicUrl(path);
-
-      const { error: updateError } = await supabase
-        .from('profiles')
-        .update({ avatar_url: urlData.publicUrl })
-        .eq('user_id', user!.id);
-
-      if (updateError) throw updateError;
+      await rest.update('profiles', { user_id: `eq.${user!.id}` }, { avatar_url: publicUrl });
       
       await refreshProfile();
       toast({ title: 'Avatar updated' });

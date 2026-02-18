@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { supabase } from '@/integrations/supabase/client';
+import { invoke } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 
 interface DetectionResult {
@@ -24,17 +24,11 @@ export function useRoboflowDetection() {
     setResult(null);
 
     try {
-      const { data, error: fnError } = await supabase.functions.invoke('roboflow-detect', {
-        body: {
-          imageUrl,
-          shelfId,
-          tenantId,
-        },
+      const data = await invoke('roboflow-detect', {
+        imageUrl,
+        shelfId,
+        tenantId,
       });
-
-      if (fnError) {
-        throw fnError;
-      }
 
       if (!data.success) {
         throw new Error(data.error || 'Detection failed');
