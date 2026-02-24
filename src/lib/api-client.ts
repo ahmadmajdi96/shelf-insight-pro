@@ -169,7 +169,7 @@ export const rest = {
   },
 
   async remove(resource: string, id: string) {
-    await apiFetchJSON(`/rest/v1/${resource}?id=${id}`, {
+    await apiFetchJSON(`/rest/v1/${resource}?id=eq.${id}`, {
       method: 'DELETE',
     });
   },
