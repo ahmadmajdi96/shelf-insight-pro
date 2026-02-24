@@ -158,6 +158,20 @@ export default function Planogram() {
       return next;
     });
   };
+  const toggleStore = (sid: string) => {
+    setExpandedStores(prev => {
+      const next = new Set(prev);
+      if (next.has(sid)) next.delete(sid); else next.add(sid);
+      return next;
+    });
+  };
+  const toggleCategory = (cid: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(cid)) next.delete(cid); else next.add(cid);
+      return next;
+    });
+  };
   const resetTenantForm = () => { setTenantFormData({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000 }); setEditingTenantObj(null); };
   const handleTenantSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
