@@ -291,24 +291,35 @@ export default function Training() {
 
   return (
     <MainLayout title="Training" subtitle="Manage datasets, annotate images, and train YOLOv8 models">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-card border border-border">
-          <TabsTrigger value="datasets" className="gap-1.5">
-            <FolderOpen className="w-4 h-4" /> Datasets
-          </TabsTrigger>
-          <TabsTrigger value="images" className="gap-1.5" disabled={!selectedDatasetId}>
-            <ImageIcon className="w-4 h-4" /> Images
-          </TabsTrigger>
-          <TabsTrigger value="annotate" className="gap-1.5" disabled={!selectedDatasetId}>
-            <Square className="w-4 h-4" /> Annotate
-          </TabsTrigger>
-          <TabsTrigger value="classes" className="gap-1.5" disabled={!selectedDatasetId}>
-            <Tag className="w-4 h-4" /> Classes
-          </TabsTrigger>
-          <TabsTrigger value="train" className="gap-1.5" disabled={!selectedDatasetId}>
-            <Brain className="w-4 h-4" /> Train
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        {/* Modern centered navbar — matching Management */}
+        <div className="flex justify-center">
+          <TabsList className="inline-flex h-12 items-center gap-1 rounded-2xl bg-card/80 backdrop-blur-xl border border-border/50 p-1.5 shadow-lg shadow-primary/5">
+            {[
+              { value: 'datasets', label: 'Datasets', icon: FolderOpen },
+              { value: 'images', label: 'Images', icon: ImageIcon, disabled: !selectedDatasetId },
+              { value: 'annotate', label: 'Annotate', icon: Square, disabled: !selectedDatasetId },
+              { value: 'classes', label: 'Classes', icon: Tag, disabled: !selectedDatasetId },
+              { value: 'train', label: 'Train', icon: Brain, disabled: !selectedDatasetId },
+            ].map(tab => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                disabled={tab.disabled}
+                className={cn(
+                  "relative inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-300",
+                  "data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground data-[state=inactive]:hover:bg-secondary/50",
+                  "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:shadow-primary/25",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "disabled:opacity-40 disabled:pointer-events-none"
+                )}
+              >
+                <tab.icon className="w-4 h-4" />
+                <span className="hidden sm:inline">{tab.label}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
         {/* ─── Datasets Tab ─────────────────────────────── */}
         <TabsContent value="datasets" className="space-y-4">
