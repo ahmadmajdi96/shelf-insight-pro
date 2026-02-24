@@ -121,6 +121,7 @@ export default function Planogram() {
   const [dragProduct, setDragProduct] = useState<{ skuId: string | null; name: string } | null>(null);
   const [changeNotes, setChangeNotes] = useState('');
   const [shelfWidths, setShelfWidths] = useState<Record<string, { value: string; unit: 'cm' | 'm' }>>({});
+  const [designerCategoryFilter, setDesignerCategoryFilter] = useState('all');
 
   // Version history state
   const [versionTemplateId, setVersionTemplateId] = useState<string | null>(null);
