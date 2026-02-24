@@ -234,7 +234,16 @@ export default function Planogram() {
     setShelfWidths(widths);
   };
 
-  const availableProducts = useMemo(() => products.map(p => ({ skuId: p.id, name: p.name, expectedFacings: 1 })), [products]);
+  const availableProducts = useMemo(() => {
+    const templateTenant = designerTemplate?.tenant_id;
+    return products
+      .filter(p => {
+        if (templateTenant && p.tenant_id !== templateTenant) return false;
+        if (designerCategoryFilter !== 'all' && p.category_id !== designerCategoryFilter) return false;
+        return true;
+      })
+      .map(p => ({ skuId: p.id, name: p.name, widthCm: p.width_cm, expectedFacings: 1 }));
+  }, [products, designerTemplate, designerCategoryFilter]);
   const addRow = () => { const newId = crypto.randomUUID(); setRows(prev => [...prev, { id: newId, label: `Shelf ${prev.length + 1}`, products: [] }]); };
   const removeRow = (rowId: string) => setRows(prev => prev.filter(r => r.id !== rowId));
   const updateRowLabel = (rowId: string, label: string) => setRows(prev => prev.map(r => r.id === rowId ? { ...r, label } : r));
