@@ -1170,7 +1170,10 @@ export default function Planogram() {
               <DialogHeader><DialogTitle>Edit Product</DialogTitle></DialogHeader>
               <form onSubmit={handleProductEditSubmit} className="space-y-4">
                 <div className="space-y-2"><Label>Product Name</Label><Input value={editFormData.name} onChange={e => setEditFormData({ ...editFormData, name: e.target.value })} className="bg-secondary border-border" required /></div>
-                <div className="space-y-2"><Label>Barcode</Label><Input value={editFormData.barcode} onChange={e => setEditFormData({ ...editFormData, barcode: e.target.value })} className="bg-secondary border-border font-mono" /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Barcode</Label><Input value={editFormData.barcode} onChange={e => setEditFormData({ ...editFormData, barcode: e.target.value })} className="bg-secondary border-border font-mono" /></div>
+                  <div className="space-y-2"><Label>Width (cm)</Label><Input type="number" step="0.1" min="0" value={editFormData.width_cm} onChange={e => setEditFormData({ ...editFormData, width_cm: e.target.value })} className="bg-secondary border-border" placeholder="e.g., 8.5" /></div>
+                </div>
                 <div className="space-y-2"><Label>Category</Label>
                   <Select value={editFormData.category_id} onValueChange={v => setEditFormData({ ...editFormData, category_id: v })}><SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Select a category" /></SelectTrigger><SelectContent>{categories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}</SelectContent></Select>
                 </div>
