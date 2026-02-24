@@ -205,7 +205,7 @@ export default function Planogram() {
   });
 
   // ---- Planogram CRUD ----
-  const openNewTemplate = () => { setEditingTemplate(null); setTemplateName(''); setTemplateDesc(''); setTemplateStoreId(''); setTemplateTenantId(tenantId || (tenants.length > 0 ? tenants[0].id : '')); setTemplateStatus('draft'); setShowTemplateDialog(true); };
+  const openNewTemplate = (presetStoreId?: string, presetTenantId?: string) => { setEditingTemplate(null); setTemplateName(''); setTemplateDesc(''); setTemplateStoreId(presetStoreId || ''); setTemplateTenantId(presetTenantId || tenantId || (tenants.length > 0 ? tenants[0].id : '')); setTemplateStatus('draft'); setShowTemplateDialog(true); };
   const openEditTemplate = (t: PlanogramTemplate) => { setEditingTemplate(t); setTemplateName(t.name); setTemplateDesc(t.description || ''); setTemplateStoreId(t.store_id || ''); setTemplateTenantId(t.tenant_id || ''); setTemplateStatus(t.status); setShowTemplateDialog(true); };
   const handleSaveTemplate = async () => {
     if (!templateName.trim()) return;
