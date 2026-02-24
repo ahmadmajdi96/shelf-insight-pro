@@ -683,9 +683,15 @@ export default function Training() {
         <TabsContent value="train" className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <h3 className="font-semibold text-foreground">Training Jobs</h3>
-            <Button onClick={() => setShowTrainModal(true)} disabled={!selectedDatasetId || images.length === 0}>
-              <Play className="w-4 h-4 mr-2" /> Start Training
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={exportDataset} disabled={!selectedDatasetId || images.length === 0 || exporting}>
+                {exporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                Export ZIP
+              </Button>
+              <Button onClick={() => setShowTrainModal(true)} disabled={!selectedDatasetId || images.length === 0}>
+                <Play className="w-4 h-4 mr-2" /> Start Training
+              </Button>
+            </div>
           </div>
 
           {selectedDataset && (
