@@ -10,6 +10,7 @@ export interface Dataset {
   image_count: number;
   class_count: number;
   created_by: string | null;
+  tenant_id: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -67,7 +68,7 @@ export function useDatasets() {
   });
 
   const createDataset = useMutation({
-    mutationFn: async (payload: { name: string; description?: string }) => {
+    mutationFn: async (payload: { name: string; description?: string; tenant_id?: string }) => {
       const { data, error } = await supabase
         .from('datasets')
         .insert(payload)

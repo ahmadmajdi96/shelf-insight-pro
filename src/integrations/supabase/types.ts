@@ -154,6 +154,7 @@ export type Database = {
           image_count: number
           name: string
           status: string
+          tenant_id: string | null
           updated_at: string
         }
         Insert: {
@@ -165,6 +166,7 @@ export type Database = {
           image_count?: number
           name: string
           status?: string
+          tenant_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -176,9 +178,18 @@ export type Database = {
           image_count?: number
           name?: string
           status?: string
+          tenant_id?: string | null
           updated_at?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "datasets_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "tenants"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       detection_results: {
         Row: {

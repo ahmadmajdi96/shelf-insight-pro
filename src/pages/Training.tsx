@@ -14,6 +14,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
 import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
+import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
 } from '@/components/ui/dialog';
 import {
@@ -23,6 +26,9 @@ import {
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
+import { useAuth } from '@/contexts/AuthContext';
+import { useQuery } from '@tanstack/react-query';
+import { rest } from '@/lib/api-client';
 import {
   useDatasets, useDatasetImages, useDatasetClasses, useTrainingJobs,
   type Dataset, type DatasetImage, type DatasetClass,
@@ -51,6 +57,14 @@ interface BBox {
 
 export default function Training() {
   const { toast } = useToast();
+  const { tenantId } = useAuth();
+  const { data: tenants = [] } = useQuery({
+    queryKey: ['tenants-for-training'],
+    queryFn: async () => {
+      const { data } = await rest.list('tenants', { select: 'id,name', order: 'name.asc' });
+      return data || [];
+    },
+  });
   const [activeTab, setActiveTab] = useState('datasets');
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
 
@@ -63,7 +77,7 @@ export default function Training() {
   // Dataset modal
   const [showDatasetModal, setShowDatasetModal] = useState(false);
   const [editingDataset, setEditingDataset] = useState<Dataset | null>(null);
-  const [datasetForm, setDatasetForm] = useState({ name: '', description: '' });
+  const [datasetForm, setDatasetForm] = useState({ name: '', description: '', tenant_id: '' });
   const [deleteDatasetId, setDeleteDatasetId] = useState<string | null>(null);
   const [datasetSearch, setDatasetSearch] = useState('');
 
@@ -96,21 +110,25 @@ export default function Training() {
   // ─── Dataset CRUD ──────────────────────────────────────
   const openNewDataset = () => {
     setEditingDataset(null);
-    setDatasetForm({ name: '', description: '' });
+    setDatasetForm({ name: '', description: '', tenant_id: tenantId || (tenants.length > 0 ? tenants[0].id : '') });
     setShowDatasetModal(true);
   };
   const openEditDataset = (d: Dataset) => {
     setEditingDataset(d);
-    setDatasetForm({ name: d.name, description: d.description || '' });
+    setDatasetForm({ name: d.name, description: d.description || '', tenant_id: d.tenant_id || '' });
     setShowDatasetModal(true);
   };
   const handleDatasetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!datasetForm.name.trim()) return;
+    if (!datasetForm.tenant_id) {
+      toast({ title: 'Tenant required', description: 'Please select a tenant.', variant: 'destructive' });
+      return;
+    }
     if (editingDataset) {
       await updateDataset.mutateAsync({ id: editingDataset.id, name: datasetForm.name, description: datasetForm.description || undefined });
     } else {
-      const result = await createDataset.mutateAsync({ name: datasetForm.name, description: datasetForm.description || undefined });
+      const result = await createDataset.mutateAsync({ name: datasetForm.name, description: datasetForm.description || undefined, tenant_id: datasetForm.tenant_id });
       if (result) setSelectedDatasetId(result.id);
     }
     setShowDatasetModal(false);
@@ -280,24 +298,35 @@ export default function Training() {
 
   return (
     <MainLayout title="Training" subtitle="Manage datasets, annotate images, and train YOLOv8 models">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-        <TabsList className="bg-card border border-border">
-          <TabsTrigger value="datasets" className="gap-1.5">
-            <FolderOpen className="w-4 h-4" /> Datasets
-          </TabsTrigger>
-          <TabsTrigger value="images" className="gap-1.5" disabled={!selectedDatasetId}>
-            <ImageIcon className="w-4 h-4" /> Images
-          </TabsTrigger>
-          <TabsTrigger value="annotate" className="gap-1.5" disabled={!selectedDatasetId}>
-            <Square className="w-4 h-4" /> Annotate
-          </TabsTrigger>
-          <TabsTrigger value="classes" className="gap-1.5" disabled={!selectedDatasetId}>
-            <Tag className="w-4 h-4" /> Classes
-          </TabsTrigger>
-          <TabsTrigger value="train" className="gap-1.5" disabled={!selectedDatasetId}>
-            <Brain className="w-4 h-4" /> Train
-          </TabsTrigger>
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        {/* Modern centered navbar — matching Management */}
+        <div className="flex justify-center">
+          <TabsList className="inline-flex h-12 items-center gap-1 rounded-2xl bg-card/80 backdrop-blur-xl border border-border/50 p-1.5 shadow-lg shadow-primary/5">
+            {[
+              { value: 'datasets', label: 'Datasets', icon: FolderOpen },
+              { value: 'images', label: 'Images', icon: ImageIcon, disabled: !selectedDatasetId },
+              { value: 'annotate', label: 'Annotate', icon: Square, disabled: !selectedDatasetId },
+              { value: 'classes', label: 'Classes', icon: Tag, disabled: !selectedDatasetId },
+              { value: 'train', label: 'Train', icon: Brain, disabled: !selectedDatasetId },
+            ].map(tab => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                disabled={tab.disabled}
+                className={cn(
+                  "relative inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-300",
+                  "data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground data-[state=inactive]:hover:bg-secondary/50",
+                  "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:shadow-primary/25",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                  "disabled:opacity-40 disabled:pointer-events-none"
+                )}
+              >
+                <tab.icon className="w-4 h-4" />
+                <span className="hidden sm:inline">{tab.label}</span>
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
         {/* ─── Datasets Tab ─────────────────────────────── */}
         <TabsContent value="datasets" className="space-y-4">
@@ -346,6 +375,9 @@ export default function Training() {
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1"><ImageIcon className="w-3.5 h-3.5" /> {d.image_count} images</span>
                     <span className="flex items-center gap-1"><Tag className="w-3.5 h-3.5" /> {d.class_count} classes</span>
+                    {d.tenant_id && (
+                      <span className="text-xs text-muted-foreground ml-auto">{tenants.find(t => t.id === d.tenant_id)?.name || 'Unknown'}</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 mt-3">
                     <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openEditDataset(d); }}>
@@ -690,6 +722,21 @@ export default function Training() {
               <Label>Description</Label>
               <Textarea value={datasetForm.description} onChange={e => setDatasetForm(p => ({ ...p, description: e.target.value }))} rows={3} />
             </div>
+            {!editingDataset && (
+              <div>
+                <Label>Tenant</Label>
+                <Select value={datasetForm.tenant_id} onValueChange={v => setDatasetForm(p => ({ ...p, tenant_id: v }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select tenant..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenants.map(t => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowDatasetModal(false)}>Cancel</Button>
               <Button type="submit">{editingDataset ? 'Update' : 'Create'}</Button>
