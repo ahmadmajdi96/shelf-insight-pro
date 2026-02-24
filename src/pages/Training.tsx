@@ -105,6 +105,8 @@ export default function Training() {
   // Training modal
   const [showTrainModal, setShowTrainModal] = useState(false);
   const [trainForm, setTrainForm] = useState({ epochs: 100, batch_size: 16 });
+  const [exporting, setExporting] = useState(false);
+  const [trainingStarting, setTrainingStarting] = useState(false);
 
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
 
