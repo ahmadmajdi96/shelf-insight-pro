@@ -44,22 +44,6 @@ export default function Dashboard() {
         </div>
       ) : (
         <div className="space-y-6">
-          {/* Quick Actions */}
-          <div className="flex flex-wrap gap-3">
-            <Button onClick={() => navigate('/management')} className="btn-glow">
-              <LayoutGrid className="w-4 h-4 mr-2" />
-              Manage Shelves
-            </Button>
-            <Button variant="outline" onClick={() => navigate('/products')}>
-              <Package className="w-4 h-4 mr-2" />
-              Add Product
-            </Button>
-            <Button variant="outline" onClick={() => navigate('/tenants')}>
-              <Building2 className="w-4 h-4 mr-2" />
-              Manage Tenants
-            </Button>
-          </div>
-
           {/* Stats Grid */}
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
             {stats.map((stat, i) => (
