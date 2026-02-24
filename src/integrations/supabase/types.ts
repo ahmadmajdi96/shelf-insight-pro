@@ -181,15 +181,7 @@ export type Database = {
           tenant_id?: string | null
           updated_at?: string
         }
-        Relationships: [
-          {
-            foreignKeyName: "datasets_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "tenants"
-            referencedColumns: ["id"]
-          },
-        ]
+        Relationships: []
       }
       detection_results: {
         Row: {
