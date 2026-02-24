@@ -96,6 +96,7 @@ export default function Planogram() {
   const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
   const [expandedStores, setExpandedStores] = useState<Set<string>>(new Set());
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
+  const [tenantFormData, setTenantFormData] = useState({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000 });
 
   // Store modal state
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
