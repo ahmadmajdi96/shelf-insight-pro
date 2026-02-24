@@ -280,16 +280,59 @@ export default function Training() {
     }
   };
 
+  // ─── Export Dataset as ZIP ──────────────────────────────
+  const exportDataset = async () => {
+    if (!selectedDatasetId) return;
+    setExporting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast({ title: 'Not authenticated', variant: 'destructive' });
+        return;
+      }
+      const res = await supabase.functions.invoke('export-dataset', {
+        body: { dataset_id: selectedDatasetId },
+      });
+      if (res.error) throw res.error;
+      
+      // The response data is the ZIP blob
+      const blob = new Blob([res.data], { type: 'application/zip' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dataset-${selectedDataset?.name || selectedDatasetId}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: 'Dataset exported', description: 'YOLOv8-format ZIP downloaded.' });
+    } catch (e: any) {
+      toast({ title: 'Export failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // ─── Training ──────────────────────────────────────────
   const startTraining = async () => {
     if (!selectedDatasetId) return;
-    await createJob.mutateAsync({
-      dataset_id: selectedDatasetId,
-      epochs: trainForm.epochs,
-      batch_size: trainForm.batch_size,
-    });
-    setShowTrainModal(false);
-    toast({ title: 'Training job queued', description: 'The dataset will be packaged and sent for training.' });
+    setTrainingStarting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('start-training', {
+        body: {
+          dataset_id: selectedDatasetId,
+          epochs: trainForm.epochs,
+          batch_size: trainForm.batch_size,
+        },
+      });
+      if (error) throw error;
+      setShowTrainModal(false);
+      toast({ title: 'Training job started', description: data?.message || 'The model is being trained.' });
+      // Refresh jobs
+      qc.invalidateQueries({ queryKey: ['training-jobs'] });
+    } catch (e: any) {
+      toast({ title: 'Training failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setTrainingStarting(false);
+    }
   };
 
   // Set active class to first class if none selected
