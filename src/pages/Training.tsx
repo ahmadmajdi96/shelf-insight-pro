@@ -59,6 +59,7 @@ interface BBox {
 export default function Training() {
   const { toast } = useToast();
   const { tenantId } = useAuth();
+  const qc = useQueryClient();
   const { data: tenants = [] } = useQuery({
     queryKey: ['tenants-for-training'],
     queryFn: async () => {
