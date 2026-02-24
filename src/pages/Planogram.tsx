@@ -135,7 +135,7 @@ export default function Planogram() {
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
   const [deleteCatId, setDeleteCatId] = useState<string | null>(null);
-  const [catFormData, setCatFormData] = useState({ name: '', description: '' });
+  const [catFormData, setCatFormData] = useState({ name: '', description: '', tenant_id: '' });
 
   // Products state
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
