@@ -1227,6 +1227,33 @@ export default function Planogram() {
             </div>
           )}
         </TabsContent>
+
+        {/* Planogram Create/Edit Dialog - placed outside TabsContent so it works from any tab */}
+        <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>{editingTemplate ? 'Edit Planogram' : 'New Planogram'}</DialogTitle><DialogDescription>Configure the planogram details.</DialogDescription></DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-1.5"><Label>Name</Label><Input value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder="e.g. Aisle 3 - Beverages" /></div>
+              <div className="space-y-1.5"><Label>Description</Label><Textarea value={templateDesc} onChange={e => setTemplateDesc(e.target.value)} placeholder="Optional description..." rows={2} /></div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5"><Label>Tenant</Label>
+                  <Select value={templateTenantId} onValueChange={(v) => { setTemplateTenantId(v); setTemplateStoreId(''); }}><SelectTrigger><SelectValue placeholder="Select tenant..." /></SelectTrigger><SelectContent>{tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select>
+                </div>
+                <div className="space-y-1.5"><Label>Store</Label>
+                  <Select value={templateStoreId} onValueChange={setTemplateStoreId}><SelectTrigger><SelectValue placeholder="Select store..." /></SelectTrigger><SelectContent>{stores.filter(s => !templateTenantId || s.tenant_id === templateTenantId).map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select>
+                </div>
+                <div className="space-y-1.5"><Label>Status</Label>
+                  <Select value={templateStatus} onValueChange={setTemplateStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="active">Active</SelectItem><SelectItem value="archived">Archived</SelectItem></SelectContent></Select>
+                </div>
+              </div>
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setShowTemplateDialog(false)}>Cancel</Button><Button onClick={handleSaveTemplate} disabled={!templateName.trim()}>{editingTemplate ? 'Save Changes' : 'Create Planogram'}</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <AlertDialog open={!!deleteTemplateId} onOpenChange={() => setDeleteTemplateId(null)}>
+          <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Planogram</AlertDialogTitle><AlertDialogDescription>This will permanently delete the planogram, all versions, and compliance scan history.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteTemplate} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        </AlertDialog>
       </Tabs>
     </MainLayout>
   );
