@@ -94,6 +94,8 @@ export default function Planogram() {
   const [editingTenantObj, setEditingTenantObj] = useState<any | null>(null);
   const [deleteTenantId, setDeleteTenantId] = useState<string | null>(null);
   const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
+  const [expandedStores, setExpandedStores] = useState<Set<string>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [tenantFormData, setTenantFormData] = useState({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000 });
 
   // Store modal state
@@ -154,6 +156,20 @@ export default function Planogram() {
     setExpandedTenants(prev => {
       const next = new Set(prev);
       if (next.has(tid)) next.delete(tid); else next.add(tid);
+      return next;
+    });
+  };
+  const toggleStore = (sid: string) => {
+    setExpandedStores(prev => {
+      const next = new Set(prev);
+      if (next.has(sid)) next.delete(sid); else next.add(sid);
+      return next;
+    });
+  };
+  const toggleCategory = (cid: string) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(cid)) next.delete(cid); else next.add(cid);
       return next;
     });
   };
@@ -307,10 +323,10 @@ export default function Planogram() {
     { value: 'tenants', label: 'Tenants', icon: Building2 },
     { value: 'stores', label: 'Stores', icon: Store },
     { value: 'planograms', label: 'Planograms', icon: LayoutGrid },
-    { value: 'compliance', label: 'Compliance', icon: BarChart3 },
-    { value: 'scan-history', label: 'Scan History', icon: TrendingUp },
     { value: 'categories', label: 'Categories', icon: FolderOpen },
     { value: 'products', label: 'Products', icon: Package },
+    { value: 'compliance', label: 'Compliance', icon: BarChart3 },
+    { value: 'scan-history', label: 'Scan History', icon: TrendingUp },
     { value: 'versions', label: 'Version History', icon: History },
   ];
 
@@ -396,32 +412,15 @@ export default function Planogram() {
                           <Progress value={imagePercentage} className={cn("h-2", imagePercentage >= 90 && "[&>div]:bg-destructive", imagePercentage >= 80 && imagePercentage < 90 && "[&>div]:bg-warning")} /></div>
                       </div>
                     </div>
-                    <Collapsible open={isExpanded} onOpenChange={() => toggleTenant(tenant.id)}>
-                      <CollapsibleTrigger asChild>
-                        <button className="w-full px-5 py-3 border-t border-border flex items-center justify-between text-sm hover:bg-muted/30 transition-colors">
-                          <span className="text-muted-foreground flex items-center gap-2"><Store className="w-4 h-4" />{tenantStores.length} Store{tenantStores.length !== 1 ? 's' : ''}</span>
-                          <span className="text-xs text-muted-foreground">{isExpanded ? 'Collapse' : 'Expand'}</span>
-                        </button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="px-5 pb-4 space-y-2">
-                          {tenantStores.map(store => (
-                            <div key={store.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
-                              <div className="flex items-center gap-3">
-                                <Store className="w-4 h-4 text-muted-foreground" />
-                                <div><p className="font-medium text-foreground text-sm">{store.name}</p><p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{store.city || 'Unknown'}{store.country ? `, ${store.country}` : ''}</p></div>
-                              </div>
-                              <div className="flex gap-1">
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditStore(store)}><Pencil className="w-3 h-3" /></Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteStoreId(store.id)}><Trash2 className="w-3 h-3" /></Button>
-                              </div>
-                            </div>
-                          ))}
-                          {tenantStores.length === 0 && <p className="text-sm text-muted-foreground text-center py-2">No stores yet</p>}
-                          <Button variant="outline" size="sm" className="w-full" onClick={() => handleAddStore(tenant.id)}><Plus className="w-3 h-3 mr-2" />Add Store</Button>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
+                    <div className="border-t border-border">
+                      <button 
+                        className="w-full px-5 py-3 flex items-center justify-between text-sm hover:bg-muted/30 transition-colors"
+                        onClick={() => { setStoreTenantFilter(tenant.id); setActiveTab('stores'); }}
+                      >
+                        <span className="text-muted-foreground flex items-center gap-2"><Store className="w-4 h-4" />{tenantStores.length} Store{tenantStores.length !== 1 ? 's' : ''}</span>
+                        <span className="text-xs text-primary">View Stores →</span>
+                      </button>
+                    </div>
                   </div>
                 );
               })}
@@ -495,34 +494,79 @@ export default function Planogram() {
             </Select>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredStores.map((store, index) => (
-              <div key={store.id} className={cn("rounded-xl bg-card border border-border p-5 hover:border-primary/30 transition-all duration-300 animate-fade-in")} style={{ animationDelay: `${index * 50}ms` }}>
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="w-12 h-12 rounded-lg bg-primary/10 flex items-center justify-center"><Store className="w-6 h-6 text-primary" /></div>
-                    <div>
-                      <h4 className="font-semibold text-foreground">{store.name}</h4>
-                      <p className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{store.city || 'Unknown'}{store.country ? `, ${store.country}` : ''}</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-foreground">{filteredStores.length}</p><p className="text-sm text-muted-foreground">Total Stores</p></div>
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-primary">{filteredStores.reduce((a, s) => a + s.detectionCount, 0)}</p><p className="text-sm text-muted-foreground">Total Detections</p></div>
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-foreground">{templates.filter(t => filteredStores.some(s => s.id === t.store_id)).length}</p><p className="text-sm text-muted-foreground">Planograms</p></div>
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-success">{filteredStores.length > 0 ? Math.round(filteredStores.reduce((a, s) => a + s.avgShareOfShelf, 0) / filteredStores.length) : 0}%</p><p className="text-sm text-muted-foreground">Avg. Share of Shelf</p></div>
+          </div>
+
+          <div className="space-y-4">
+            {filteredStores.map((store, index) => {
+              const storePlanograms = templates.filter(t => t.store_id === store.id);
+              const isExpanded = expandedStores.has(store.id);
+              const tenantName = tenants.find(t => t.id === store.tenant_id)?.name;
+              return (
+                <div key={store.id} className="rounded-xl bg-card border border-border transition-all duration-300 animate-fade-in" style={{ animationDelay: `${index * 50}ms` }}>
+                  <div className="p-5">
+                    <div className="flex items-start justify-between mb-4">
+                      <div className="flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><Store className="w-5 h-5 text-primary" /></div>
+                        <div>
+                          <h4 className="font-semibold text-foreground">{store.name}</h4>
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{store.city || 'Unknown'}{store.country ? `, ${store.country}` : ''}</span>
+                            {tenantName && <Badge variant="secondary" className="text-xs">{tenantName}</Badge>}
+                          </div>
+                        </div>
+                      </div>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          <DropdownMenuItem onClick={() => handleEditStore(store)}><Pencil className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
+                          <DropdownMenuItem className="text-destructive" onClick={() => setDeleteStoreId(store.id)}><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div><div className="flex justify-between text-sm mb-1"><span className="text-muted-foreground">Detections</span><span className="text-foreground font-medium">{store.detectionCount}</span></div></div>
+                      <div><div className="flex justify-between text-sm mb-1"><span className="text-muted-foreground">Avg. Share of Shelf</span><span className="text-foreground font-medium">{store.avgShareOfShelf}%</span></div></div>
+                      <div><div className="flex justify-between text-sm mb-1"><span className="text-muted-foreground">Last Scan</span><span className="text-foreground font-medium">{store.lastDetection ? formatDistanceToNow(new Date(store.lastDetection), { addSuffix: true }) : 'Never'}</span></div></div>
                     </div>
                   </div>
-                  <DropdownMenu>
-                    <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
-                    <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => handleEditStore(store)}><Pencil className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
-                      <DropdownMenuItem className="text-destructive" onClick={() => setDeleteStoreId(store.id)}><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
-                    </DropdownMenuContent>
-                  </DropdownMenu>
+                  <Collapsible open={isExpanded} onOpenChange={() => toggleStore(store.id)}>
+                    <CollapsibleTrigger asChild>
+                      <button className="w-full px-5 py-3 border-t border-border flex items-center justify-between text-sm hover:bg-muted/30 transition-colors">
+                        <span className="text-muted-foreground flex items-center gap-2"><LayoutGrid className="w-4 h-4" />{storePlanograms.length} Planogram{storePlanograms.length !== 1 ? 's' : ''}</span>
+                        <span className="text-xs text-muted-foreground">{isExpanded ? 'Collapse' : 'Expand'}</span>
+                      </button>
+                    </CollapsibleTrigger>
+                    <CollapsibleContent>
+                      <div className="px-5 pb-4 space-y-2">
+                        {storePlanograms.map(p => (
+                          <div key={p.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border cursor-pointer hover:border-primary/30 transition-colors" onClick={() => { openDesigner(p); setActiveTab('planograms'); }}>
+                            <div className="flex items-center gap-3">
+                              <LayoutGrid className="w-4 h-4 text-muted-foreground" />
+                              <div>
+                                <p className="font-medium text-foreground text-sm">{p.name}</p>
+                                <p className="text-xs text-muted-foreground">{p.layout.length} shelves · {p.status}</p>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              {p.latest_compliance !== null && <span className={cn("text-xs font-medium", getScoreColor(p.latest_compliance!))}>{p.latest_compliance}%</span>}
+                              <Badge variant={p.status === 'active' ? 'default' : 'secondary'} className="text-[10px]">{p.status}</Badge>
+                            </div>
+                          </div>
+                        ))}
+                        {storePlanograms.length === 0 && <p className="text-sm text-muted-foreground text-center py-2">No planograms yet</p>}
+                        <Button variant="outline" size="sm" className="w-full" onClick={() => { setTemplateStoreId(store.id); setTemplateTenantId(store.tenant_id); openNewTemplate(); }}><Plus className="w-3 h-3 mr-2" />Add Planogram</Button>
+                      </div>
+                    </CollapsibleContent>
+                  </Collapsible>
                 </div>
-                <p className="text-sm text-muted-foreground mb-4">{store.address || 'No address'}</p>
-                <div className="grid grid-cols-3 gap-4 p-3 rounded-lg bg-secondary/50">
-                  <div className="text-center"><p className="text-lg font-semibold text-foreground">{store.detectionCount}</p><p className="text-xs text-muted-foreground">Detections</p></div>
-                  <div className="text-center border-x border-border"><p className="text-lg font-semibold text-primary">{store.avgShareOfShelf}%</p><p className="text-xs text-muted-foreground">Avg. SoS</p></div>
-                  <div className="text-center"><p className="text-sm font-medium text-foreground">{store.lastDetection ? formatDistanceToNow(new Date(store.lastDetection), { addSuffix: true }) : 'Never'}</p><p className="text-xs text-muted-foreground">Last Scan</p></div>
-                </div>
-              </div>
-            ))}
-            {filteredStores.length === 0 && <div className="col-span-full text-center py-12"><p className="text-muted-foreground">No stores found.</p></div>}
+              );
+            })}
+            {filteredStores.length === 0 && <div className="text-center py-12"><p className="text-muted-foreground">No stores found.</p></div>}
           </div>
         </TabsContent>
 
@@ -930,43 +974,88 @@ export default function Planogram() {
             <Button variant="glow" onClick={() => { resetCatForm(); setIsCatModalOpen(true); }}><Plus className="w-4 h-4 mr-2" />Add Category</Button>
           </div>
 
-          <p className="text-sm text-muted-foreground">{categories.length} categories • {categories.reduce((acc, c) => acc + c.productCount, 0)} total products</p>
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-foreground">{categories.length}</p><p className="text-sm text-muted-foreground">Total Categories</p></div>
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-primary">{categories.reduce((acc, c) => acc + c.productCount, 0)}</p><p className="text-sm text-muted-foreground">Total Products</p></div>
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-success">{categories.reduce((acc, c) => acc + c.trainedCount, 0)}</p><p className="text-sm text-muted-foreground">Trained</p></div>
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-muted-foreground">{categories.reduce((acc, c) => acc + c.productCount - c.trainedCount, 0)}</p><p className="text-sm text-muted-foreground">Pending</p></div>
+          </div>
 
           {categoriesLoading ? (
             <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredCategories.map((category, index) => (
-                <div key={category.id} className="rounded-xl bg-card border border-border p-5 hover:border-primary/30 transition-all duration-300 animate-fade-in" style={{ animationDelay: `${index * 50}ms` }}>
-                  <div className="flex items-start justify-between mb-4">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><FolderOpen className="w-5 h-5 text-primary" /></div>
-                      <div>
-                        <h4 className="font-semibold text-foreground">{category.name}</h4>
-                        <p className="text-sm text-muted-foreground line-clamp-1">{category.description || 'No description'}</p>
+            <div className="space-y-4">
+              {filteredCategories.map((category, index) => {
+                const catProducts = products.filter(p => p.category_id === category.id);
+                const isExpanded = expandedCategories.has(category.id);
+                const trainPercent = category.productCount > 0 ? Math.round((category.trainedCount / category.productCount) * 100) : 0;
+                return (
+                  <div key={category.id} className="rounded-xl bg-card border border-border transition-all duration-300 animate-fade-in" style={{ animationDelay: `${index * 50}ms` }}>
+                    <div className="p-5">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><FolderOpen className="w-5 h-5 text-primary" /></div>
+                          <div>
+                            <h4 className="font-semibold text-foreground">{category.name}</h4>
+                            <p className="text-sm text-muted-foreground line-clamp-1">{category.description || 'No description'}</p>
+                          </div>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleCatEdit(category)}><Pencil className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteCatId(category.id)}><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                          <div className="flex justify-between text-sm mb-1"><span className="text-muted-foreground">Products</span><span className="text-foreground font-medium">{category.productCount}</span></div>
+                        </div>
+                        <div>
+                          <div className="flex justify-between text-sm mb-1"><span className="text-muted-foreground">Training</span><span className="text-foreground font-medium">{trainPercent}% complete</span></div>
+                          <Progress value={trainPercent} className="h-2" />
+                        </div>
                       </div>
                     </div>
-                    <DropdownMenu>
-                      <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
-                      <DropdownMenuContent align="end">
-                        <DropdownMenuItem onClick={() => handleCatEdit(category)}><Pencil className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
-                        <DropdownMenuItem className="text-destructive" onClick={() => setDeleteCatId(category.id)}><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
-                      </DropdownMenuContent>
-                    </DropdownMenu>
+                    <Collapsible open={isExpanded} onOpenChange={() => toggleCategory(category.id)}>
+                      <CollapsibleTrigger asChild>
+                        <button className="w-full px-5 py-3 border-t border-border flex items-center justify-between text-sm hover:bg-muted/30 transition-colors">
+                          <span className="text-muted-foreground flex items-center gap-2"><Package className="w-4 h-4" />{category.productCount} Product{category.productCount !== 1 ? 's' : ''}</span>
+                          <span className="text-xs text-muted-foreground">{isExpanded ? 'Collapse' : 'Expand'}</span>
+                        </button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="px-5 pb-4 space-y-2">
+                          {catProducts.map(product => {
+                            const status = statusConfig[product.training_status];
+                            const StatusIcon = status.icon;
+                            return (
+                              <div key={product.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
+                                <div className="flex items-center gap-3">
+                                  <Package className="w-4 h-4 text-muted-foreground" />
+                                  <div>
+                                    <p className="font-medium text-foreground text-sm">{product.name}</p>
+                                    <p className="text-xs text-muted-foreground">{product.barcode || 'No barcode'}</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <span className={cn("inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium", status.className)}><StatusIcon className="w-3 h-3" />{status.label}</span>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleProductEdit(product)}><Pencil className="w-3 h-3" /></Button>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteProductId(product.id)}><Trash2 className="w-3 h-3" /></Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {catProducts.length === 0 && <p className="text-sm text-muted-foreground text-center py-2">No products yet</p>}
+                          <Button variant="outline" size="sm" className="w-full" onClick={() => setIsAddProductOpen(true)}><Plus className="w-3 h-3 mr-2" />Add Product</Button>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   </div>
-                  <div className="flex items-center gap-4 text-sm">
-                    <div className="flex items-center gap-1.5 text-muted-foreground"><Package className="w-4 h-4" /><span>{category.productCount} products</span></div>
-                    <span className="text-success">{category.trainedCount} trained</span>
-                  </div>
-                  <div className="mt-4 pt-4 border-t border-border">
-                    <div className="h-2 bg-secondary rounded-full overflow-hidden">
-                      <div className="h-full bg-gradient-to-r from-primary to-primary/70 rounded-full" style={{ width: `${category.productCount > 0 ? (category.trainedCount / category.productCount) * 100 : 0}%` }} />
-                    </div>
-                    <p className="text-xs text-muted-foreground mt-1.5">{category.productCount > 0 ? `${Math.round((category.trainedCount / category.productCount) * 100)}% training complete` : 'No products yet'}</p>
-                  </div>
-                </div>
-              ))}
-              {filteredCategories.length === 0 && <div className="col-span-full text-center py-12"><p className="text-muted-foreground">{categories.length === 0 ? 'No categories yet.' : 'No categories found.'}</p></div>}
+                );
+              })}
+              {filteredCategories.length === 0 && <div className="text-center py-12"><p className="text-muted-foreground">{categories.length === 0 ? 'No categories yet.' : 'No categories found.'}</p></div>}
             </div>
           )}
 
