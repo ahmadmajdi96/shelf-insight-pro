@@ -1,4 +1,4 @@
-import { ScanLine, Package, Store, TrendingUp, ImageIcon, CheckCircle2, Loader2, Building2, LayoutGrid, ArrowUpRight } from 'lucide-react';
+import { Package, Store, TrendingUp, ImageIcon, CheckCircle2, Loader2, Building2, LayoutGrid, ArrowUpRight } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
