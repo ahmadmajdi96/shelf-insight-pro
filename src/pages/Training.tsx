@@ -58,7 +58,14 @@ interface BBox {
 export default function Training() {
   const { toast } = useToast();
   const { tenantId } = useAuth();
-  const { tenants } = useTenants();
+  const { data: tenants = [] } = useQuery({
+    queryKey: ['tenants-for-training'],
+    queryFn: async () => {
+      const { data, error } = await supabase.from('tenants').select('id, name').order('name');
+      if (error) throw error;
+      return data || [];
+    },
+  });
   const [activeTab, setActiveTab] = useState('datasets');
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
 
