@@ -1117,39 +1117,51 @@ export default function Planogram() {
           {productsLoading ? (
             <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
           ) : (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredProducts.map((product, index) => {
-                  const status = statusConfig[product.training_status];
-                  const StatusIcon = status.icon;
-                  const imageUrl = product.sku_images?.[0]?.image_url;
-                  const imageCount = product.sku_images?.length || 0;
-                  return (
-                    <div key={product.id} className="rounded-xl bg-card border border-border hover:border-primary/30 transition-all duration-300 overflow-hidden group animate-fade-in" style={{ animationDelay: `${index * 50}ms` }}>
-                      <div className="aspect-square bg-secondary relative overflow-hidden">
-                        {imageUrl ? <img src={imageUrl} alt={product.name} className="w-full h-full object-cover" /> : <div className="absolute inset-0 flex items-center justify-center"><Package className="w-12 h-12 text-muted-foreground/50" /></div>}
-                        <div className="absolute top-2 right-2">
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Barcode</TableHead>
+                    <TableHead className="text-center">Width (cm)</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="w-[60px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProducts.map(product => {
+                    const status = statusConfig[product.training_status];
+                    const StatusIcon = status.icon;
+                    return (
+                      <TableRow key={product.id}>
+                        <TableCell className="font-medium">{product.name}</TableCell>
+                        <TableCell className="text-muted-foreground">{product.product_categories?.name || 'Uncategorized'}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{product.barcode || '—'}</TableCell>
+                        <TableCell className="text-center">{product.width_cm ? `${product.width_cm}` : '—'}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="secondary" className={cn("text-xs", status.className)}>
+                            <StatusIcon className="w-3 h-3 mr-1" />{status.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 bg-background/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
+                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => handleProductEdit(product)}><Pencil className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
                               <DropdownMenuItem className="text-destructive" onClick={() => setDeleteProductId(product.id)}><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        </div>
-                        <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-1 rounded-md bg-background/80 backdrop-blur-sm text-xs"><Image className="w-3 h-3" />{imageCount} images</div>
-                      </div>
-                      <div className="p-4 space-y-3">
-                        <div><h4 className="font-medium text-foreground truncate">{product.name}</h4><p className="text-sm text-muted-foreground">{product.product_categories?.name || 'Uncategorized'}</p></div>
-                        {product.barcode && <p className="text-xs font-mono text-muted-foreground bg-secondary px-2 py-1 rounded inline-block">{product.barcode}</p>}
-                        <div className="flex items-center pt-2"><span className={cn("inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium", status.className)}><StatusIcon className="w-3 h-3" />{status.label}</span></div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {filteredProducts.length === 0 && <div className="text-center py-12"><p className="text-muted-foreground">{products.length === 0 ? 'No products yet. Add your first product to get started.' : 'No products found matching your criteria.'}</p></div>}
-            </>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {filteredProducts.length === 0 && (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{products.length === 0 ? 'No products yet.' : 'No products found matching your criteria.'}</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           )}
 
           <AddProductModal open={isAddProductOpen} onClose={() => setIsAddProductOpen(false)} />
