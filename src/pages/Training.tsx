@@ -1,9 +1,9 @@
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import {
   Plus, Upload, Trash2, Search, Pencil, Tag,
   Loader2, Image as ImageIcon, Brain, FolderOpen,
   Play, Clock, CheckCircle2, AlertTriangle, X,
-  ZoomIn, ZoomOut, MousePointer2, Square, Download
+  MousePointer2, Square, Download, RefreshCw, Filter
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -17,12 +17,16 @@ import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
 import {
-  Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription,
+  Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription,
 } from '@/components/ui/dialog';
 import {
   AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
   AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
+} from '@/components/ui/table';
+import { ScrollArea } from '@/components/ui/scroll-area';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -47,19 +51,20 @@ const statusConfig: Record<string, { icon: any; label: string; className: string
   failed: { icon: AlertTriangle, label: 'Failed', className: 'text-destructive bg-destructive/10' },
 };
 
-// ─── Annotation types ────────────────────────────────────
 interface BBox {
   id: string;
   classId: string;
   className: string;
   color: string;
-  x: number; y: number; w: number; h: number; // normalized 0-1
+  x: number; y: number; w: number; h: number;
 }
 
 export default function Training() {
   const { toast } = useToast();
   const { tenantId } = useAuth();
   const qc = useQueryClient();
+
+  // Tenants
   const { data: tenants = [] } = useQuery({
     queryKey: ['tenants-for-training'],
     queryFn: async () => {
@@ -67,10 +72,13 @@ export default function Training() {
       return data || [];
     },
   });
+
   const [activeTab, setActiveTab] = useState('datasets');
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
+  const [filterTenant, setFilterTenant] = useState<string>('all');
+  const [searchQuery, setSearchQuery] = useState('');
 
-  // Datasets
+  // Data hooks
   const { datasets, isLoading: datasetsLoading, createDataset, updateDataset, deleteDataset } = useDatasets();
   const { images, isLoading: imagesLoading, uploadImages, updateAnnotations, deleteImage } = useDatasetImages(selectedDatasetId);
   const { classes, createClass, updateClass, deleteClass } = useDatasetClasses(selectedDatasetId);
@@ -81,7 +89,6 @@ export default function Training() {
   const [editingDataset, setEditingDataset] = useState<Dataset | null>(null);
   const [datasetForm, setDatasetForm] = useState({ name: '', description: '', tenant_id: '' });
   const [deleteDatasetId, setDeleteDatasetId] = useState<string | null>(null);
-  const [datasetSearch, setDatasetSearch] = useState('');
 
   // Upload
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -94,7 +101,6 @@ export default function Training() {
   const [drawing, setDrawing] = useState(false);
   const [drawStart, setDrawStart] = useState<{ x: number; y: number } | null>(null);
   const [drawCurrent, setDrawCurrent] = useState<{ x: number; y: number } | null>(null);
-  const canvasRef = useRef<HTMLDivElement>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
   // Class modal
@@ -110,6 +116,19 @@ export default function Training() {
   const [trainingStarting, setTrainingStarting] = useState(false);
 
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
+
+  // Filtered datasets
+  const filteredDatasets = useMemo(() => {
+    return datasets.filter(d => {
+      const matchesSearch = d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (d.description || '').toLowerCase().includes(searchQuery.toLowerCase());
+      const matchesTenant = filterTenant === 'all' || d.tenant_id === filterTenant;
+      return matchesSearch && matchesTenant;
+    });
+  }, [datasets, searchQuery, filterTenant]);
+
+  const hasActiveFilters = searchQuery || filterTenant !== 'all';
+  const clearFilters = () => { setSearchQuery(''); setFilterTenant('all'); };
 
   // ─── Dataset CRUD ──────────────────────────────────────
   const openNewDataset = () => {
@@ -145,29 +164,45 @@ export default function Training() {
     }
   };
 
-  const filteredDatasets = datasets.filter(d =>
-    d.name.toLowerCase().includes(datasetSearch.toLowerCase())
-  );
-
-  // ─── Upload ────────────────────────────────────────────
+  // ─── Upload (Supabase storage) ─────────────────────────
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!selectedDatasetId || !e.target.files?.length) return;
     const files = Array.from(e.target.files).slice(0, 500);
-    if (files.length === 0) return;
-
     const validFiles = files.filter(f => f.type.startsWith('image/'));
     if (validFiles.length === 0) {
       toast({ title: 'No valid images', description: 'Only image files are accepted.', variant: 'destructive' });
       return;
     }
-    if (validFiles.length > 500) {
-      toast({ title: 'Too many files', description: 'Maximum 500 images per upload.', variant: 'destructive' });
-      return;
-    }
 
     setUploading(true);
     try {
-      await uploadImages.mutateAsync({ datasetId: selectedDatasetId, files: validFiles });
+      const uploaded: DatasetImage[] = [];
+      for (const file of validFiles) {
+        const path = `${selectedDatasetId}/${crypto.randomUUID()}-${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('dataset-images')
+          .upload(path, file);
+        if (uploadError) throw uploadError;
+
+        const { data: { publicUrl } } = supabase.storage
+          .from('dataset-images')
+          .getPublicUrl(path);
+
+        const { data, error } = await supabase
+          .from('dataset_images')
+          .insert({ dataset_id: selectedDatasetId, image_url: publicUrl, file_name: file.name })
+          .select()
+          .single();
+        if (error) throw error;
+        uploaded.push(data as DatasetImage);
+      }
+      // Update image count
+      await supabase.from('datasets').update({ image_count: (images.length || 0) + validFiles.length }).eq('id', selectedDatasetId);
+      qc.invalidateQueries({ queryKey: ['dataset-images', selectedDatasetId] });
+      qc.invalidateQueries({ queryKey: ['datasets'] });
+      toast({ title: 'Images uploaded', description: `${validFiles.length} image(s) uploaded successfully.` });
+    } catch (err: any) {
+      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
     } finally {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -213,37 +248,26 @@ export default function Training() {
       setDrawing(false);
       return;
     }
-
     const x = Math.min(drawStart.x, drawCurrent.x);
     const y = Math.min(drawStart.y, drawCurrent.y);
     const w = Math.abs(drawCurrent.x - drawStart.x);
     const h = Math.abs(drawCurrent.y - drawStart.y);
-
-    if (w < 0.01 || h < 0.01) {
-      setDrawing(false);
-      return;
-    }
+    if (w < 0.01 || h < 0.01) { setDrawing(false); return; }
 
     const cls = classes.find(c => c.id === activeClassId);
     if (!cls) { setDrawing(false); return; }
 
-    const newBox: BBox = {
+    setBboxes(prev => [...prev, {
       id: crypto.randomUUID(),
-      classId: cls.id,
-      className: cls.name,
-      color: cls.color,
+      classId: cls.id, className: cls.name, color: cls.color,
       x, y, w, h,
-    };
-
-    setBboxes(prev => [...prev, newBox]);
+    }]);
     setDrawing(false);
     setDrawStart(null);
     setDrawCurrent(null);
   };
 
-  const removeBbox = (id: string) => {
-    setBboxes(prev => prev.filter(b => b.id !== id));
-  };
+  const removeBbox = (id: string) => setBboxes(prev => prev.filter(b => b.id !== id));
 
   const saveAnnotations = async () => {
     if (!annotatingImage) return;
@@ -254,8 +278,7 @@ export default function Training() {
   // ─── Classes ───────────────────────────────────────────
   const openNewClass = () => {
     setEditingClass(null);
-    const nextColor = CLASS_COLORS[classes.length % CLASS_COLORS.length];
-    setClassForm({ name: '', color: nextColor });
+    setClassForm({ name: '', color: CLASS_COLORS[classes.length % CLASS_COLORS.length] });
     setShowClassModal(true);
   };
   const openEditClass = (c: DatasetClass) => {
@@ -281,22 +304,15 @@ export default function Training() {
     }
   };
 
-  // ─── Export Dataset as ZIP ──────────────────────────────
+  // ─── Export ────────────────────────────────────────────
   const exportDataset = async () => {
     if (!selectedDatasetId) return;
     setExporting(true);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) {
-        toast({ title: 'Not authenticated', variant: 'destructive' });
-        return;
-      }
       const res = await supabase.functions.invoke('export-dataset', {
         body: { dataset_id: selectedDatasetId },
       });
       if (res.error) throw res.error;
-      
-      // The response data is the ZIP blob
       const blob = new Blob([res.data], { type: 'application/zip' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -318,16 +334,11 @@ export default function Training() {
     setTrainingStarting(true);
     try {
       const { data, error } = await supabase.functions.invoke('start-training', {
-        body: {
-          dataset_id: selectedDatasetId,
-          epochs: trainForm.epochs,
-          batch_size: trainForm.batch_size,
-        },
+        body: { dataset_id: selectedDatasetId, epochs: trainForm.epochs, batch_size: trainForm.batch_size },
       });
       if (error) throw error;
       setShowTrainModal(false);
       toast({ title: 'Training job started', description: data?.message || 'The model is being trained.' });
-      // Refresh jobs
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
     } catch (e: any) {
       toast({ title: 'Training failed', description: e.message, variant: 'destructive' });
@@ -336,108 +347,228 @@ export default function Training() {
     }
   };
 
-  // Set active class to first class if none selected
   useEffect(() => {
-    if (!activeClassId && classes.length > 0) {
-      setActiveClassId(classes[0].id);
-    }
+    if (!activeClassId && classes.length > 0) setActiveClassId(classes[0].id);
   }, [classes, activeClassId]);
+
+  const TAB_CONFIG = [
+    { value: 'datasets', label: 'Datasets', icon: FolderOpen },
+    { value: 'classes', label: 'Classes', icon: Tag, disabled: !selectedDatasetId },
+    { value: 'images', label: 'Images', icon: ImageIcon, disabled: !selectedDatasetId },
+    { value: 'annotate', label: 'Annotate', icon: Square, disabled: !selectedDatasetId },
+    { value: 'train', label: 'Train', icon: Brain, disabled: !selectedDatasetId },
+  ];
 
   return (
     <MainLayout title="Training" subtitle="Manage datasets, annotate images, and train YOLOv8 models">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        {/* Modern centered navbar — matching Management */}
-        <div className="flex justify-center">
-          <TabsList className="inline-flex h-12 items-center gap-1 rounded-2xl bg-card/80 backdrop-blur-xl border border-border/50 p-1.5 shadow-lg shadow-primary/5">
-            {[
-              { value: 'datasets', label: 'Datasets', icon: FolderOpen },
-              { value: 'images', label: 'Images', icon: ImageIcon, disabled: !selectedDatasetId },
-              { value: 'annotate', label: 'Annotate', icon: Square, disabled: !selectedDatasetId },
-              { value: 'classes', label: 'Classes', icon: Tag, disabled: !selectedDatasetId },
-              { value: 'train', label: 'Train', icon: Brain, disabled: !selectedDatasetId },
-            ].map(tab => (
-              <TabsTrigger
-                key={tab.value}
-                value={tab.value}
-                disabled={tab.disabled}
-                className={cn(
-                  "relative inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-300",
-                  "data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground data-[state=inactive]:hover:bg-secondary/50",
-                  "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:shadow-primary/25",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-                  "disabled:opacity-40 disabled:pointer-events-none"
-                )}
-              >
-                <tab.icon className="w-4 h-4" />
-                <span className="hidden sm:inline">{tab.label}</span>
-              </TabsTrigger>
-            ))}
-          </TabsList>
-        </div>
-
-        {/* ─── Datasets Tab ─────────────────────────────── */}
-        <TabsContent value="datasets" className="space-y-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-              <Input
-                placeholder="Search datasets..."
-                value={datasetSearch}
-                onChange={e => setDatasetSearch(e.target.value)}
-                className="pl-9"
-              />
+      {/* Filters bar — matching Data page design */}
+      <div className="bg-card border border-border rounded-xl p-4 mb-6">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="relative flex-1 min-w-[200px]">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+            <Input
+              placeholder="Search datasets..."
+              value={searchQuery}
+              onChange={e => setSearchQuery(e.target.value)}
+              className="pl-9 bg-secondary border-border"
+            />
+          </div>
+          <Select value={filterTenant} onValueChange={setFilterTenant}>
+            <SelectTrigger className="w-[180px] bg-secondary border-border">
+              <SelectValue placeholder="All Tenants" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Tenants</SelectItem>
+              {tenants.map((t: any) => (
+                <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" onClick={clearFilters}>
+              <X className="w-4 h-4 mr-1" /> Clear
+            </Button>
+          )}
+          {selectedDataset && (
+            <div className="ml-auto">
+              <Badge variant="outline" className="text-xs">
+                Selected: <span className="font-semibold ml-1">{selectedDataset.name}</span>
+              </Badge>
             </div>
-            <Button onClick={openNewDataset}>
+          )}
+        </div>
+      </div>
+
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        {/* Tab bar — matching Data page style */}
+        <TabsList className={cn("grid w-full bg-card border border-border mb-6", `grid-cols-${TAB_CONFIG.length}`)}>
+          {TAB_CONFIG.map(tab => (
+            <TabsTrigger key={tab.value} value={tab.value} disabled={tab.disabled} className="gap-2">
+              <tab.icon className="w-4 h-4" />
+              <span className="hidden sm:inline">{tab.label}</span>
+              {tab.value === 'datasets' && <Badge variant="secondary" className="ml-1">{filteredDatasets.length}</Badge>}
+              {tab.value === 'classes' && selectedDatasetId && <Badge variant="secondary" className="ml-1">{classes.length}</Badge>}
+              {tab.value === 'images' && selectedDatasetId && <Badge variant="secondary" className="ml-1">{images.length}</Badge>}
+              {tab.value === 'train' && selectedDatasetId && <Badge variant="secondary" className="ml-1">{jobs.length}</Badge>}
+            </TabsTrigger>
+          ))}
+        </TabsList>
+
+        {/* ─── Datasets Tab (Table) ─────────────────────── */}
+        <TabsContent value="datasets">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-foreground">All Datasets</h3>
+            <Button onClick={openNewDataset} size="sm">
               <Plus className="w-4 h-4 mr-2" /> New Dataset
             </Button>
           </div>
-
-          {datasetsLoading ? (
-            <div className="flex items-center justify-center py-16">
-              <Loader2 className="w-8 h-8 animate-spin text-primary" />
-            </div>
-          ) : filteredDatasets.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <FolderOpen className="w-12 h-12 mx-auto mb-3 opacity-40" />
-              <p>No datasets yet. Create one to get started.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredDatasets.map(d => (
-                <div
-                  key={d.id}
-                  className={cn(
-                    "page-section cursor-pointer hover:border-primary/30 transition-colors",
-                    selectedDatasetId === d.id && "border-primary ring-1 ring-primary/20"
+          <div className="rounded-xl bg-card border border-border overflow-hidden">
+            <ScrollArea className="h-[600px]">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-secondary/50">
+                    <TableHead className="w-10"></TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Tenant</TableHead>
+                    <TableHead>Description</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Images</TableHead>
+                    <TableHead>Classes</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {datasetsLoading ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-16">
+                        <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
+                      </TableCell>
+                    </TableRow>
+                  ) : filteredDatasets.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={9} className="text-center py-16 text-muted-foreground">
+                        <FolderOpen className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                        <p>No datasets yet. Create one to get started.</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    filteredDatasets.map(d => (
+                      <TableRow
+                        key={d.id}
+                        className={cn(
+                          "cursor-pointer transition-colors",
+                          selectedDatasetId === d.id && "bg-primary/5 border-l-2 border-l-primary"
+                        )}
+                        onClick={() => setSelectedDatasetId(d.id)}
+                      >
+                        <TableCell>
+                          <input
+                            type="radio"
+                            name="dataset"
+                            checked={selectedDatasetId === d.id}
+                            onChange={() => setSelectedDatasetId(d.id)}
+                            className="accent-primary"
+                          />
+                        </TableCell>
+                        <TableCell className="font-medium">{d.name}</TableCell>
+                        <TableCell>
+                          {d.tenant_id ? (
+                            <Badge variant="outline" className="text-xs">
+                              {tenants.find((t: any) => t.id === d.tenant_id)?.name || 'Unknown'}
+                            </Badge>
+                          ) : '-'}
+                        </TableCell>
+                        <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                          {d.description || '-'}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant={d.status === 'ready' ? 'default' : 'secondary'} className="text-[10px]">
+                            {d.status}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{d.image_count}</TableCell>
+                        <TableCell>{d.class_count}</TableCell>
+                        <TableCell>{format(new Date(d.created_at), 'PP')}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button size="icon" variant="ghost" className="w-7 h-7" onClick={(e) => { e.stopPropagation(); openEditDataset(d); }}>
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteDatasetId(d.id); }}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
                   )}
-                  onClick={() => setSelectedDatasetId(d.id)}
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div>
-                      <h3 className="font-semibold text-foreground">{d.name}</h3>
-                      {d.description && <p className="text-xs text-muted-foreground mt-0.5">{d.description}</p>}
-                    </div>
-                    <Badge variant="outline" className="text-[10px]">{d.status}</Badge>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <span className="flex items-center gap-1"><ImageIcon className="w-3.5 h-3.5" /> {d.image_count} images</span>
-                    <span className="flex items-center gap-1"><Tag className="w-3.5 h-3.5" /> {d.class_count} classes</span>
-                    {d.tenant_id && (
-                      <span className="text-xs text-muted-foreground ml-auto">{tenants.find(t => t.id === d.tenant_id)?.name || 'Unknown'}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-2 mt-3">
-                    <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openEditDataset(d); }}>
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button size="sm" variant="ghost" className="text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteDatasetId(d.id); }}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </div>
+        </TabsContent>
+
+        {/* ─── Classes Tab ──────────────────────────────── */}
+        <TabsContent value="classes">
+          <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
+            <h3 className="font-semibold text-foreground">
+              SKU Classes — {selectedDataset?.name} ({classes.length})
+            </h3>
+            <div className="flex gap-2">
+              <Button variant="outline" disabled>
+                <Brain className="w-4 h-4 mr-2" /> Auto Detect Classes
+              </Button>
+              <Button onClick={openNewClass} size="sm">
+                <Plus className="w-4 h-4 mr-2" /> Add Class
+              </Button>
             </div>
-          )}
+          </div>
+
+          <div className="rounded-xl bg-card border border-border overflow-hidden">
+            <ScrollArea className="h-[500px]">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-secondary/50">
+                    <TableHead className="w-12">Color</TableHead>
+                    <TableHead>Name</TableHead>
+                    <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {classes.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={4} className="text-center py-16 text-muted-foreground">
+                        <Tag className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                        <p>No classes defined. Add classes to annotate images.</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    classes.map(c => (
+                      <TableRow key={c.id}>
+                        <TableCell>
+                          <span className="w-5 h-5 rounded inline-block" style={{ backgroundColor: c.color }} />
+                        </TableCell>
+                        <TableCell className="font-medium">{c.name}</TableCell>
+                        <TableCell>{format(new Date(c.created_at), 'PP')}</TableCell>
+                        <TableCell className="text-right">
+                          <div className="flex items-center justify-end gap-1">
+                            <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => openEditClass(c)}>
+                              <Pencil className="w-3.5 h-3.5" />
+                            </Button>
+                            <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive" onClick={() => setDeleteClassId(c.id)}>
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </div>
         </TabsContent>
 
         {/* ─── Images Tab ───────────────────────────────── */}
@@ -457,7 +588,7 @@ export default function Training() {
                     className="hidden"
                     onChange={handleFileSelect}
                   />
-                  <Button onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+                  <Button onClick={() => fileInputRef.current?.click()} disabled={uploading} size="sm">
                     {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
                     Upload Images
                   </Button>
@@ -515,52 +646,35 @@ export default function Training() {
             </div>
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
-              {/* Canvas */}
-              <div className="page-section p-2">
+              <div className="rounded-xl bg-card border border-border p-2">
                 <div className="flex items-center justify-between mb-2 px-2">
                   <span className="text-sm font-medium text-foreground">{annotatingImage.file_name}</span>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => { setAnnotatingImage(null); setBboxes([]); }}>
                       <X className="w-3.5 h-3.5 mr-1" /> Close
                     </Button>
-                    <Button size="sm" onClick={saveAnnotations}>
-                      Save Annotations
-                    </Button>
+                    <Button size="sm" onClick={saveAnnotations}>Save Annotations</Button>
                   </div>
                 </div>
                 <div
-                  ref={canvasRef}
                   className="relative select-none cursor-crosshair border border-border rounded overflow-hidden"
                   onMouseDown={handleCanvasMouseDown}
                   onMouseMove={handleCanvasMouseMove}
                   onMouseUp={handleCanvasMouseUp}
                   onMouseLeave={() => { if (drawing) { setDrawing(false); setDrawStart(null); setDrawCurrent(null); } }}
                 >
-                  <img
-                    ref={imgRef}
-                    src={annotatingImage.image_url}
-                    alt=""
-                    className="w-full h-auto block"
-                    draggable={false}
-                  />
-                  {/* Existing bboxes */}
+                  <img ref={imgRef} src={annotatingImage.image_url} alt="" className="w-full h-auto block" draggable={false} />
                   {bboxes.map(box => (
                     <div
                       key={box.id}
                       className="absolute border-2 group/box"
                       style={{
-                        left: `${box.x * 100}%`,
-                        top: `${box.y * 100}%`,
-                        width: `${box.w * 100}%`,
-                        height: `${box.h * 100}%`,
-                        borderColor: box.color,
-                        backgroundColor: `${box.color}15`,
+                        left: `${box.x * 100}%`, top: `${box.y * 100}%`,
+                        width: `${box.w * 100}%`, height: `${box.h * 100}%`,
+                        borderColor: box.color, backgroundColor: `${box.color}15`,
                       }}
                     >
-                      <span
-                        className="absolute -top-5 left-0 text-[10px] font-medium px-1 rounded text-white whitespace-nowrap"
-                        style={{ backgroundColor: box.color }}
-                      >
+                      <span className="absolute -top-5 left-0 text-[10px] font-medium px-1 rounded text-white whitespace-nowrap" style={{ backgroundColor: box.color }}>
                         {box.className}
                       </span>
                       <button
@@ -571,7 +685,6 @@ export default function Training() {
                       </button>
                     </div>
                   ))}
-                  {/* Drawing preview */}
                   {drawing && drawStart && drawCurrent && (
                     <div
                       className="absolute border-2 border-dashed pointer-events-none"
@@ -587,9 +700,8 @@ export default function Training() {
                 </div>
               </div>
 
-              {/* Sidebar: classes + annotations list */}
               <div className="space-y-4">
-                <div className="page-section">
+                <div className="rounded-xl bg-card border border-border p-4">
                   <h4 className="text-sm font-semibold text-foreground mb-2">Active Class</h4>
                   {classes.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Add classes in the Classes tab first.</p>
@@ -611,7 +723,7 @@ export default function Training() {
                     </div>
                   )}
                 </div>
-                <div className="page-section">
+                <div className="rounded-xl bg-card border border-border p-4">
                   <h4 className="text-sm font-semibold text-foreground mb-2">Annotations ({bboxes.length})</h4>
                   {bboxes.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Draw bounding boxes on the image.</p>
@@ -636,124 +748,77 @@ export default function Training() {
           )}
         </TabsContent>
 
-        {/* ─── Classes Tab ──────────────────────────────── */}
-        <TabsContent value="classes" className="space-y-4">
-          <div className="flex items-center justify-between flex-wrap gap-3">
-            <h3 className="font-semibold text-foreground">
-              SKU Classes ({classes.length})
-            </h3>
-            <div className="flex gap-2">
-              <Button variant="outline" disabled>
-                <Brain className="w-4 h-4 mr-2" /> Auto Detect Classes
-              </Button>
-              <Button onClick={openNewClass}>
-                <Plus className="w-4 h-4 mr-2" /> Add Class
-              </Button>
-            </div>
-          </div>
-
-          {classes.length === 0 ? (
-            <div className="text-center py-16 text-muted-foreground">
-              <Tag className="w-12 h-12 mx-auto mb-3 opacity-40" />
-              <p>No classes defined. Add classes to annotate images.</p>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-3">
-              {classes.map(c => (
-                <div key={c.id} className="page-section flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <span className="w-5 h-5 rounded" style={{ backgroundColor: c.color }} />
-                    <span className="font-medium text-foreground text-sm">{c.name}</span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => openEditClass(c)}>
-                      <Pencil className="w-3.5 h-3.5" />
-                    </Button>
-                    <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive" onClick={() => setDeleteClassId(c.id)}>
-                      <Trash2 className="w-3.5 h-3.5" />
-                    </Button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </TabsContent>
-
         {/* ─── Train Tab ────────────────────────────────── */}
         <TabsContent value="train" className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
-            <h3 className="font-semibold text-foreground">Training Jobs</h3>
+            <h3 className="font-semibold text-foreground">Training Jobs — {selectedDataset?.name}</h3>
             <div className="flex gap-2">
-              <Button variant="outline" onClick={exportDataset} disabled={!selectedDatasetId || images.length === 0 || exporting}>
+              <Button variant="outline" size="sm" onClick={exportDataset} disabled={!selectedDatasetId || images.length === 0 || exporting}>
                 {exporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
                 Export ZIP
               </Button>
-              <Button onClick={() => setShowTrainModal(true)} disabled={!selectedDatasetId || images.length === 0}>
+              <Button size="sm" onClick={() => setShowTrainModal(true)} disabled={!selectedDatasetId || images.length === 0}>
                 <Play className="w-4 h-4 mr-2" /> Start Training
               </Button>
             </div>
           </div>
 
           {selectedDataset && (
-            <div className="page-section">
+            <div className="rounded-xl bg-card border border-border p-4">
               <h4 className="text-sm font-semibold text-foreground mb-3">Dataset Summary</h4>
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
-                <div>
-                  <p className="text-muted-foreground">Images</p>
-                  <p className="font-semibold text-foreground">{images.length}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Annotated</p>
-                  <p className="font-semibold text-foreground">{images.filter(i => i.is_annotated).length}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Classes</p>
-                  <p className="font-semibold text-foreground">{classes.length}</p>
-                </div>
-                <div>
-                  <p className="text-muted-foreground">Total Annotations</p>
-                  <p className="font-semibold text-foreground">{images.reduce((a, img) => a + ((img.annotations as any[])?.length || 0), 0)}</p>
-                </div>
+                <div><p className="text-muted-foreground">Images</p><p className="font-semibold text-foreground">{images.length}</p></div>
+                <div><p className="text-muted-foreground">Annotated</p><p className="font-semibold text-foreground">{images.filter(i => i.is_annotated).length}</p></div>
+                <div><p className="text-muted-foreground">Classes</p><p className="font-semibold text-foreground">{classes.length}</p></div>
+                <div><p className="text-muted-foreground">Total Annotations</p><p className="font-semibold text-foreground">{images.reduce((a, img) => a + ((img.annotations as any[])?.length || 0), 0)}</p></div>
               </div>
             </div>
           )}
 
-          {jobs.length === 0 ? (
-            <div className="text-center py-12 text-muted-foreground">
-              <Brain className="w-12 h-12 mx-auto mb-3 opacity-40" />
-              <p>No training jobs yet.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {jobs.map(job => {
-                const cfg = statusConfig[job.status] || statusConfig.pending;
-                const StatusIcon = cfg.icon;
-                return (
-                  <div key={job.id} className="page-section flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <StatusIcon className={cn("w-5 h-5", cfg.className.split(' ')[0], job.status === 'training' && 'animate-spin')} />
-                      <div>
-                        <p className="text-sm font-medium text-foreground">
-                          {job.model_type.toUpperCase()} — {job.epochs} epochs
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {format(new Date(job.created_at), 'MMM d, yyyy HH:mm')}
-                        </p>
-                      </div>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <Badge className={cn("text-[10px]", cfg.className)}>{cfg.label}</Badge>
-                      {job.status === 'training' && (
-                        <div className="w-24">
-                          <Progress value={Number(job.progress)} className="h-1.5" />
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <div className="rounded-xl bg-card border border-border overflow-hidden">
+            <ScrollArea className="h-[400px]">
+              <Table>
+                <TableHeader>
+                  <TableRow className="bg-secondary/50">
+                    <TableHead>Model</TableHead>
+                    <TableHead>Epochs</TableHead>
+                    <TableHead>Batch Size</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Progress</TableHead>
+                    <TableHead>Created</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {jobs.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                        <Brain className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                        <p>No training jobs yet.</p>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    jobs.map(job => {
+                      const cfg = statusConfig[job.status] || statusConfig.pending;
+                      return (
+                        <TableRow key={job.id}>
+                          <TableCell className="font-medium">{job.model_type.toUpperCase()}</TableCell>
+                          <TableCell>{job.epochs}</TableCell>
+                          <TableCell>{job.batch_size}</TableCell>
+                          <TableCell><Badge className={cn("text-[10px]", cfg.className)}>{cfg.label}</Badge></TableCell>
+                          <TableCell>
+                            {job.status === 'training' ? (
+                              <div className="w-24"><Progress value={Number(job.progress)} className="h-1.5" /></div>
+                            ) : '-'}
+                          </TableCell>
+                          <TableCell>{format(new Date(job.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </div>
         </TabsContent>
       </Tabs>
 
@@ -762,38 +827,26 @@ export default function Training() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>{editingDataset ? 'Edit Dataset' : 'New Dataset'}</DialogTitle>
-            <DialogDescription>
-              {editingDataset ? 'Update dataset details.' : 'Create a new training dataset.'}
-            </DialogDescription>
+            <DialogDescription>{editingDataset ? 'Update dataset details.' : 'Create a new training dataset.'}</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleDatasetSubmit} className="space-y-4">
-            <div>
-              <Label>Name</Label>
-              <Input value={datasetForm.name} onChange={e => setDatasetForm(p => ({ ...p, name: e.target.value }))} required />
-            </div>
-            <div>
-              <Label>Description</Label>
-              <Textarea value={datasetForm.description} onChange={e => setDatasetForm(p => ({ ...p, description: e.target.value }))} rows={3} />
-            </div>
+            <div><Label>Name</Label><Input value={datasetForm.name} onChange={e => setDatasetForm(p => ({ ...p, name: e.target.value }))} required /></div>
+            <div><Label>Description</Label><Textarea value={datasetForm.description} onChange={e => setDatasetForm(p => ({ ...p, description: e.target.value }))} rows={3} /></div>
             {!editingDataset && (
               <div>
                 <Label>Tenant</Label>
                 <Select value={datasetForm.tenant_id} onValueChange={v => setDatasetForm(p => ({ ...p, tenant_id: v }))}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select tenant..." />
-                  </SelectTrigger>
+                  <SelectTrigger><SelectValue placeholder="Select tenant..." /></SelectTrigger>
                   <SelectContent>
-                    {tenants.map(t => (
-                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
-                    ))}
+                    {tenants.map((t: any) => (<SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>))}
                   </SelectContent>
                 </Select>
               </div>
             )}
-            <DialogFooter>
+            <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setShowDatasetModal(false)}>Cancel</Button>
               <Button type="submit">{editingDataset ? 'Update' : 'Create'}</Button>
-            </DialogFooter>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
@@ -806,17 +859,13 @@ export default function Training() {
             <DialogDescription>Define a class for object annotation.</DialogDescription>
           </DialogHeader>
           <form onSubmit={handleClassSubmit} className="space-y-4">
-            <div>
-              <Label>Class Name</Label>
-              <Input value={classForm.name} onChange={e => setClassForm(p => ({ ...p, name: e.target.value }))} required />
-            </div>
+            <div><Label>Class Name</Label><Input value={classForm.name} onChange={e => setClassForm(p => ({ ...p, name: e.target.value }))} required /></div>
             <div>
               <Label>Color</Label>
               <div className="flex gap-2 mt-1 flex-wrap">
                 {CLASS_COLORS.map(color => (
                   <button
-                    key={color}
-                    type="button"
+                    key={color} type="button"
                     className={cn("w-8 h-8 rounded border-2 transition-all", classForm.color === color ? "border-foreground scale-110" : "border-transparent")}
                     style={{ backgroundColor: color }}
                     onClick={() => setClassForm(p => ({ ...p, color }))}
@@ -824,10 +873,10 @@ export default function Training() {
                 ))}
               </div>
             </div>
-            <DialogFooter>
+            <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setShowClassModal(false)}>Cancel</Button>
               <Button type="submit">{editingClass ? 'Update' : 'Create'}</Button>
-            </DialogFooter>
+            </div>
           </form>
         </DialogContent>
       </Dialog>
@@ -840,22 +889,16 @@ export default function Training() {
             <DialogDescription>Configure and start a YOLOv8 training job.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            <div>
-              <Label>Epochs</Label>
-              <Input type="number" value={trainForm.epochs} onChange={e => setTrainForm(p => ({ ...p, epochs: parseInt(e.target.value) || 100 }))} min={1} max={1000} />
-            </div>
-            <div>
-              <Label>Batch Size</Label>
-              <Input type="number" value={trainForm.batch_size} onChange={e => setTrainForm(p => ({ ...p, batch_size: parseInt(e.target.value) || 16 }))} min={1} max={128} />
-            </div>
+            <div><Label>Epochs</Label><Input type="number" value={trainForm.epochs} onChange={e => setTrainForm(p => ({ ...p, epochs: parseInt(e.target.value) || 100 }))} min={1} max={1000} /></div>
+            <div><Label>Batch Size</Label><Input type="number" value={trainForm.batch_size} onChange={e => setTrainForm(p => ({ ...p, batch_size: parseInt(e.target.value) || 16 }))} min={1} max={128} /></div>
           </div>
-          <DialogFooter>
+          <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" onClick={() => setShowTrainModal(false)}>Cancel</Button>
             <Button onClick={startTraining} disabled={trainingStarting}>
               {trainingStarting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
               Start Training
             </Button>
-          </DialogFooter>
+          </div>
         </DialogContent>
       </Dialog>
 
