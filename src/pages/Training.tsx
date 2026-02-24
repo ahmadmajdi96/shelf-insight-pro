@@ -27,7 +27,8 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
-import { useTenants } from '@/hooks/useTenants';
+import { supabase } from '@/integrations/supabase/client';
+import { useQuery } from '@tanstack/react-query';
 import {
   useDatasets, useDatasetImages, useDatasetClasses, useTrainingJobs,
   type Dataset, type DatasetImage, type DatasetClass,
