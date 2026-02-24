@@ -74,6 +74,112 @@ export type Database = {
           },
         ]
       }
+      dataset_classes: {
+        Row: {
+          color: string
+          created_at: string
+          dataset_id: string
+          id: string
+          name: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          dataset_id: string
+          id?: string
+          name: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          dataset_id?: string
+          id?: string
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dataset_classes_dataset_id_fkey"
+            columns: ["dataset_id"]
+            isOneToOne: false
+            referencedRelation: "datasets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dataset_images: {
+        Row: {
+          annotations: Json | null
+          created_at: string
+          dataset_id: string
+          file_name: string | null
+          id: string
+          image_url: string
+          is_annotated: boolean
+        }
+        Insert: {
+          annotations?: Json | null
+          created_at?: string
+          dataset_id: string
+          file_name?: string | null
+          id?: string
+          image_url: string
+          is_annotated?: boolean
+        }
+        Update: {
+          annotations?: Json | null
+          created_at?: string
+          dataset_id?: string
+          file_name?: string | null
+          id?: string
+          image_url?: string
+          is_annotated?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dataset_images_dataset_id_fkey"
+            columns: ["dataset_id"]
+            isOneToOne: false
+            referencedRelation: "datasets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      datasets: {
+        Row: {
+          class_count: number
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          image_count: number
+          name: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          class_count?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          image_count?: number
+          name: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          class_count?: number
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          image_count?: number
+          name?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       detection_results: {
         Row: {
           bounding_boxes: Json | null
@@ -826,6 +932,65 @@ export type Database = {
           username?: string | null
         }
         Relationships: []
+      }
+      training_jobs: {
+        Row: {
+          batch_size: number
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          dataset_id: string
+          epochs: number
+          error_message: string | null
+          id: string
+          model_type: string
+          progress: number | null
+          result_url: string | null
+          started_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          batch_size?: number
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          dataset_id: string
+          epochs?: number
+          error_message?: string | null
+          id?: string
+          model_type?: string
+          progress?: number | null
+          result_url?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          batch_size?: number
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          dataset_id?: string
+          epochs?: number
+          error_message?: string | null
+          id?: string
+          model_type?: string
+          progress?: number | null
+          result_url?: string | null
+          started_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "training_jobs_dataset_id_fkey"
+            columns: ["dataset_id"]
+            isOneToOne: false
+            referencedRelation: "datasets"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       usage_metrics: {
         Row: {
