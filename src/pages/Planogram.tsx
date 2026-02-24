@@ -322,10 +322,10 @@ export default function Planogram() {
     return matchesSearch && matchesCategory && matchesStatus;
   });
   const handleProductDelete = async () => { if (deleteProductId) { await deleteProduct.mutateAsync(deleteProductId); setDeleteProductId(null); } };
-  const handleProductEdit = (product: any) => { setEditFormData({ name: product.name, description: product.description || '', barcode: product.barcode || '', category_id: product.category_id || '' }); setEditingProduct(product); };
+  const handleProductEdit = (product: any) => { setEditFormData({ name: product.name, description: product.description || '', barcode: product.barcode || '', category_id: product.category_id || '', width_cm: product.width_cm ? String(product.width_cm) : '' }); setEditingProduct(product); };
   const handleProductEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingProduct) { await updateProduct.mutateAsync({ id: editingProduct.id, name: editFormData.name, description: editFormData.description || null, barcode: editFormData.barcode || null, category_id: editFormData.category_id || null }); setEditingProduct(null); }
+    if (editingProduct) { await updateProduct.mutateAsync({ id: editingProduct.id, name: editFormData.name, description: editFormData.description || null, barcode: editFormData.barcode || null, category_id: editFormData.category_id || null, width_cm: editFormData.width_cm ? parseFloat(editFormData.width_cm) : null }); setEditingProduct(null); }
   };
 
 
