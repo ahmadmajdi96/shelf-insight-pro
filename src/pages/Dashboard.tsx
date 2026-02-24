@@ -1,6 +1,6 @@
 import { Package, Store, TrendingUp, ImageIcon, CheckCircle2, Loader2, Building2, LayoutGrid, ArrowUpRight } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
-import { MainLayout } from '@/components/layout/MainLayout';
+import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useProducts } from '@/hooks/useProducts';
