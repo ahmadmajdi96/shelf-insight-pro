@@ -61,8 +61,7 @@ export default function Training() {
   const { data: tenants = [] } = useQuery({
     queryKey: ['tenants-for-training'],
     queryFn: async () => {
-      const { data, error } = await supabase.from('tenants').select('id, name').order('name');
-      if (error) throw error;
+      const { data } = await rest.list('tenants', { select: 'id,name', order: 'name.asc' });
       return data || [];
     },
   });
