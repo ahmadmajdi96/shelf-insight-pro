@@ -475,28 +475,6 @@ export default function Planogram() {
             <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleTenantDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
           </AlertDialog>
 
-          {/* Store Modal */}
-          <Dialog open={isStoreModalOpen} onOpenChange={setIsStoreModalOpen}>
-            <DialogContent className="bg-card border-border">
-              <DialogHeader><DialogTitle>{editingStoreObj ? 'Edit Store' : 'Add New Store'}</DialogTitle></DialogHeader>
-              <form onSubmit={handleStoreSubmit} className="space-y-4">
-                <div className="space-y-2"><Label>Store Name</Label><Input placeholder="e.g., Walmart - Downtown" className="bg-secondary border-border" value={storeFormData.name} onChange={e => setStoreFormData({ ...storeFormData, name: e.target.value })} required /></div>
-                <div className="space-y-2"><Label>Address</Label><Input placeholder="Street address" className="bg-secondary border-border" value={storeFormData.address} onChange={e => setStoreFormData({ ...storeFormData, address: e.target.value })} /></div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2"><Label>City</Label><Input placeholder="City" className="bg-secondary border-border" value={storeFormData.city} onChange={e => setStoreFormData({ ...storeFormData, city: e.target.value })} /></div>
-                  <div className="space-y-2"><Label>Country</Label><Input placeholder="Country" className="bg-secondary border-border" value={storeFormData.country} onChange={e => setStoreFormData({ ...storeFormData, country: e.target.value })} /></div>
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
-                  <Button type="button" variant="outline" onClick={() => setIsStoreModalOpen(false)}>Cancel</Button>
-                  <Button type="submit" variant="glow" disabled={createStore.isPending || updateStore.isPending}>{(createStore.isPending || updateStore.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}{editingStoreObj ? 'Save' : 'Add Store'}</Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-          <AlertDialog open={!!deleteStoreId} onOpenChange={() => setDeleteStoreId(null)}>
-            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Store</AlertDialogTitle><AlertDialogDescription>This will remove the store and all associated data.</AlertDialogDescription></AlertDialogHeader>
-            <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleStoreDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-          </AlertDialog>
         </TabsContent>
 
         {/* ========== STORES TAB ========== */}
