@@ -368,6 +368,9 @@ export default function Training() {
                   <div className="flex items-center gap-4 text-sm text-muted-foreground">
                     <span className="flex items-center gap-1"><ImageIcon className="w-3.5 h-3.5" /> {d.image_count} images</span>
                     <span className="flex items-center gap-1"><Tag className="w-3.5 h-3.5" /> {d.class_count} classes</span>
+                    {d.tenant_id && (
+                      <span className="text-xs text-muted-foreground ml-auto">{tenants.find(t => t.id === d.tenant_id)?.name || 'Unknown'}</span>
+                    )}
                   </div>
                   <div className="flex items-center gap-2 mt-3">
                     <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); openEditDataset(d); }}>
