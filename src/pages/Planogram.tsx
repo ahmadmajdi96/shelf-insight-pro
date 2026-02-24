@@ -396,32 +396,15 @@ export default function Planogram() {
                           <Progress value={imagePercentage} className={cn("h-2", imagePercentage >= 90 && "[&>div]:bg-destructive", imagePercentage >= 80 && imagePercentage < 90 && "[&>div]:bg-warning")} /></div>
                       </div>
                     </div>
-                    <Collapsible open={isExpanded} onOpenChange={() => toggleTenant(tenant.id)}>
-                      <CollapsibleTrigger asChild>
-                        <button className="w-full px-5 py-3 border-t border-border flex items-center justify-between text-sm hover:bg-muted/30 transition-colors">
-                          <span className="text-muted-foreground flex items-center gap-2"><Store className="w-4 h-4" />{tenantStores.length} Store{tenantStores.length !== 1 ? 's' : ''}</span>
-                          <span className="text-xs text-muted-foreground">{isExpanded ? 'Collapse' : 'Expand'}</span>
-                        </button>
-                      </CollapsibleTrigger>
-                      <CollapsibleContent>
-                        <div className="px-5 pb-4 space-y-2">
-                          {tenantStores.map(store => (
-                            <div key={store.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border">
-                              <div className="flex items-center gap-3">
-                                <Store className="w-4 h-4 text-muted-foreground" />
-                                <div><p className="font-medium text-foreground text-sm">{store.name}</p><p className="text-xs text-muted-foreground flex items-center gap-1"><MapPin className="w-3 h-3" />{store.city || 'Unknown'}{store.country ? `, ${store.country}` : ''}</p></div>
-                              </div>
-                              <div className="flex gap-1">
-                                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleEditStore(store)}><Pencil className="w-3 h-3" /></Button>
-                                <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" onClick={() => setDeleteStoreId(store.id)}><Trash2 className="w-3 h-3" /></Button>
-                              </div>
-                            </div>
-                          ))}
-                          {tenantStores.length === 0 && <p className="text-sm text-muted-foreground text-center py-2">No stores yet</p>}
-                          <Button variant="outline" size="sm" className="w-full" onClick={() => handleAddStore(tenant.id)}><Plus className="w-3 h-3 mr-2" />Add Store</Button>
-                        </div>
-                      </CollapsibleContent>
-                    </Collapsible>
+                    <div className="border-t border-border">
+                      <button 
+                        className="w-full px-5 py-3 flex items-center justify-between text-sm hover:bg-muted/30 transition-colors"
+                        onClick={() => { setStoreTenantFilter(tenant.id); setActiveTab('stores'); }}
+                      >
+                        <span className="text-muted-foreground flex items-center gap-2"><Store className="w-4 h-4" />{tenantStores.length} Store{tenantStores.length !== 1 ? 's' : ''}</span>
+                        <span className="text-xs text-primary">View Stores →</span>
+                      </button>
+                    </div>
                   </div>
                 );
               })}
