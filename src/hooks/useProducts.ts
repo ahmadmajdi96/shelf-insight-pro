@@ -41,33 +41,7 @@ export function useProducts() {
       const tid = product.tenant_id || tenantId;
       if (!tid) throw new Error('No tenant ID');
 
-      const { images, ...productData } = product;
-      const sku = await rest.create('skus', { ...productData, tenant_id: tid });
-
-      if (images && images.length > 0 && sku?.id) {
-        const { storage } = await import('@/lib/api-client');
-        try {
-          const result = await storage.uploadMultiple(
-            'sku-training-images',
-            'uploads',
-            images,
-            {
-              tenant_id: tid,
-              category_id: product.category_id || 'uncategorized',
-            }
-          );
-
-          // Save each uploaded image URL to sku_images
-          if (result?.items) {
-            for (const item of result.items) {
-              await rest.create('sku_images', { sku_id: sku.id, image_url: item.url });
-            }
-          }
-        } catch (err) {
-          console.error('Image upload failed:', err);
-        }
-      }
-
+      const sku = await rest.create('skus', { ...product, tenant_id: tid });
       return sku;
     },
     onSuccess: () => {
