@@ -68,7 +68,7 @@ export function useDatasets() {
   });
 
   const createDataset = useMutation({
-    mutationFn: async (payload: { name: string; description?: string }) => {
+    mutationFn: async (payload: { name: string; description?: string; tenant_id?: string }) => {
       const { data, error } = await supabase
         .from('datasets')
         .insert(payload)
