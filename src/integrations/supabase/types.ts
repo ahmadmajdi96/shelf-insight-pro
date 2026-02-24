@@ -796,6 +796,7 @@ export type Database = {
           tenant_id: string
           training_status: Database["public"]["Enums"]["training_status"]
           updated_at: string
+          width_cm: number | null
         }
         Insert: {
           barcode?: string | null
@@ -808,6 +809,7 @@ export type Database = {
           tenant_id: string
           training_status?: Database["public"]["Enums"]["training_status"]
           updated_at?: string
+          width_cm?: number | null
         }
         Update: {
           barcode?: string | null
@@ -820,6 +822,7 @@ export type Database = {
           tenant_id?: string
           training_status?: Database["public"]["Enums"]["training_status"]
           updated_at?: string
+          width_cm?: number | null
         }
         Relationships: [
           {
