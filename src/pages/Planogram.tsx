@@ -645,7 +645,7 @@ export default function Planogram() {
                   <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-foreground mb-2">No planograms found</h3>
                   <p className="text-muted-foreground mb-4">{templates.length === 0 ? 'Create your first planogram to start designing shelf layouts.' : 'Try adjusting your search or filters.'}</p>
-                  {templates.length === 0 && <Button variant="glow" onClick={openNewTemplate}><Plus className="w-4 h-4 mr-2" />Create Planogram</Button>}
+                  {templates.length === 0 && <Button variant="glow" onClick={() => openNewTemplate()}><Plus className="w-4 h-4 mr-2" />Create Planogram</Button>}
                 </div>
               ) : (
                 <div className="bg-card border border-border rounded-xl overflow-hidden">
