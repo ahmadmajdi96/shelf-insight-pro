@@ -12,6 +12,7 @@ import Activity from "./pages/Activity";
 import ApiDocs from "./pages/ApiDocs";
 import Data from "./pages/Data";
 import Planogram from "./pages/Planogram";
+import Training from "./pages/Training";
 import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
 import Users from "./pages/Users";
