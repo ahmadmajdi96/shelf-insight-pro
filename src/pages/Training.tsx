@@ -712,6 +712,21 @@ export default function Training() {
               <Label>Description</Label>
               <Textarea value={datasetForm.description} onChange={e => setDatasetForm(p => ({ ...p, description: e.target.value }))} rows={3} />
             </div>
+            {!editingDataset && (
+              <div>
+                <Label>Tenant</Label>
+                <Select value={datasetForm.tenant_id} onValueChange={v => setDatasetForm(p => ({ ...p, tenant_id: v }))}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select tenant..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tenants.map(t => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowDatasetModal(false)}>Cancel</Button>
               <Button type="submit">{editingDataset ? 'Update' : 'Create'}</Button>
