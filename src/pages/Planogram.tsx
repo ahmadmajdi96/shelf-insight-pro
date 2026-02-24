@@ -491,6 +491,7 @@ export default function Planogram() {
                 {tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Button variant="glow" onClick={() => { setStoreTenantId(''); setStoreFormData({ name: '', address: '', city: '', country: '' }); setEditingStoreObj(null); setIsStoreModalOpen(true); }}><Plus className="w-4 h-4 mr-2" />Add Store</Button>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
