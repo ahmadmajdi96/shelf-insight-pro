@@ -706,6 +706,13 @@ export default function Planogram() {
                 <div className="lg:col-span-1 space-y-4">
                   <div className="bg-card border border-border rounded-xl p-4">
                     <h3 className="font-semibold text-foreground flex items-center gap-2 mb-3"><Package className="w-4 h-4 text-primary" />Available Products<Badge variant="secondary" className="ml-auto text-xs">{availableProducts.length}</Badge></h3>
+                    <Select value={designerCategoryFilter} onValueChange={setDesignerCategoryFilter}>
+                      <SelectTrigger className="mb-3 text-xs h-8"><SelectValue placeholder="Filter by category" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {categories.filter(c => !designerTemplate?.tenant_id || c.tenant_id === designerTemplate.tenant_id).map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                     <ScrollArea className="h-[300px]">
                       <div className="space-y-1.5 pr-2">
                         <div draggable onDragStart={() => handleDragStart(null, 'Unregistered Item')} className="flex items-center gap-2 p-2.5 rounded-lg bg-destructive/5 border border-destructive/20 cursor-grab active:cursor-grabbing hover:border-destructive/50 transition-colors">
@@ -714,6 +721,7 @@ export default function Planogram() {
                         {availableProducts.map(product => (
                           <div key={product.skuId} draggable onDragStart={() => handleDragStart(product.skuId, product.name)} className="flex items-center gap-2 p-2.5 rounded-lg bg-secondary/50 border border-border/50 cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors">
                             <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50" /><span className="text-sm text-foreground truncate flex-1">{product.name}</span>
+                            {product.widthCm && <span className="text-[10px] text-muted-foreground whitespace-nowrap">{product.widthCm}cm</span>}
                           </div>
                         ))}
                       </div>
