@@ -580,7 +580,7 @@ export default function Planogram() {
                           </div>
                         ))}
                         {storePlanograms.length === 0 && <p className="text-sm text-muted-foreground text-center py-2">No planograms yet</p>}
-                        <Button variant="outline" size="sm" className="w-full" onClick={() => { setTemplateStoreId(store.id); setTemplateTenantId(store.tenant_id); openNewTemplate(); }}><Plus className="w-3 h-3 mr-2" />Add Planogram</Button>
+                        <Button variant="outline" size="sm" className="w-full" onClick={() => openNewTemplate(store.id, store.tenant_id)}><Plus className="w-3 h-3 mr-2" />Add Planogram</Button>
                       </div>
                     </CollapsibleContent>
                   </Collapsible>
