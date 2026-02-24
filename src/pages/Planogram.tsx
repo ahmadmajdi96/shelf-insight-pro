@@ -609,7 +609,7 @@ export default function Planogram() {
                     <SelectItem value="archived">Archived</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button variant="glow" onClick={openNewTemplate}><Plus className="w-4 h-4 mr-2" />New Planogram</Button>
+                <Button variant="glow" onClick={() => openNewTemplate()}><Plus className="w-4 h-4 mr-2" />New Planogram</Button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
