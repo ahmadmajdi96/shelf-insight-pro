@@ -25,6 +25,7 @@ import { useNotifications } from '@/hooks/useNotifications';
 const navItems = [
   { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
   { icon: Grid3X3, label: 'Management', path: '/management' },
+  { icon: Brain, label: 'Training', path: '/training' },
   { icon: Activity, label: 'Activity', path: '/activity' },
   { icon: Database, label: 'Data', path: '/data' },
   { icon: Users, label: 'Users', path: '/users' },
