@@ -103,21 +103,25 @@ export default function Training() {
   // ─── Dataset CRUD ──────────────────────────────────────
   const openNewDataset = () => {
     setEditingDataset(null);
-    setDatasetForm({ name: '', description: '' });
+    setDatasetForm({ name: '', description: '', tenant_id: tenantId || (tenants.length > 0 ? tenants[0].id : '') });
     setShowDatasetModal(true);
   };
   const openEditDataset = (d: Dataset) => {
     setEditingDataset(d);
-    setDatasetForm({ name: d.name, description: d.description || '' });
+    setDatasetForm({ name: d.name, description: d.description || '', tenant_id: d.tenant_id || '' });
     setShowDatasetModal(true);
   };
   const handleDatasetSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!datasetForm.name.trim()) return;
+    if (!datasetForm.tenant_id) {
+      toast({ title: 'Tenant required', description: 'Please select a tenant.', variant: 'destructive' });
+      return;
+    }
     if (editingDataset) {
       await updateDataset.mutateAsync({ id: editingDataset.id, name: datasetForm.name, description: datasetForm.description || undefined });
     } else {
-      const result = await createDataset.mutateAsync({ name: datasetForm.name, description: datasetForm.description || undefined });
+      const result = await createDataset.mutateAsync({ name: datasetForm.name, description: datasetForm.description || undefined, tenant_id: datasetForm.tenant_id });
       if (result) setSelectedDatasetId(result.id);
     }
     setShowDatasetModal(false);
