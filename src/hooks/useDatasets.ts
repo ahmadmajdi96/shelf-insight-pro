@@ -10,6 +10,7 @@ export interface Dataset {
   image_count: number;
   class_count: number;
   created_by: string | null;
+  tenant_id: string | null;
   created_at: string;
   updated_at: string;
 }
