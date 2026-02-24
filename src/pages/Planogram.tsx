@@ -135,7 +135,7 @@ export default function Planogram() {
   const [isCatModalOpen, setIsCatModalOpen] = useState(false);
   const [editingCategory, setEditingCategory] = useState<any | null>(null);
   const [deleteCatId, setDeleteCatId] = useState<string | null>(null);
-  const [catFormData, setCatFormData] = useState({ name: '', description: '' });
+  const [catFormData, setCatFormData] = useState({ name: '', description: '', tenant_id: '' });
 
   // Products state
   const [isAddProductOpen, setIsAddProductOpen] = useState(false);
@@ -205,7 +205,7 @@ export default function Planogram() {
   });
 
   // ---- Planogram CRUD ----
-  const openNewTemplate = () => { setEditingTemplate(null); setTemplateName(''); setTemplateDesc(''); setTemplateStoreId(''); setTemplateTenantId(tenantId || (tenants.length > 0 ? tenants[0].id : '')); setTemplateStatus('draft'); setShowTemplateDialog(true); };
+  const openNewTemplate = (presetStoreId?: string, presetTenantId?: string) => { setEditingTemplate(null); setTemplateName(''); setTemplateDesc(''); setTemplateStoreId(presetStoreId || ''); setTemplateTenantId(presetTenantId || tenantId || (tenants.length > 0 ? tenants[0].id : '')); setTemplateStatus('draft'); setShowTemplateDialog(true); };
   const openEditTemplate = (t: PlanogramTemplate) => { setEditingTemplate(t); setTemplateName(t.name); setTemplateDesc(t.description || ''); setTemplateStoreId(t.store_id || ''); setTemplateTenantId(t.tenant_id || ''); setTemplateStatus(t.status); setShowTemplateDialog(true); };
   const handleSaveTemplate = async () => {
     if (!templateName.trim()) return;
@@ -291,14 +291,16 @@ export default function Planogram() {
   const getScoreBg = (score: number) => score >= 80 ? 'bg-green-500/10 border-green-500/20' : score >= 50 ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-red-500/10 border-red-500/20';
 
   // ---- Categories logic ----
-  const resetCatForm = () => { setCatFormData({ name: '', description: '' }); setEditingCategory(null); };
+  const resetCatForm = () => { setCatFormData({ name: '', description: '', tenant_id: '' }); setEditingCategory(null); };
   const handleCatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const catTenantId = catFormData.tenant_id || tenantId;
+    if (!catTenantId && !editingCategory) { toast({ title: 'Tenant required', description: 'Please select a tenant for this category.', variant: 'destructive' }); return; }
     if (editingCategory) await updateCategory.mutateAsync({ id: editingCategory.id, name: catFormData.name, description: catFormData.description || null });
-    else await createCategory.mutateAsync({ name: catFormData.name, description: catFormData.description || null });
+    else await createCategory.mutateAsync({ name: catFormData.name, description: catFormData.description || null, tenant_id: catTenantId });
     resetCatForm(); setIsCatModalOpen(false);
   };
-  const handleCatEdit = (cat: any) => { setCatFormData({ name: cat.name, description: cat.description || '' }); setEditingCategory(cat); setIsCatModalOpen(true); };
+  const handleCatEdit = (cat: any) => { setCatFormData({ name: cat.name, description: cat.description || '', tenant_id: cat.tenant_id || '' }); setEditingCategory(cat); setIsCatModalOpen(true); };
   const handleCatDelete = async () => { if (deleteCatId) { await deleteCategory.mutateAsync(deleteCatId); setDeleteCatId(null); } };
   const filteredCategories = categories.filter(c => c.name.toLowerCase().includes(categorySearch.toLowerCase()));
 
@@ -412,15 +414,34 @@ export default function Planogram() {
                           <Progress value={imagePercentage} className={cn("h-2", imagePercentage >= 90 && "[&>div]:bg-destructive", imagePercentage >= 80 && imagePercentage < 90 && "[&>div]:bg-warning")} /></div>
                       </div>
                     </div>
-                    <div className="border-t border-border">
-                      <button 
-                        className="w-full px-5 py-3 flex items-center justify-between text-sm hover:bg-muted/30 transition-colors"
-                        onClick={() => { setStoreTenantFilter(tenant.id); setActiveTab('stores'); }}
-                      >
-                        <span className="text-muted-foreground flex items-center gap-2"><Store className="w-4 h-4" />{tenantStores.length} Store{tenantStores.length !== 1 ? 's' : ''}</span>
-                        <span className="text-xs text-primary">View Stores →</span>
-                      </button>
-                    </div>
+                    <Collapsible open={isExpanded} onOpenChange={() => toggleTenant(tenant.id)}>
+                      <CollapsibleTrigger asChild>
+                        <button className="w-full px-5 py-3 border-t border-border flex items-center justify-between text-sm hover:bg-muted/30 transition-colors">
+                          <span className="text-muted-foreground flex items-center gap-2"><Store className="w-4 h-4" />{tenantStores.length} Store{tenantStores.length !== 1 ? 's' : ''}</span>
+                          <span className="text-xs text-muted-foreground">{isExpanded ? 'Collapse' : 'Expand'}</span>
+                        </button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="px-5 pb-4 space-y-2">
+                          {tenantStores.map(store => (
+                            <div key={store.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border cursor-pointer hover:border-primary/30 transition-colors" onClick={() => { setStoreTenantFilter(tenant.id); setActiveTab('stores'); }}>
+                              <div className="flex items-center gap-3">
+                                <Store className="w-4 h-4 text-muted-foreground" />
+                                <div>
+                                  <p className="font-medium text-foreground text-sm">{store.name}</p>
+                                  <p className="text-xs text-muted-foreground">{store.city || 'Unknown'}{store.country ? `, ${store.country}` : ''}</p>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <Badge variant="secondary" className="text-[10px]">{templates.filter(t => t.store_id === store.id).length} planograms</Badge>
+                              </div>
+                            </div>
+                          ))}
+                          {tenantStores.length === 0 && <p className="text-sm text-muted-foreground text-center py-2">No stores yet</p>}
+                          <Button variant="outline" size="sm" className="w-full" onClick={() => handleAddStore(tenant.id)}><Plus className="w-3 h-3 mr-2" />Add Store</Button>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   </div>
                 );
               })}
@@ -454,28 +475,6 @@ export default function Planogram() {
             <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleTenantDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
           </AlertDialog>
 
-          {/* Store Modal */}
-          <Dialog open={isStoreModalOpen} onOpenChange={setIsStoreModalOpen}>
-            <DialogContent className="bg-card border-border">
-              <DialogHeader><DialogTitle>{editingStoreObj ? 'Edit Store' : 'Add New Store'}</DialogTitle></DialogHeader>
-              <form onSubmit={handleStoreSubmit} className="space-y-4">
-                <div className="space-y-2"><Label>Store Name</Label><Input placeholder="e.g., Walmart - Downtown" className="bg-secondary border-border" value={storeFormData.name} onChange={e => setStoreFormData({ ...storeFormData, name: e.target.value })} required /></div>
-                <div className="space-y-2"><Label>Address</Label><Input placeholder="Street address" className="bg-secondary border-border" value={storeFormData.address} onChange={e => setStoreFormData({ ...storeFormData, address: e.target.value })} /></div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2"><Label>City</Label><Input placeholder="City" className="bg-secondary border-border" value={storeFormData.city} onChange={e => setStoreFormData({ ...storeFormData, city: e.target.value })} /></div>
-                  <div className="space-y-2"><Label>Country</Label><Input placeholder="Country" className="bg-secondary border-border" value={storeFormData.country} onChange={e => setStoreFormData({ ...storeFormData, country: e.target.value })} /></div>
-                </div>
-                <div className="flex justify-end gap-3 pt-2">
-                  <Button type="button" variant="outline" onClick={() => setIsStoreModalOpen(false)}>Cancel</Button>
-                  <Button type="submit" variant="glow" disabled={createStore.isPending || updateStore.isPending}>{(createStore.isPending || updateStore.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}{editingStoreObj ? 'Save' : 'Add Store'}</Button>
-                </div>
-              </form>
-            </DialogContent>
-          </Dialog>
-          <AlertDialog open={!!deleteStoreId} onOpenChange={() => setDeleteStoreId(null)}>
-            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Store</AlertDialogTitle><AlertDialogDescription>This will remove the store and all associated data.</AlertDialogDescription></AlertDialogHeader>
-            <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleStoreDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-          </AlertDialog>
         </TabsContent>
 
         {/* ========== STORES TAB ========== */}
@@ -492,6 +491,7 @@ export default function Planogram() {
                 {tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
               </SelectContent>
             </Select>
+            <Button variant="glow" onClick={() => { setStoreTenantId(''); setStoreFormData({ name: '', address: '', city: '', country: '' }); setEditingStoreObj(null); setIsStoreModalOpen(true); }}><Plus className="w-4 h-4 mr-2" />Add Store</Button>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
@@ -559,7 +559,7 @@ export default function Planogram() {
                           </div>
                         ))}
                         {storePlanograms.length === 0 && <p className="text-sm text-muted-foreground text-center py-2">No planograms yet</p>}
-                        <Button variant="outline" size="sm" className="w-full" onClick={() => { setTemplateStoreId(store.id); setTemplateTenantId(store.tenant_id); openNewTemplate(); }}><Plus className="w-3 h-3 mr-2" />Add Planogram</Button>
+                        <Button variant="outline" size="sm" className="w-full" onClick={() => openNewTemplate(store.id, store.tenant_id)}><Plus className="w-3 h-3 mr-2" />Add Planogram</Button>
                       </div>
                     </CollapsibleContent>
                   </Collapsible>
@@ -588,7 +588,7 @@ export default function Planogram() {
                     <SelectItem value="archived">Archived</SelectItem>
                   </SelectContent>
                 </Select>
-                <Button variant="glow" onClick={openNewTemplate}><Plus className="w-4 h-4 mr-2" />New Planogram</Button>
+                <Button variant="glow" onClick={() => openNewTemplate()}><Plus className="w-4 h-4 mr-2" />New Planogram</Button>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -624,7 +624,7 @@ export default function Planogram() {
                   <FileText className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
                   <h3 className="text-lg font-semibold text-foreground mb-2">No planograms found</h3>
                   <p className="text-muted-foreground mb-4">{templates.length === 0 ? 'Create your first planogram to start designing shelf layouts.' : 'Try adjusting your search or filters.'}</p>
-                  {templates.length === 0 && <Button variant="glow" onClick={openNewTemplate}><Plus className="w-4 h-4 mr-2" />Create Planogram</Button>}
+                  {templates.length === 0 && <Button variant="glow" onClick={() => openNewTemplate()}><Plus className="w-4 h-4 mr-2" />Create Planogram</Button>}
                 </div>
               ) : (
                 <div className="bg-card border border-border rounded-xl overflow-hidden">
@@ -792,32 +792,6 @@ export default function Planogram() {
             </>
           )}
 
-          {/* Planogram Create/Edit Dialog */}
-          <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
-            <DialogContent>
-              <DialogHeader><DialogTitle>{editingTemplate ? 'Edit Planogram' : 'New Planogram'}</DialogTitle><DialogDescription>Configure the planogram details.</DialogDescription></DialogHeader>
-              <div className="space-y-4">
-                <div className="space-y-1.5"><Label>Name</Label><Input value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder="e.g. Aisle 3 - Beverages" /></div>
-                <div className="space-y-1.5"><Label>Description</Label><Textarea value={templateDesc} onChange={e => setTemplateDesc(e.target.value)} placeholder="Optional description..." rows={2} /></div>
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="space-y-1.5"><Label>Tenant</Label>
-                    <Select value={templateTenantId} onValueChange={(v) => { setTemplateTenantId(v); setTemplateStoreId(''); }}><SelectTrigger><SelectValue placeholder="Select tenant..." /></SelectTrigger><SelectContent>{tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select>
-                  </div>
-                  <div className="space-y-1.5"><Label>Store</Label>
-                    <Select value={templateStoreId} onValueChange={setTemplateStoreId}><SelectTrigger><SelectValue placeholder="Select store..." /></SelectTrigger><SelectContent>{stores.filter(s => !templateTenantId || s.tenant_id === templateTenantId).map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select>
-                  </div>
-                  <div className="space-y-1.5"><Label>Status</Label>
-                    <Select value={templateStatus} onValueChange={setTemplateStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="active">Active</SelectItem><SelectItem value="archived">Archived</SelectItem></SelectContent></Select>
-                  </div>
-                </div>
-              </div>
-              <DialogFooter><Button variant="outline" onClick={() => setShowTemplateDialog(false)}>Cancel</Button><Button onClick={handleSaveTemplate} disabled={!templateName.trim()}>{editingTemplate ? 'Save Changes' : 'Create Planogram'}</Button></DialogFooter>
-            </DialogContent>
-          </Dialog>
-          <AlertDialog open={!!deleteTemplateId} onOpenChange={() => setDeleteTemplateId(null)}>
-            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Planogram</AlertDialogTitle><AlertDialogDescription>This will permanently delete the planogram, all versions, and compliance scan history.</AlertDialogDescription></AlertDialogHeader>
-            <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteTemplate} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
-          </AlertDialog>
         </TabsContent>
 
         {/* ========== COMPLIANCE TAB ========== */}
@@ -1063,6 +1037,14 @@ export default function Planogram() {
             <DialogContent className="bg-card border-border">
               <DialogHeader><DialogTitle>{editingCategory ? 'Edit Category' : 'Add New Category'}</DialogTitle></DialogHeader>
               <form onSubmit={handleCatSubmit} className="space-y-4">
+                {!editingCategory && (
+                  <div className="space-y-2"><Label>Tenant *</Label>
+                    <Select value={catFormData.tenant_id} onValueChange={v => setCatFormData({ ...catFormData, tenant_id: v })}>
+                      <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Select a tenant" /></SelectTrigger>
+                      <SelectContent>{tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-2"><Label>Category Name</Label><Input placeholder="e.g., Beverages" value={catFormData.name} onChange={e => setCatFormData({ ...catFormData, name: e.target.value })} className="bg-secondary border-border" required /></div>
                 <div className="space-y-2"><Label>Description (Optional)</Label><Textarea placeholder="Brief description..." value={catFormData.description} onChange={e => setCatFormData({ ...catFormData, description: e.target.value })} className="bg-secondary border-border" /></div>
                 <div className="flex justify-end gap-3 pt-2">
@@ -1224,6 +1206,64 @@ export default function Planogram() {
             </div>
           )}
         </TabsContent>
+
+        {/* Planogram Create/Edit Dialog - placed outside TabsContent so it works from any tab */}
+        <Dialog open={showTemplateDialog} onOpenChange={setShowTemplateDialog}>
+          <DialogContent>
+            <DialogHeader><DialogTitle>{editingTemplate ? 'Edit Planogram' : 'New Planogram'}</DialogTitle><DialogDescription>Configure the planogram details.</DialogDescription></DialogHeader>
+            <div className="space-y-4">
+              <div className="space-y-1.5"><Label>Name</Label><Input value={templateName} onChange={e => setTemplateName(e.target.value)} placeholder="e.g. Aisle 3 - Beverages" /></div>
+              <div className="space-y-1.5"><Label>Description</Label><Textarea value={templateDesc} onChange={e => setTemplateDesc(e.target.value)} placeholder="Optional description..." rows={2} /></div>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1.5"><Label>Tenant</Label>
+                  <Select value={templateTenantId} onValueChange={(v) => { setTemplateTenantId(v); setTemplateStoreId(''); }}><SelectTrigger><SelectValue placeholder="Select tenant..." /></SelectTrigger><SelectContent>{tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent></Select>
+                </div>
+                <div className="space-y-1.5"><Label>Store</Label>
+                  <Select value={templateStoreId} onValueChange={setTemplateStoreId}><SelectTrigger><SelectValue placeholder="Select store..." /></SelectTrigger><SelectContent>{stores.filter(s => !templateTenantId || s.tenant_id === templateTenantId).map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}</SelectContent></Select>
+                </div>
+                <div className="space-y-1.5"><Label>Status</Label>
+                  <Select value={templateStatus} onValueChange={setTemplateStatus}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="draft">Draft</SelectItem><SelectItem value="active">Active</SelectItem><SelectItem value="archived">Archived</SelectItem></SelectContent></Select>
+                </div>
+              </div>
+            </div>
+            <DialogFooter><Button variant="outline" onClick={() => setShowTemplateDialog(false)}>Cancel</Button><Button onClick={handleSaveTemplate} disabled={!templateName.trim()}>{editingTemplate ? 'Save Changes' : 'Create Planogram'}</Button></DialogFooter>
+          </DialogContent>
+        </Dialog>
+        <AlertDialog open={!!deleteTemplateId} onOpenChange={() => setDeleteTemplateId(null)}>
+          <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Planogram</AlertDialogTitle><AlertDialogDescription>This will permanently delete the planogram, all versions, and compliance scan history.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleDeleteTemplate} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        </AlertDialog>
+
+        {/* Store Modal - shared across tabs */}
+        <Dialog open={isStoreModalOpen} onOpenChange={setIsStoreModalOpen}>
+          <DialogContent className="bg-card border-border">
+            <DialogHeader><DialogTitle>{editingStoreObj ? 'Edit Store' : 'Add New Store'}</DialogTitle></DialogHeader>
+            <form onSubmit={handleStoreSubmit} className="space-y-4">
+              {!editingStoreObj && !storeTenantId && (
+                <div className="space-y-2"><Label>Tenant *</Label>
+                  <Select value={storeTenantId} onValueChange={setStoreTenantId}>
+                    <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Select a tenant" /></SelectTrigger>
+                    <SelectContent>{tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                  </Select>
+                </div>
+              )}
+              <div className="space-y-2"><Label>Store Name</Label><Input placeholder="e.g., Walmart - Downtown" className="bg-secondary border-border" value={storeFormData.name} onChange={e => setStoreFormData({ ...storeFormData, name: e.target.value })} required /></div>
+              <div className="space-y-2"><Label>Address</Label><Input placeholder="Street address" className="bg-secondary border-border" value={storeFormData.address} onChange={e => setStoreFormData({ ...storeFormData, address: e.target.value })} /></div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>City</Label><Input placeholder="City" className="bg-secondary border-border" value={storeFormData.city} onChange={e => setStoreFormData({ ...storeFormData, city: e.target.value })} /></div>
+                <div className="space-y-2"><Label>Country</Label><Input placeholder="Country" className="bg-secondary border-border" value={storeFormData.country} onChange={e => setStoreFormData({ ...storeFormData, country: e.target.value })} /></div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <Button type="button" variant="outline" onClick={() => setIsStoreModalOpen(false)}>Cancel</Button>
+                <Button type="submit" variant="glow" disabled={createStore.isPending || updateStore.isPending}>{(createStore.isPending || updateStore.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}{editingStoreObj ? 'Save' : 'Add Store'}</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+        <AlertDialog open={!!deleteStoreId} onOpenChange={() => setDeleteStoreId(null)}>
+          <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Store</AlertDialogTitle><AlertDialogDescription>This will remove the store and all associated data.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleStoreDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        </AlertDialog>
       </Tabs>
     </MainLayout>
   );

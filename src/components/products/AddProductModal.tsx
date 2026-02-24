@@ -86,6 +86,15 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
+    if (!formData.tenantId) {
+      toast({
+        title: 'Tenant required',
+        description: 'Please select a tenant for this product.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
     if (!canAddSku) {
       toast({
         title: 'SKU Limit Reached',
@@ -107,7 +116,7 @@ export function AddProductModal({ open, onClose }: AddProductModalProps) {
       description: formData.description || null,
       category_id: formData.categoryId || null,
       barcode: formData.barcode || null,
-      tenant_id: formData.tenantId || null,
+      tenant_id: formData.tenantId,
       images,
     });
 
