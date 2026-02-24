@@ -851,8 +851,9 @@ export default function Training() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTrainModal(false)}>Cancel</Button>
-            <Button onClick={startTraining}>
-              <Play className="w-4 h-4 mr-2" /> Start Training
+            <Button onClick={startTraining} disabled={trainingStarting}>
+              {trainingStarting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
+              Start Training
             </Button>
           </DialogFooter>
         </DialogContent>
