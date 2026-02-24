@@ -79,36 +79,6 @@ export function useProducts() {
     },
   });
 
-  const uploadProductImage = useMutation({
-    mutationFn: async ({ skuId, file, categoryId }: { skuId: string; file: File; categoryId?: string }) => {
-      const tid = tenantId;
-      if (!tid) throw new Error('No tenant ID');
-
-      const { storage } = await import('@/lib/api-client');
-      const result = await storage.uploadMultiple(
-        'sku-training-images',
-        'uploads',
-        [file],
-        {
-          tenant_id: tid,
-          category_id: categoryId || 'uncategorized',
-        }
-      );
-
-      if (result?.items?.[0]) {
-        return await rest.create('sku_images', { sku_id: skuId, image_url: result.items[0].url });
-      }
-      throw new Error('No URL returned from upload');
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['products'] });
-      toast({ title: 'Image uploaded', description: 'Training image added successfully.' });
-    },
-    onError: (error: Error) => {
-      toast({ title: 'Failed to upload image', description: error.message, variant: 'destructive' });
-    },
-  });
-
   return {
     products: productsQuery.data ?? [],
     isLoading: productsQuery.isLoading,
@@ -116,6 +86,5 @@ export function useProducts() {
     createProduct,
     updateProduct,
     deleteProduct,
-    uploadProductImage,
   };
 }
