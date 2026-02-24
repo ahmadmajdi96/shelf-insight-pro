@@ -1084,6 +1084,14 @@ export default function Planogram() {
             <DialogContent className="bg-card border-border">
               <DialogHeader><DialogTitle>{editingCategory ? 'Edit Category' : 'Add New Category'}</DialogTitle></DialogHeader>
               <form onSubmit={handleCatSubmit} className="space-y-4">
+                {!editingCategory && (
+                  <div className="space-y-2"><Label>Tenant *</Label>
+                    <Select value={catFormData.tenant_id} onValueChange={v => setCatFormData({ ...catFormData, tenant_id: v })}>
+                      <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Select a tenant" /></SelectTrigger>
+                      <SelectContent>{tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                )}
                 <div className="space-y-2"><Label>Category Name</Label><Input placeholder="e.g., Beverages" value={catFormData.name} onChange={e => setCatFormData({ ...catFormData, name: e.target.value })} className="bg-secondary border-border" required /></div>
                 <div className="space-y-2"><Label>Description (Optional)</Label><Textarea placeholder="Brief description..." value={catFormData.description} onChange={e => setCatFormData({ ...catFormData, description: e.target.value })} className="bg-secondary border-border" /></div>
                 <div className="flex justify-end gap-3 pt-2">
