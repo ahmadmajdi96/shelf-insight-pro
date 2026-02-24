@@ -145,7 +145,7 @@ export default function Planogram() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [deleteProductId, setDeleteProductId] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
-  const [editFormData, setEditFormData] = useState({ name: '', description: '', barcode: '', category_id: '' });
+  const [editFormData, setEditFormData] = useState({ name: '', description: '', barcode: '', category_id: '', width_cm: '' });
 
 
 
