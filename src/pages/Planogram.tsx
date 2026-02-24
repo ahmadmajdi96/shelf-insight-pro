@@ -291,14 +291,16 @@ export default function Planogram() {
   const getScoreBg = (score: number) => score >= 80 ? 'bg-green-500/10 border-green-500/20' : score >= 50 ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-red-500/10 border-red-500/20';
 
   // ---- Categories logic ----
-  const resetCatForm = () => { setCatFormData({ name: '', description: '' }); setEditingCategory(null); };
+  const resetCatForm = () => { setCatFormData({ name: '', description: '', tenant_id: '' }); setEditingCategory(null); };
   const handleCatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    const catTenantId = catFormData.tenant_id || tenantId;
+    if (!catTenantId && !editingCategory) { toast({ title: 'Tenant required', description: 'Please select a tenant for this category.', variant: 'destructive' }); return; }
     if (editingCategory) await updateCategory.mutateAsync({ id: editingCategory.id, name: catFormData.name, description: catFormData.description || null });
-    else await createCategory.mutateAsync({ name: catFormData.name, description: catFormData.description || null });
+    else await createCategory.mutateAsync({ name: catFormData.name, description: catFormData.description || null, tenant_id: catTenantId });
     resetCatForm(); setIsCatModalOpen(false);
   };
-  const handleCatEdit = (cat: any) => { setCatFormData({ name: cat.name, description: cat.description || '' }); setEditingCategory(cat); setIsCatModalOpen(true); };
+  const handleCatEdit = (cat: any) => { setCatFormData({ name: cat.name, description: cat.description || '', tenant_id: cat.tenant_id || '' }); setEditingCategory(cat); setIsCatModalOpen(true); };
   const handleCatDelete = async () => { if (deleteCatId) { await deleteCategory.mutateAsync(deleteCatId); setDeleteCatId(null); } };
   const filteredCategories = categories.filter(c => c.name.toLowerCase().includes(categorySearch.toLowerCase()));
 
