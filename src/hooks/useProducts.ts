@@ -10,6 +10,7 @@ interface SKUWithImages {
   name: string;
   description: string | null;
   barcode: string | null;
+  width_cm: number | null;
   training_status: string;
   is_active: boolean;
   created_at: string;
