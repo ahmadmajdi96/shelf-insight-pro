@@ -56,6 +56,8 @@ interface BBox {
 
 export default function Training() {
   const { toast } = useToast();
+  const { tenantId } = useAuth();
+  const { tenants } = useTenants();
   const [activeTab, setActiveTab] = useState('datasets');
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
 
@@ -68,7 +70,7 @@ export default function Training() {
   // Dataset modal
   const [showDatasetModal, setShowDatasetModal] = useState(false);
   const [editingDataset, setEditingDataset] = useState<Dataset | null>(null);
-  const [datasetForm, setDatasetForm] = useState({ name: '', description: '' });
+  const [datasetForm, setDatasetForm] = useState({ name: '', description: '', tenant_id: '' });
   const [deleteDatasetId, setDeleteDatasetId] = useState<string | null>(null);
   const [datasetSearch, setDatasetSearch] = useState('');
 
