@@ -307,10 +307,10 @@ export default function Planogram() {
     { value: 'tenants', label: 'Tenants', icon: Building2 },
     { value: 'stores', label: 'Stores', icon: Store },
     { value: 'planograms', label: 'Planograms', icon: LayoutGrid },
-    { value: 'compliance', label: 'Compliance', icon: BarChart3 },
-    { value: 'scan-history', label: 'Scan History', icon: TrendingUp },
     { value: 'categories', label: 'Categories', icon: FolderOpen },
     { value: 'products', label: 'Products', icon: Package },
+    { value: 'compliance', label: 'Compliance', icon: BarChart3 },
+    { value: 'scan-history', label: 'Scan History', icon: TrendingUp },
     { value: 'versions', label: 'Version History', icon: History },
   ];
 
