@@ -3,7 +3,7 @@ import {
   Plus, Upload, Trash2, Search, Pencil, Tag,
   Loader2, Image as ImageIcon, Brain, FolderOpen,
   Play, Clock, CheckCircle2, AlertTriangle, X,
-  ZoomIn, ZoomOut, MousePointer2, Square
+  ZoomIn, ZoomOut, MousePointer2, Square, Download
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
