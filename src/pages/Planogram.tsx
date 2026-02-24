@@ -94,7 +94,8 @@ export default function Planogram() {
   const [editingTenantObj, setEditingTenantObj] = useState<any | null>(null);
   const [deleteTenantId, setDeleteTenantId] = useState<string | null>(null);
   const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
-  const [tenantFormData, setTenantFormData] = useState({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000 });
+  const [expandedStores, setExpandedStores] = useState<Set<string>>(new Set());
+  const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   // Store modal state
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
