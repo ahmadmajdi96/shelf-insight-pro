@@ -1,0 +1,1 @@
+ALTER TABLE public.skus ADD COLUMN width_cm numeric NULL;

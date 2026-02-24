@@ -121,6 +121,7 @@ export default function Planogram() {
   const [dragProduct, setDragProduct] = useState<{ skuId: string | null; name: string } | null>(null);
   const [changeNotes, setChangeNotes] = useState('');
   const [shelfWidths, setShelfWidths] = useState<Record<string, { value: string; unit: 'cm' | 'm' }>>({});
+  const [designerCategoryFilter, setDesignerCategoryFilter] = useState('all');
 
   // Version history state
   const [versionTemplateId, setVersionTemplateId] = useState<string | null>(null);
@@ -144,7 +145,7 @@ export default function Planogram() {
   const [statusFilter, setStatusFilter] = useState('all');
   const [deleteProductId, setDeleteProductId] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
-  const [editFormData, setEditFormData] = useState({ name: '', description: '', barcode: '', category_id: '' });
+  const [editFormData, setEditFormData] = useState({ name: '', description: '', barcode: '', category_id: '', width_cm: '' });
 
 
 
@@ -233,7 +234,16 @@ export default function Planogram() {
     setShelfWidths(widths);
   };
 
-  const availableProducts = useMemo(() => products.map(p => ({ skuId: p.id, name: p.name, expectedFacings: 1 })), [products]);
+  const availableProducts = useMemo(() => {
+    const templateTenant = designerTemplate?.tenant_id;
+    return products
+      .filter(p => {
+        if (templateTenant && p.tenant_id !== templateTenant) return false;
+        if (designerCategoryFilter !== 'all' && p.category_id !== designerCategoryFilter) return false;
+        return true;
+      })
+      .map(p => ({ skuId: p.id, name: p.name, widthCm: p.width_cm, expectedFacings: 1 }));
+  }, [products, designerTemplate, designerCategoryFilter]);
   const addRow = () => { const newId = crypto.randomUUID(); setRows(prev => [...prev, { id: newId, label: `Shelf ${prev.length + 1}`, products: [] }]); };
   const removeRow = (rowId: string) => setRows(prev => prev.filter(r => r.id !== rowId));
   const updateRowLabel = (rowId: string, label: string) => setRows(prev => prev.map(r => r.id === rowId ? { ...r, label } : r));
@@ -312,10 +322,10 @@ export default function Planogram() {
     return matchesSearch && matchesCategory && matchesStatus;
   });
   const handleProductDelete = async () => { if (deleteProductId) { await deleteProduct.mutateAsync(deleteProductId); setDeleteProductId(null); } };
-  const handleProductEdit = (product: any) => { setEditFormData({ name: product.name, description: product.description || '', barcode: product.barcode || '', category_id: product.category_id || '' }); setEditingProduct(product); };
+  const handleProductEdit = (product: any) => { setEditFormData({ name: product.name, description: product.description || '', barcode: product.barcode || '', category_id: product.category_id || '', width_cm: product.width_cm ? String(product.width_cm) : '' }); setEditingProduct(product); };
   const handleProductEditSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingProduct) { await updateProduct.mutateAsync({ id: editingProduct.id, name: editFormData.name, description: editFormData.description || null, barcode: editFormData.barcode || null, category_id: editFormData.category_id || null }); setEditingProduct(null); }
+    if (editingProduct) { await updateProduct.mutateAsync({ id: editingProduct.id, name: editFormData.name, description: editFormData.description || null, barcode: editFormData.barcode || null, category_id: editFormData.category_id || null, width_cm: editFormData.width_cm ? parseFloat(editFormData.width_cm) : null }); setEditingProduct(null); }
   };
 
 
@@ -696,6 +706,13 @@ export default function Planogram() {
                 <div className="lg:col-span-1 space-y-4">
                   <div className="bg-card border border-border rounded-xl p-4">
                     <h3 className="font-semibold text-foreground flex items-center gap-2 mb-3"><Package className="w-4 h-4 text-primary" />Available Products<Badge variant="secondary" className="ml-auto text-xs">{availableProducts.length}</Badge></h3>
+                    <Select value={designerCategoryFilter} onValueChange={setDesignerCategoryFilter}>
+                      <SelectTrigger className="mb-3 text-xs h-8"><SelectValue placeholder="Filter by category" /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Categories</SelectItem>
+                        {categories.filter(c => !designerTemplate?.tenant_id || c.tenant_id === designerTemplate.tenant_id).map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}
+                      </SelectContent>
+                    </Select>
                     <ScrollArea className="h-[300px]">
                       <div className="space-y-1.5 pr-2">
                         <div draggable onDragStart={() => handleDragStart(null, 'Unregistered Item')} className="flex items-center gap-2 p-2.5 rounded-lg bg-destructive/5 border border-destructive/20 cursor-grab active:cursor-grabbing hover:border-destructive/50 transition-colors">
@@ -704,6 +721,7 @@ export default function Planogram() {
                         {availableProducts.map(product => (
                           <div key={product.skuId} draggable onDragStart={() => handleDragStart(product.skuId, product.name)} className="flex items-center gap-2 p-2.5 rounded-lg bg-secondary/50 border border-border/50 cursor-grab active:cursor-grabbing hover:border-primary/50 transition-colors">
                             <GripVertical className="w-3.5 h-3.5 text-muted-foreground/50" /><span className="text-sm text-foreground truncate flex-1">{product.name}</span>
+                            {product.widthCm && <span className="text-[10px] text-muted-foreground whitespace-nowrap">{product.widthCm}cm</span>}
                           </div>
                         ))}
                       </div>
@@ -1099,39 +1117,51 @@ export default function Planogram() {
           {productsLoading ? (
             <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
           ) : (
-            <>
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
-                {filteredProducts.map((product, index) => {
-                  const status = statusConfig[product.training_status];
-                  const StatusIcon = status.icon;
-                  const imageUrl = product.sku_images?.[0]?.image_url;
-                  const imageCount = product.sku_images?.length || 0;
-                  return (
-                    <div key={product.id} className="rounded-xl bg-card border border-border hover:border-primary/30 transition-all duration-300 overflow-hidden group animate-fade-in" style={{ animationDelay: `${index * 50}ms` }}>
-                      <div className="aspect-square bg-secondary relative overflow-hidden">
-                        {imageUrl ? <img src={imageUrl} alt={product.name} className="w-full h-full object-cover" /> : <div className="absolute inset-0 flex items-center justify-center"><Package className="w-12 h-12 text-muted-foreground/50" /></div>}
-                        <div className="absolute top-2 right-2">
+            <div className="bg-card border border-border rounded-xl overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product Name</TableHead>
+                    <TableHead>Category</TableHead>
+                    <TableHead>Barcode</TableHead>
+                    <TableHead className="text-center">Width (cm)</TableHead>
+                    <TableHead className="text-center">Status</TableHead>
+                    <TableHead className="w-[60px]"></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredProducts.map(product => {
+                    const status = statusConfig[product.training_status];
+                    const StatusIcon = status.icon;
+                    return (
+                      <TableRow key={product.id}>
+                        <TableCell className="font-medium">{product.name}</TableCell>
+                        <TableCell className="text-muted-foreground">{product.product_categories?.name || 'Uncategorized'}</TableCell>
+                        <TableCell className="font-mono text-xs text-muted-foreground">{product.barcode || '—'}</TableCell>
+                        <TableCell className="text-center">{product.width_cm ? `${product.width_cm}` : '—'}</TableCell>
+                        <TableCell className="text-center">
+                          <Badge variant="secondary" className={cn("text-xs", status.className)}>
+                            <StatusIcon className="w-3 h-3 mr-1" />{status.label}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
                           <DropdownMenu>
-                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 bg-background/80 backdrop-blur-sm opacity-0 group-hover:opacity-100 transition-opacity"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
+                            <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
                               <DropdownMenuItem onClick={() => handleProductEdit(product)}><Pencil className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
                               <DropdownMenuItem className="text-destructive" onClick={() => setDeleteProductId(product.id)}><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
-                        </div>
-                        <div className="absolute bottom-2 left-2 flex items-center gap-1 px-2 py-1 rounded-md bg-background/80 backdrop-blur-sm text-xs"><Image className="w-3 h-3" />{imageCount} images</div>
-                      </div>
-                      <div className="p-4 space-y-3">
-                        <div><h4 className="font-medium text-foreground truncate">{product.name}</h4><p className="text-sm text-muted-foreground">{product.product_categories?.name || 'Uncategorized'}</p></div>
-                        {product.barcode && <p className="text-xs font-mono text-muted-foreground bg-secondary px-2 py-1 rounded inline-block">{product.barcode}</p>}
-                        <div className="flex items-center pt-2"><span className={cn("inline-flex items-center gap-1.5 px-2 py-1 rounded-full text-xs font-medium", status.className)}><StatusIcon className="w-3 h-3" />{status.label}</span></div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {filteredProducts.length === 0 && <div className="text-center py-12"><p className="text-muted-foreground">{products.length === 0 ? 'No products yet. Add your first product to get started.' : 'No products found matching your criteria.'}</p></div>}
-            </>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {filteredProducts.length === 0 && (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">{products.length === 0 ? 'No products yet.' : 'No products found matching your criteria.'}</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
           )}
 
           <AddProductModal open={isAddProductOpen} onClose={() => setIsAddProductOpen(false)} />
@@ -1140,7 +1170,10 @@ export default function Planogram() {
               <DialogHeader><DialogTitle>Edit Product</DialogTitle></DialogHeader>
               <form onSubmit={handleProductEditSubmit} className="space-y-4">
                 <div className="space-y-2"><Label>Product Name</Label><Input value={editFormData.name} onChange={e => setEditFormData({ ...editFormData, name: e.target.value })} className="bg-secondary border-border" required /></div>
-                <div className="space-y-2"><Label>Barcode</Label><Input value={editFormData.barcode} onChange={e => setEditFormData({ ...editFormData, barcode: e.target.value })} className="bg-secondary border-border font-mono" /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Barcode</Label><Input value={editFormData.barcode} onChange={e => setEditFormData({ ...editFormData, barcode: e.target.value })} className="bg-secondary border-border font-mono" /></div>
+                  <div className="space-y-2"><Label>Width (cm)</Label><Input type="number" step="0.1" min="0" value={editFormData.width_cm} onChange={e => setEditFormData({ ...editFormData, width_cm: e.target.value })} className="bg-secondary border-border" placeholder="e.g., 8.5" /></div>
+                </div>
                 <div className="space-y-2"><Label>Category</Label>
                   <Select value={editFormData.category_id} onValueChange={v => setEditFormData({ ...editFormData, category_id: v })}><SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Select a category" /></SelectTrigger><SelectContent>{categories.map(cat => <SelectItem key={cat.id} value={cat.id}>{cat.name}</SelectItem>)}</SelectContent></Select>
                 </div>
