@@ -5,3 +5,9 @@ verify_jwt = false
 
 [functions.roboflow-detect]
 verify_jwt = false
+
+[functions.export-dataset]
+verify_jwt = false
+
+[functions.start-training]
+verify_jwt = false

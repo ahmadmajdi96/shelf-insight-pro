@@ -3,7 +3,7 @@ import {
   Plus, Upload, Trash2, Search, Pencil, Tag,
   Loader2, Image as ImageIcon, Brain, FolderOpen,
   Play, Clock, CheckCircle2, AlertTriangle, X,
-  ZoomIn, ZoomOut, MousePointer2, Square
+  ZoomIn, ZoomOut, MousePointer2, Square, Download
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -27,8 +27,9 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { rest } from '@/lib/api-client';
+import { supabase } from '@/integrations/supabase/client';
 import {
   useDatasets, useDatasetImages, useDatasetClasses, useTrainingJobs,
   type Dataset, type DatasetImage, type DatasetClass,
@@ -58,6 +59,7 @@ interface BBox {
 export default function Training() {
   const { toast } = useToast();
   const { tenantId } = useAuth();
+  const qc = useQueryClient();
   const { data: tenants = [] } = useQuery({
     queryKey: ['tenants-for-training'],
     queryFn: async () => {
@@ -104,6 +106,8 @@ export default function Training() {
   // Training modal
   const [showTrainModal, setShowTrainModal] = useState(false);
   const [trainForm, setTrainForm] = useState({ epochs: 100, batch_size: 16 });
+  const [exporting, setExporting] = useState(false);
+  const [trainingStarting, setTrainingStarting] = useState(false);
 
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
 
@@ -277,16 +281,59 @@ export default function Training() {
     }
   };
 
+  // ─── Export Dataset as ZIP ──────────────────────────────
+  const exportDataset = async () => {
+    if (!selectedDatasetId) return;
+    setExporting(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session?.access_token) {
+        toast({ title: 'Not authenticated', variant: 'destructive' });
+        return;
+      }
+      const res = await supabase.functions.invoke('export-dataset', {
+        body: { dataset_id: selectedDatasetId },
+      });
+      if (res.error) throw res.error;
+      
+      // The response data is the ZIP blob
+      const blob = new Blob([res.data], { type: 'application/zip' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `dataset-${selectedDataset?.name || selectedDatasetId}.zip`;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast({ title: 'Dataset exported', description: 'YOLOv8-format ZIP downloaded.' });
+    } catch (e: any) {
+      toast({ title: 'Export failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // ─── Training ──────────────────────────────────────────
   const startTraining = async () => {
     if (!selectedDatasetId) return;
-    await createJob.mutateAsync({
-      dataset_id: selectedDatasetId,
-      epochs: trainForm.epochs,
-      batch_size: trainForm.batch_size,
-    });
-    setShowTrainModal(false);
-    toast({ title: 'Training job queued', description: 'The dataset will be packaged and sent for training.' });
+    setTrainingStarting(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('start-training', {
+        body: {
+          dataset_id: selectedDatasetId,
+          epochs: trainForm.epochs,
+          batch_size: trainForm.batch_size,
+        },
+      });
+      if (error) throw error;
+      setShowTrainModal(false);
+      toast({ title: 'Training job started', description: data?.message || 'The model is being trained.' });
+      // Refresh jobs
+      qc.invalidateQueries({ queryKey: ['training-jobs'] });
+    } catch (e: any) {
+      toast({ title: 'Training failed', description: e.message, variant: 'destructive' });
+    } finally {
+      setTrainingStarting(false);
+    }
   };
 
   // Set active class to first class if none selected
@@ -636,9 +683,15 @@ export default function Training() {
         <TabsContent value="train" className="space-y-4">
           <div className="flex items-center justify-between flex-wrap gap-3">
             <h3 className="font-semibold text-foreground">Training Jobs</h3>
-            <Button onClick={() => setShowTrainModal(true)} disabled={!selectedDatasetId || images.length === 0}>
-              <Play className="w-4 h-4 mr-2" /> Start Training
-            </Button>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={exportDataset} disabled={!selectedDatasetId || images.length === 0 || exporting}>
+                {exporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
+                Export ZIP
+              </Button>
+              <Button onClick={() => setShowTrainModal(true)} disabled={!selectedDatasetId || images.length === 0}>
+                <Play className="w-4 h-4 mr-2" /> Start Training
+              </Button>
+            </div>
           </div>
 
           {selectedDataset && (
@@ -798,8 +851,9 @@ export default function Training() {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowTrainModal(false)}>Cancel</Button>
-            <Button onClick={startTraining}>
-              <Play className="w-4 h-4 mr-2" /> Start Training
+            <Button onClick={startTraining} disabled={trainingStarting}>
+              {trainingStarting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
+              Start Training
             </Button>
           </DialogFooter>
         </DialogContent>
