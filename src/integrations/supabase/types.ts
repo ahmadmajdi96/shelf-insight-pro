@@ -142,6 +142,41 @@ export type Database = {
           },
         ]
       }
+      dataset_image_sets: {
+        Row: {
+          created_at: string
+          dataset_id: string
+          id: string
+          image_count: number
+          is_trained: boolean
+          name: string
+        }
+        Insert: {
+          created_at?: string
+          dataset_id: string
+          id?: string
+          image_count?: number
+          is_trained?: boolean
+          name: string
+        }
+        Update: {
+          created_at?: string
+          dataset_id?: string
+          id?: string
+          image_count?: number
+          is_trained?: boolean
+          name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dataset_image_sets_dataset_id_fkey"
+            columns: ["dataset_id"]
+            isOneToOne: false
+            referencedRelation: "datasets"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dataset_images: {
         Row: {
           annotations: Json | null
@@ -149,6 +184,7 @@ export type Database = {
           dataset_id: string
           file_name: string | null
           id: string
+          image_set_id: string | null
           image_url: string
           is_annotated: boolean
         }
@@ -158,6 +194,7 @@ export type Database = {
           dataset_id: string
           file_name?: string | null
           id?: string
+          image_set_id?: string | null
           image_url: string
           is_annotated?: boolean
         }
@@ -167,6 +204,7 @@ export type Database = {
           dataset_id?: string
           file_name?: string | null
           id?: string
+          image_set_id?: string | null
           image_url?: string
           is_annotated?: boolean
         }
@@ -176,6 +214,13 @@ export type Database = {
             columns: ["dataset_id"]
             isOneToOne: false
             referencedRelation: "datasets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dataset_images_image_set_id_fkey"
+            columns: ["image_set_id"]
+            isOneToOne: false
+            referencedRelation: "dataset_image_sets"
             referencedColumns: ["id"]
           },
         ]
