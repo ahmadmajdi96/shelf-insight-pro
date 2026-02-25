@@ -98,7 +98,8 @@ export default function Planogram() {
   const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
   const [expandedStores, setExpandedStores] = useState<Set<string>>(new Set());
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
-  const [tenantFormData, setTenantFormData] = useState({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000 });
+  const [expandedAdmins, setExpandedAdmins] = useState<Set<string>>(new Set());
+  const [tenantFormData, setTenantFormData] = useState({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000, admin_id: '' });
 
   // Store modal state
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
@@ -183,15 +184,30 @@ export default function Planogram() {
       return next;
     });
   };
-  const resetTenantForm = () => { setTenantFormData({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000 }); setEditingTenantObj(null); };
+  const toggleAdmin = (aid: string) => {
+    setExpandedAdmins(prev => {
+      const next = new Set(prev);
+      if (next.has(aid)) next.delete(aid); else next.add(aid);
+      return next;
+    });
+  };
+  const getTenantsForAdmin = (adminId: string) => tenants.filter((t: any) => t.admin_id === adminId);
+  const handleAddTenantForAdmin = (adminId: string) => {
+    resetTenantForm();
+    setTenantFormData(prev => ({ ...prev, admin_id: adminId }));
+    setIsTenantModalOpen(true);
+  };
+  const resetTenantForm = () => { setTenantFormData({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000, admin_id: '' }); setEditingTenantObj(null); };
   const handleTenantSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (editingTenantObj) await updateTenant.mutateAsync({ id: editingTenantObj.id, ...tenantFormData });
-    else await createTenant.mutateAsync(tenantFormData);
+    const { admin_id, ...rest } = tenantFormData;
+    const payload = { ...rest, admin_id: admin_id || null };
+    if (editingTenantObj) await updateTenant.mutateAsync({ id: editingTenantObj.id, ...payload });
+    else await createTenant.mutateAsync(payload);
     resetTenantForm(); setIsTenantModalOpen(false);
   };
   const handleTenantEdit = (tenant: any) => {
-    setTenantFormData({ name: tenant.name, username: tenant.username || '', password: tenant.password || '', max_skus: tenant.max_skus, max_images_per_month: tenant.max_images_per_month });
+    setTenantFormData({ name: tenant.name, username: tenant.username || '', password: tenant.password || '', max_skus: tenant.max_skus, max_images_per_month: tenant.max_images_per_month, admin_id: tenant.admin_id || '' });
     setEditingTenantObj(tenant); setIsTenantModalOpen(true);
   };
   const handleTenantDelete = async () => { if (deleteTenantId) { await deleteTenant.mutateAsync(deleteTenantId); setDeleteTenantId(null); } };
@@ -415,10 +431,11 @@ export default function Planogram() {
             <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
           ) : (
             <div className="space-y-4">
-              {filteredAdmins.map((admin, index) => {
-                const adminTenants = tenants.filter(t => t.is_active);
-                const usedLimit = adminTenants.reduce((acc, t) => acc + t.max_images_per_month, 0);
+               {filteredAdmins.map((admin, index) => {
+                const adminTenantsList = getTenantsForAdmin(admin.id);
+                const usedLimit = adminTenantsList.reduce((acc, t) => acc + t.max_images_per_month, 0);
                 const usagePercent = admin.monthly_limit > 0 ? (usedLimit / admin.monthly_limit) * 100 : 0;
+                const isExpanded = expandedAdmins.has(admin.id);
                 return (
                   <div key={admin.id} className={cn("rounded-xl bg-card border border-border transition-all duration-300 animate-fade-in", !admin.is_active && "opacity-60")} style={{ animationDelay: `${index * 50}ms` }}>
                     <div className="p-5">
@@ -438,6 +455,7 @@ export default function Planogram() {
                           <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => handleAdminEdit(admin)}><Pencil className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => handleAddTenantForAdmin(admin.id)}><Plus className="w-4 h-4 mr-2" />Add Tenant</DropdownMenuItem>
                             <DropdownMenuItem className="text-destructive" onClick={() => setDeleteAdminId(admin.id)}><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -448,6 +466,38 @@ export default function Planogram() {
                           <Progress value={Math.min(usagePercent, 100)} className={cn("h-2", usagePercent >= 90 && "[&>div]:bg-destructive", usagePercent >= 80 && usagePercent < 90 && "[&>div]:bg-warning")} /></div>
                       </div>
                     </div>
+                    <Collapsible open={isExpanded} onOpenChange={() => toggleAdmin(admin.id)}>
+                      <CollapsibleTrigger asChild>
+                        <button className="w-full px-5 py-3 border-t border-border flex items-center justify-between text-sm hover:bg-muted/30 transition-colors">
+                          <span className="text-muted-foreground flex items-center gap-2"><Building2 className="w-4 h-4" />{adminTenantsList.length} Tenant{adminTenantsList.length !== 1 ? 's' : ''}</span>
+                          <span className="text-xs text-muted-foreground">{isExpanded ? 'Collapse' : 'Expand'}</span>
+                        </button>
+                      </CollapsibleTrigger>
+                      <CollapsibleContent>
+                        <div className="px-5 pb-4 space-y-2">
+                          {adminTenantsList.map(tenant => {
+                            const imgPct = tenant.max_images_per_month > 0 ? (tenant.processed_images_this_month / tenant.max_images_per_month) * 100 : 0;
+                            return (
+                              <div key={tenant.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border hover:border-primary/30 transition-colors">
+                                <div className="flex items-center gap-3">
+                                  <Building2 className="w-4 h-4 text-muted-foreground" />
+                                  <div>
+                                    <p className="font-medium text-foreground text-sm">{tenant.name}</p>
+                                    <p className="text-xs text-muted-foreground">{tenant.skuCount} SKUs · {tenant.processed_images_this_month.toLocaleString()} / {tenant.max_images_per_month.toLocaleString()} images</p>
+                                  </div>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <Badge variant={tenant.is_active ? 'default' : 'secondary'} className="text-[10px]">{tenant.is_active ? 'Active' : 'Suspended'}</Badge>
+                                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleTenantEdit(tenant)}><Pencil className="w-3 h-3" /></Button>
+                                </div>
+                              </div>
+                            );
+                          })}
+                          {adminTenantsList.length === 0 && <p className="text-sm text-muted-foreground text-center py-2">No tenants assigned</p>}
+                          <Button variant="outline" size="sm" className="w-full" onClick={() => handleAddTenantForAdmin(admin.id)}><Plus className="w-3 h-3 mr-2" />Add Tenant</Button>
+                        </div>
+                      </CollapsibleContent>
+                    </Collapsible>
                   </div>
                 );
               })}
@@ -580,6 +630,15 @@ export default function Planogram() {
               <DialogHeader><DialogTitle className="flex items-center gap-2"><Building2 className="w-5 h-5 text-primary" />{editingTenantObj ? 'Edit Tenant' : 'Add New Tenant'}</DialogTitle></DialogHeader>
               <form onSubmit={handleTenantSubmit} className="space-y-4">
                 <div className="space-y-2"><Label>Tenant Name</Label><Input placeholder="e.g., Acme Corporation" className="bg-secondary border-border" value={tenantFormData.name} onChange={e => setTenantFormData({ ...tenantFormData, name: e.target.value })} required /></div>
+                <div className="space-y-2">
+                  <Label>Assign to Admin</Label>
+                  <Select value={tenantFormData.admin_id} onValueChange={v => setTenantFormData({ ...tenantFormData, admin_id: v })}>
+                    <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Select admin..." /></SelectTrigger>
+                    <SelectContent>
+                      {admins.map(a => <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Username</Label><Input placeholder="tenant_username" className="bg-secondary border-border" value={tenantFormData.username} onChange={e => setTenantFormData({ ...tenantFormData, username: e.target.value })} /></div>
                   <div className="space-y-2"><Label>Password</Label><Input type="password" placeholder="••••••••" className="bg-secondary border-border" value={tenantFormData.password} onChange={e => setTenantFormData({ ...tenantFormData, password: e.target.value })} /></div>
