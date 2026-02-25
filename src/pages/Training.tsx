@@ -3,7 +3,8 @@ import {
   Plus, Upload, Trash2, Search, Pencil, Tag,
   Loader2, Image as ImageIcon, Brain, FolderOpen,
   Play, Clock, CheckCircle2, AlertTriangle, X,
-  MousePointer2, Square, Download, RefreshCw, Filter
+  MousePointer2, Square, Download, RefreshCw, Filter,
+  ChevronLeft, ChevronRight, Settings, Wand2
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -13,6 +14,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
+import { Switch } from '@/components/ui/switch';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -27,6 +29,9 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
@@ -58,6 +63,77 @@ interface BBox {
   color: string;
   x: number; y: number; w: number; h: number;
 }
+
+const DEFAULT_TRAINING_CONFIG = {
+  seed: 42,
+  data: {
+    root: './dataset',
+    mode: 'pre_split',
+    train_dir: 'train',
+    val_dir: 'val',
+    test_dir: 'test',
+    all_dir: 'all',
+    image_size_w: 224,
+    image_size_h: 224,
+    num_workers: 8,
+    batch_size: 54,
+    val_batch_size: 128,
+    split: { val_ratio: 0.25, test_ratio: 0.25 },
+    augment: {
+      enabled: true,
+      hflip_prob: 0.12,
+      brightness_contrast_prob: 0.3,
+      brightness_contrast: 0.07,
+      hue_saturation_prob: 0.2,
+      hue_saturation: 0.07,
+      blur_prob: 0.06,
+      perspective_prob: 0.05,
+      jpeg_prob: 0.05,
+    },
+    balance: {
+      unknown_class_name: 'UNKNOWN',
+      max_unknown_train_samples: '',
+    },
+  },
+  model: {
+    backbone: 'eva02_small_patch14_224.mim_in22k',
+    pretrained: true,
+    dropout: 0.3,
+    num_classes: 'auto',
+  },
+  train: {
+    start_from: 'pretrained',
+    epochs: 200,
+    lr: 0.0005,
+    weight_decay: 0.02,
+    optimizer: 'adamw',
+    scheduler: 'cosine',
+    warmup_epochs: 5,
+    label_smoothing: 0.01,
+    use_weighted_sampler: false,
+    unknown_class_name: 'UNKNOWN',
+    open_set_loss_weight: 0.05,
+    matmul_precision: 'high',
+    precision: '16-mixed',
+    accumulate_grad_batches: 1,
+    gradient_clip_val: 1.0,
+    early_stop_patience: 50,
+    early_stop_min_epochs: 50,
+    monitor_metric: 'val/f1_macro',
+    stop_metric: 'val/f1_macro',
+    stop_threshold: 0.985,
+    stop_min_epochs: 50,
+  },
+  logging: {
+    out_dir: './runs',
+    use_wandb: false,
+    wandb_project: 'sku-classifier',
+    log_every_n_steps: 10,
+  },
+  inference: {
+    reject_threshold: '',
+  },
+};
 
 export default function Training() {
   const { toast } = useToast();
@@ -114,6 +190,19 @@ export default function Training() {
   const [trainForm, setTrainForm] = useState({ epochs: 100, batch_size: 16 });
   const [exporting, setExporting] = useState(false);
   const [trainingStarting, setTrainingStarting] = useState(false);
+
+  // Settings modal
+  const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [trainingConfig, setTrainingConfig] = useState(DEFAULT_TRAINING_CONFIG);
+
+  // Auto-annotate
+  const [autoAnnotating, setAutoAnnotating] = useState(false);
+
+  // Image preview navigation
+  const [previewImageIndex, setPreviewImageIndex] = useState<number | null>(null);
+
+  // Double-click class change
+  const [changingClassBboxId, setChangingClassBboxId] = useState<string | null>(null);
 
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
 
@@ -196,7 +285,6 @@ export default function Training() {
         if (error) throw error;
         uploaded.push(data as DatasetImage);
       }
-      // Update image count
       await supabase.from('datasets').update({ image_count: (images.length || 0) + validFiles.length }).eq('id', selectedDatasetId);
       qc.invalidateQueries({ queryKey: ['dataset-images', selectedDatasetId] });
       qc.invalidateQueries({ queryKey: ['datasets'] });
@@ -214,6 +302,22 @@ export default function Training() {
     setAnnotatingImage(img);
     setBboxes((img.annotations as any as BBox[]) || []);
     setActiveTab('annotate');
+  };
+
+  const navigateImage = (direction: 'prev' | 'next') => {
+    if (!annotatingImage || images.length === 0) return;
+    const currentIndex = images.findIndex(img => img.id === annotatingImage.id);
+    if (currentIndex === -1) return;
+    const newIndex = direction === 'prev'
+      ? (currentIndex - 1 + images.length) % images.length
+      : (currentIndex + 1) % images.length;
+    const newImg = images[newIndex];
+    // Save current annotations before navigating
+    if (annotatingImage) {
+      updateAnnotations.mutateAsync({ imageId: annotatingImage.id, annotations: bboxes as any }).catch(() => {});
+    }
+    setAnnotatingImage(newImg);
+    setBboxes((newImg.annotations as any as BBox[]) || []);
   };
 
   const getRelativePos = (e: React.MouseEvent): { x: number; y: number } | null => {
@@ -269,10 +373,84 @@ export default function Training() {
 
   const removeBbox = (id: string) => setBboxes(prev => prev.filter(b => b.id !== id));
 
+  const handleBboxDoubleClick = (bboxId: string) => {
+    setChangingClassBboxId(bboxId);
+  };
+
+  const changeBboxClass = (bboxId: string, newClassId: string) => {
+    const cls = classes.find(c => c.id === newClassId);
+    if (!cls) return;
+    setBboxes(prev => prev.map(b => b.id === bboxId ? { ...b, classId: cls.id, className: cls.name, color: cls.color } : b));
+    setChangingClassBboxId(null);
+  };
+
   const saveAnnotations = async () => {
     if (!annotatingImage) return;
     await updateAnnotations.mutateAsync({ imageId: annotatingImage.id, annotations: bboxes as any });
     toast({ title: 'Annotations saved' });
+  };
+
+  // ─── Auto-annotate ────────────────────────────────────
+  const autoAnnotate = async (img: DatasetImage) => {
+    setAutoAnnotating(true);
+    try {
+      // Send to auto-annotate endpoint
+      const res = await supabase.functions.invoke('roboflow-detect', {
+        body: { image_url: img.image_url },
+      });
+      if (res.error) throw res.error;
+      
+      const predictions = res.data?.predictions || res.data?.outputs?.flatMap((o: any) => o?.predictions || []) || [];
+      
+      // Convert predictions to bboxes
+      const newBboxes: BBox[] = predictions.map((pred: any) => {
+        // Try to match prediction class to existing dataset classes
+        const predLabel = pred.class || pred.label || 'unknown';
+        const matchedClass = classes.find(c => c.name.toLowerCase() === predLabel.toLowerCase());
+        
+        // Calculate normalized bbox from prediction
+        const imgWidth = pred.image?.width || 640;
+        const imgHeight = pred.image?.height || 640;
+        const x = ((pred.x || 0) - (pred.width || 0) / 2) / imgWidth;
+        const y = ((pred.y || 0) - (pred.height || 0) / 2) / imgHeight;
+        const w = (pred.width || 0) / imgWidth;
+        const h = (pred.height || 0) / imgHeight;
+        
+        return {
+          id: crypto.randomUUID(),
+          classId: matchedClass?.id || '',
+          className: matchedClass?.name || predLabel,
+          color: matchedClass?.color || '#3B82F6',
+          x: Math.max(0, x),
+          y: Math.max(0, y),
+          w: Math.min(1 - Math.max(0, x), w),
+          h: Math.min(1 - Math.max(0, y), h),
+        };
+      });
+
+      // Open annotator with the auto-detected annotations
+      setAnnotatingImage(img);
+      setBboxes(newBboxes);
+      setActiveTab('annotate');
+      toast({ title: 'Auto-annotation complete', description: `${newBboxes.length} annotations detected.` });
+    } catch (err: any) {
+      toast({ title: 'Auto-annotate failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setAutoAnnotating(false);
+    }
+  };
+
+  // ─── Image Preview Navigation ─────────────────────────
+  const openImagePreview = (index: number) => {
+    setPreviewImageIndex(index);
+  };
+  const closeImagePreview = () => setPreviewImageIndex(null);
+  const navigatePreview = (direction: 'prev' | 'next') => {
+    if (previewImageIndex === null || images.length === 0) return;
+    const newIndex = direction === 'prev'
+      ? (previewImageIndex - 1 + images.length) % images.length
+      : (previewImageIndex + 1) % images.length;
+    setPreviewImageIndex(newIndex);
   };
 
   // ─── Classes ───────────────────────────────────────────
@@ -334,7 +512,12 @@ export default function Training() {
     setTrainingStarting(true);
     try {
       const { data, error } = await supabase.functions.invoke('start-training', {
-        body: { dataset_id: selectedDatasetId, epochs: trainForm.epochs, batch_size: trainForm.batch_size },
+        body: {
+          dataset_id: selectedDatasetId,
+          epochs: trainForm.epochs,
+          batch_size: trainForm.batch_size,
+          config: trainingConfig,
+        },
       });
       if (error) throw error;
       setShowTrainModal(false);
@@ -360,8 +543,8 @@ export default function Training() {
   ];
 
   return (
-    <MainLayout title="Training" subtitle="Manage datasets, annotate images, and train YOLOv8 models">
-      {/* Filters bar — matching Data page design */}
+    <MainLayout title="Training" subtitle="Manage datasets, annotate images, and train models">
+      {/* Filters bar */}
       <div className="bg-card border border-border rounded-xl p-4 mb-6">
         <div className="flex flex-wrap items-center gap-4">
           <div className="relative flex-1 min-w-[200px]">
@@ -389,6 +572,9 @@ export default function Training() {
               <X className="w-4 h-4 mr-1" /> Clear
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={() => setShowSettingsModal(true)}>
+            <Settings className="w-4 h-4 mr-2" /> Settings
+          </Button>
           {selectedDataset && (
             <div className="ml-auto">
               <Badge variant="outline" className="text-xs">
@@ -399,22 +585,34 @@ export default function Training() {
         </div>
       </div>
 
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        {/* Tab bar — matching Data page style */}
-        <TabsList className={cn("grid w-full bg-card border border-border mb-6", `grid-cols-${TAB_CONFIG.length}`)}>
-          {TAB_CONFIG.map(tab => (
-            <TabsTrigger key={tab.value} value={tab.value} disabled={tab.disabled} className="gap-2">
-              <tab.icon className="w-4 h-4" />
-              <span className="hidden sm:inline">{tab.label}</span>
-              {tab.value === 'datasets' && <Badge variant="secondary" className="ml-1">{filteredDatasets.length}</Badge>}
-              {tab.value === 'classes' && selectedDatasetId && <Badge variant="secondary" className="ml-1">{classes.length}</Badge>}
-              {tab.value === 'images' && selectedDatasetId && <Badge variant="secondary" className="ml-1">{images.length}</Badge>}
-              {tab.value === 'train' && selectedDatasetId && <Badge variant="secondary" className="ml-1">{jobs.length}</Badge>}
-            </TabsTrigger>
-          ))}
-        </TabsList>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        {/* Modern centered navbar — matching Management design */}
+        <div className="flex justify-center">
+          <TabsList className="inline-flex h-12 items-center gap-1 rounded-2xl bg-card/80 backdrop-blur-xl border border-border/50 p-1.5 shadow-lg shadow-primary/5">
+            {TAB_CONFIG.map(tab => (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                disabled={tab.disabled}
+                className={cn(
+                  "relative inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-300",
+                  "data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground data-[state=inactive]:hover:bg-secondary/50",
+                  "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:shadow-primary/25",
+                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                )}
+              >
+                <tab.icon className="w-4 h-4" />
+                <span className="hidden sm:inline">{tab.label}</span>
+                {tab.value === 'datasets' && <Badge variant="secondary" className="ml-1">{filteredDatasets.length}</Badge>}
+                {tab.value === 'classes' && selectedDatasetId && <Badge variant="secondary" className="ml-1">{classes.length}</Badge>}
+                {tab.value === 'images' && selectedDatasetId && <Badge variant="secondary" className="ml-1">{images.length}</Badge>}
+                {tab.value === 'train' && selectedDatasetId && <Badge variant="secondary" className="ml-1">{jobs.length}</Badge>}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
 
-        {/* ─── Datasets Tab (Table) ─────────────────────── */}
+        {/* ─── Datasets Tab ─────────────────────── */}
         <TabsContent value="datasets">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-foreground">All Datasets</h3>
@@ -606,29 +804,48 @@ export default function Training() {
                 </div>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                  {images.map(img => (
+                  {images.map((img, idx) => (
                     <div
                       key={img.id}
                       className="relative group rounded-lg overflow-hidden border border-border bg-card aspect-square cursor-pointer"
-                      onClick={() => openAnnotator(img)}
+                      onClick={() => openImagePreview(idx)}
                     >
                       <img src={img.image_url} alt={img.file_name || ''} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-colors flex items-center justify-center">
-                        <Square className="w-6 h-6 text-background opacity-0 group-hover:opacity-100 transition-opacity" />
+                      <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-colors flex items-center justify-center gap-2">
+                        <Square className="w-5 h-5 text-background opacity-0 group-hover:opacity-100 transition-opacity" />
                       </div>
                       {img.is_annotated && (
                         <div className="absolute top-1 right-1">
                           <CheckCircle2 className="w-4 h-4 text-success" />
                         </div>
                       )}
-                      <Button
-                        size="icon"
-                        variant="destructive"
-                        className="absolute bottom-1 right-1 w-6 h-6 opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={(e) => { e.stopPropagation(); deleteImage.mutate(img.id); }}
-                      >
-                        <Trash2 className="w-3 h-3" />
-                      </Button>
+                      <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Button
+                          size="icon"
+                          variant="secondary"
+                          className="w-6 h-6"
+                          onClick={(e) => { e.stopPropagation(); openAnnotator(img); }}
+                        >
+                          <Square className="w-3 h-3" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="secondary"
+                          className="w-6 h-6"
+                          disabled={autoAnnotating}
+                          onClick={(e) => { e.stopPropagation(); autoAnnotate(img); }}
+                        >
+                          {autoAnnotating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="destructive"
+                          className="w-6 h-6"
+                          onClick={(e) => { e.stopPropagation(); deleteImage.mutate(img.id); }}
+                        >
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -648,7 +865,15 @@ export default function Training() {
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
               <div className="rounded-xl bg-card border border-border p-2">
                 <div className="flex items-center justify-between mb-2 px-2">
-                  <span className="text-sm font-medium text-foreground">{annotatingImage.file_name}</span>
+                  <div className="flex items-center gap-2">
+                    <Button size="icon" variant="outline" className="w-8 h-8" onClick={() => navigateImage('prev')}>
+                      <ChevronLeft className="w-4 h-4" />
+                    </Button>
+                    <span className="text-sm font-medium text-foreground">{annotatingImage.file_name}</span>
+                    <Button size="icon" variant="outline" className="w-8 h-8" onClick={() => navigateImage('next')}>
+                      <ChevronRight className="w-4 h-4" />
+                    </Button>
+                  </div>
                   <div className="flex gap-2">
                     <Button size="sm" variant="outline" onClick={() => { setAnnotatingImage(null); setBboxes([]); }}>
                       <X className="w-3.5 h-3.5 mr-1" /> Close
@@ -673,6 +898,7 @@ export default function Training() {
                         width: `${box.w * 100}%`, height: `${box.h * 100}%`,
                         borderColor: box.color, backgroundColor: `${box.color}15`,
                       }}
+                      onDoubleClick={(e) => { e.stopPropagation(); handleBboxDoubleClick(box.id); }}
                     >
                       <span className="absolute -top-5 left-0 text-[10px] font-medium px-1 rounded text-white whitespace-nowrap" style={{ backgroundColor: box.color }}>
                         {box.className}
@@ -725,6 +951,7 @@ export default function Training() {
                 </div>
                 <div className="rounded-xl bg-card border border-border p-4">
                   <h4 className="text-sm font-semibold text-foreground mb-2">Annotations ({bboxes.length})</h4>
+                  <p className="text-[10px] text-muted-foreground mb-2">Double-click annotation to change class</p>
                   {bboxes.length === 0 ? (
                     <p className="text-xs text-muted-foreground">Draw bounding boxes on the image.</p>
                   ) : (
@@ -822,6 +1049,80 @@ export default function Training() {
         </TabsContent>
       </Tabs>
 
+      {/* ─── Image Preview Dialog with Navigation ─────────── */}
+      <Dialog open={previewImageIndex !== null} onOpenChange={() => closeImagePreview()}>
+        <DialogContent className="max-w-4xl bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              Image Preview
+              {previewImageIndex !== null && images[previewImageIndex] && (
+                <span className="text-sm font-normal text-muted-foreground">
+                  {images[previewImageIndex].file_name} ({previewImageIndex + 1} / {images.length})
+                </span>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {previewImageIndex !== null && images[previewImageIndex] && (
+            <div className="relative">
+              <div className="flex items-center justify-center">
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="absolute left-2 top-1/2 -translate-y-1/2 z-10 rounded-full bg-card/80 backdrop-blur-sm"
+                  onClick={() => navigatePreview('prev')}
+                >
+                  <ChevronLeft className="w-5 h-5" />
+                </Button>
+                <img
+                  src={images[previewImageIndex].image_url}
+                  alt={images[previewImageIndex].file_name || ''}
+                  className="max-h-[70vh] object-contain rounded-lg"
+                />
+                <Button
+                  variant="outline"
+                  size="icon"
+                  className="absolute right-2 top-1/2 -translate-y-1/2 z-10 rounded-full bg-card/80 backdrop-blur-sm"
+                  onClick={() => navigatePreview('next')}
+                >
+                  <ChevronRight className="w-5 h-5" />
+                </Button>
+              </div>
+              <div className="flex justify-center gap-2 mt-3">
+                <Button size="sm" variant="outline" onClick={() => { openAnnotator(images[previewImageIndex!]); closeImagePreview(); }}>
+                  <Square className="w-4 h-4 mr-2" /> Annotate
+                </Button>
+                <Button size="sm" variant="outline" disabled={autoAnnotating} onClick={() => { autoAnnotate(images[previewImageIndex!]); closeImagePreview(); }}>
+                  {autoAnnotating ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Wand2 className="w-4 h-4 mr-2" />}
+                  Auto Annotate
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Change Class Dialog ──────────────────────────── */}
+      <Dialog open={!!changingClassBboxId} onOpenChange={() => setChangingClassBboxId(null)}>
+        <DialogContent className="max-w-sm bg-card border-border">
+          <DialogHeader>
+            <DialogTitle>Change Annotation Class</DialogTitle>
+            <DialogDescription>Select a new class for this annotation.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-1">
+            {classes.map(c => (
+              <button
+                key={c.id}
+                className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left hover:bg-secondary"
+                onClick={() => changingClassBboxId && changeBboxClass(changingClassBboxId, c.id)}
+              >
+                <span className="w-4 h-4 rounded-sm shrink-0" style={{ backgroundColor: c.color }} />
+                <span className="text-foreground font-medium">{c.name}</span>
+              </button>
+            ))}
+          </div>
+        </DialogContent>
+      </Dialog>
+
       {/* ─── Dataset Modal ────────────────────────────────── */}
       <Dialog open={showDatasetModal} onOpenChange={setShowDatasetModal}>
         <DialogContent>
@@ -886,7 +1187,7 @@ export default function Training() {
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Start Training</DialogTitle>
-            <DialogDescription>Configure and start a YOLOv8 training job.</DialogDescription>
+            <DialogDescription>Configure and start a training job.</DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div><Label>Epochs</Label><Input type="number" value={trainForm.epochs} onChange={e => setTrainForm(p => ({ ...p, epochs: parseInt(e.target.value) || 100 }))} min={1} max={1000} /></div>
@@ -898,6 +1199,131 @@ export default function Training() {
               {trainingStarting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Play className="w-4 h-4 mr-2" />}
               Start Training
             </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Settings Modal ───────────────────────────────── */}
+      <Dialog open={showSettingsModal} onOpenChange={setShowSettingsModal}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-hidden bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Settings className="w-5 h-5 text-primary" /> Training Configuration</DialogTitle>
+            <DialogDescription>Configure training parameters that will be sent to the training endpoint.</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh] pr-4">
+            <div className="space-y-6">
+              {/* General */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3 border-b border-border pb-2">General</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs">Seed</Label><Input type="number" value={trainingConfig.seed} onChange={e => setTrainingConfig(p => ({ ...p, seed: parseInt(e.target.value) || 42 }))} className="h-8 text-xs" /></div>
+                </div>
+              </div>
+
+              {/* Data */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3 border-b border-border pb-2">Data</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs">Root</Label><Input value={trainingConfig.data.root} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, root: e.target.value } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Mode</Label>
+                    <Select value={trainingConfig.data.mode} onValueChange={v => setTrainingConfig(p => ({ ...p, data: { ...p.data, mode: v } }))}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="pre_split">pre_split</SelectItem><SelectItem value="auto_split">auto_split</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label className="text-xs">Image Size W</Label><Input type="number" value={trainingConfig.data.image_size_w} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, image_size_w: parseInt(e.target.value) || 224 } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Image Size H</Label><Input type="number" value={trainingConfig.data.image_size_h} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, image_size_h: parseInt(e.target.value) || 224 } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Num Workers</Label><Input type="number" value={trainingConfig.data.num_workers} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, num_workers: parseInt(e.target.value) || 8 } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Batch Size</Label><Input type="number" value={trainingConfig.data.batch_size} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, batch_size: parseInt(e.target.value) || 54 } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Val Batch Size</Label><Input type="number" value={trainingConfig.data.val_batch_size} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, val_batch_size: parseInt(e.target.value) || 128 } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Val Ratio</Label><Input type="number" step="0.05" value={trainingConfig.data.split.val_ratio} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, split: { ...p.data.split, val_ratio: parseFloat(e.target.value) || 0.25 } } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Test Ratio</Label><Input type="number" step="0.05" value={trainingConfig.data.split.test_ratio} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, split: { ...p.data.split, test_ratio: parseFloat(e.target.value) || 0.25 } } }))} className="h-8 text-xs" /></div>
+                </div>
+              </div>
+
+              {/* Augmentation */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3 border-b border-border pb-2">Augmentation</h4>
+                <div className="flex items-center gap-2 mb-3">
+                  <Switch checked={trainingConfig.data.augment.enabled} onCheckedChange={v => setTrainingConfig(p => ({ ...p, data: { ...p.data, augment: { ...p.data.augment, enabled: v } } }))} />
+                  <Label className="text-xs">Enabled</Label>
+                </div>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><Label className="text-xs">HFlip Prob</Label><Input type="number" step="0.01" value={trainingConfig.data.augment.hflip_prob} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, augment: { ...p.data.augment, hflip_prob: parseFloat(e.target.value) || 0 } } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Brightness/Contrast Prob</Label><Input type="number" step="0.01" value={trainingConfig.data.augment.brightness_contrast_prob} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, augment: { ...p.data.augment, brightness_contrast_prob: parseFloat(e.target.value) || 0 } } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Brightness/Contrast</Label><Input type="number" step="0.01" value={trainingConfig.data.augment.brightness_contrast} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, augment: { ...p.data.augment, brightness_contrast: parseFloat(e.target.value) || 0 } } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Hue/Sat Prob</Label><Input type="number" step="0.01" value={trainingConfig.data.augment.hue_saturation_prob} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, augment: { ...p.data.augment, hue_saturation_prob: parseFloat(e.target.value) || 0 } } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Hue/Sat</Label><Input type="number" step="0.01" value={trainingConfig.data.augment.hue_saturation} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, augment: { ...p.data.augment, hue_saturation: parseFloat(e.target.value) || 0 } } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Blur Prob</Label><Input type="number" step="0.01" value={trainingConfig.data.augment.blur_prob} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, augment: { ...p.data.augment, blur_prob: parseFloat(e.target.value) || 0 } } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Perspective Prob</Label><Input type="number" step="0.01" value={trainingConfig.data.augment.perspective_prob} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, augment: { ...p.data.augment, perspective_prob: parseFloat(e.target.value) || 0 } } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">JPEG Prob</Label><Input type="number" step="0.01" value={trainingConfig.data.augment.jpeg_prob} onChange={e => setTrainingConfig(p => ({ ...p, data: { ...p.data, augment: { ...p.data.augment, jpeg_prob: parseFloat(e.target.value) || 0 } } }))} className="h-8 text-xs" /></div>
+                </div>
+              </div>
+
+              {/* Model */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3 border-b border-border pb-2">Model</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs">Backbone</Label><Input value={trainingConfig.model.backbone} onChange={e => setTrainingConfig(p => ({ ...p, model: { ...p.model, backbone: e.target.value } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Dropout</Label><Input type="number" step="0.05" value={trainingConfig.model.dropout} onChange={e => setTrainingConfig(p => ({ ...p, model: { ...p.model, dropout: parseFloat(e.target.value) || 0 } }))} className="h-8 text-xs" /></div>
+                  <div className="flex items-center gap-2"><Switch checked={trainingConfig.model.pretrained} onCheckedChange={v => setTrainingConfig(p => ({ ...p, model: { ...p.model, pretrained: v } }))} /><Label className="text-xs">Pretrained</Label></div>
+                </div>
+              </div>
+
+              {/* Train */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3 border-b border-border pb-2">Training</h4>
+                <div className="grid grid-cols-3 gap-3">
+                  <div><Label className="text-xs">Start From</Label>
+                    <Select value={trainingConfig.train.start_from} onValueChange={v => setTrainingConfig(p => ({ ...p, train: { ...p.train, start_from: v } }))}>
+                      <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                      <SelectContent><SelectItem value="pretrained">pretrained</SelectItem><SelectItem value="latest">latest</SelectItem></SelectContent>
+                    </Select>
+                  </div>
+                  <div><Label className="text-xs">Epochs</Label><Input type="number" value={trainingConfig.train.epochs} onChange={e => setTrainingConfig(p => ({ ...p, train: { ...p.train, epochs: parseInt(e.target.value) || 200 } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Learning Rate</Label><Input type="number" step="0.0001" value={trainingConfig.train.lr} onChange={e => setTrainingConfig(p => ({ ...p, train: { ...p.train, lr: parseFloat(e.target.value) || 0.0005 } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Weight Decay</Label><Input type="number" step="0.001" value={trainingConfig.train.weight_decay} onChange={e => setTrainingConfig(p => ({ ...p, train: { ...p.train, weight_decay: parseFloat(e.target.value) || 0 } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Optimizer</Label><Input value={trainingConfig.train.optimizer} onChange={e => setTrainingConfig(p => ({ ...p, train: { ...p.train, optimizer: e.target.value } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Scheduler</Label><Input value={trainingConfig.train.scheduler} onChange={e => setTrainingConfig(p => ({ ...p, train: { ...p.train, scheduler: e.target.value } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Warmup Epochs</Label><Input type="number" value={trainingConfig.train.warmup_epochs} onChange={e => setTrainingConfig(p => ({ ...p, train: { ...p.train, warmup_epochs: parseInt(e.target.value) || 0 } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Label Smoothing</Label><Input type="number" step="0.01" value={trainingConfig.train.label_smoothing} onChange={e => setTrainingConfig(p => ({ ...p, train: { ...p.train, label_smoothing: parseFloat(e.target.value) || 0 } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Open Set Loss Weight</Label><Input type="number" step="0.01" value={trainingConfig.train.open_set_loss_weight} onChange={e => setTrainingConfig(p => ({ ...p, train: { ...p.train, open_set_loss_weight: parseFloat(e.target.value) || 0 } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Precision</Label><Input value={trainingConfig.train.precision} onChange={e => setTrainingConfig(p => ({ ...p, train: { ...p.train, precision: e.target.value } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Grad Clip Val</Label><Input type="number" step="0.1" value={trainingConfig.train.gradient_clip_val} onChange={e => setTrainingConfig(p => ({ ...p, train: { ...p.train, gradient_clip_val: parseFloat(e.target.value) || 0 } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Early Stop Patience</Label><Input type="number" value={trainingConfig.train.early_stop_patience} onChange={e => setTrainingConfig(p => ({ ...p, train: { ...p.train, early_stop_patience: parseInt(e.target.value) || 0 } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Early Stop Min Epochs</Label><Input type="number" value={trainingConfig.train.early_stop_min_epochs} onChange={e => setTrainingConfig(p => ({ ...p, train: { ...p.train, early_stop_min_epochs: parseInt(e.target.value) || 0 } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Monitor Metric</Label><Input value={trainingConfig.train.monitor_metric} onChange={e => setTrainingConfig(p => ({ ...p, train: { ...p.train, monitor_metric: e.target.value } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Stop Threshold</Label><Input type="number" step="0.001" value={trainingConfig.train.stop_threshold} onChange={e => setTrainingConfig(p => ({ ...p, train: { ...p.train, stop_threshold: parseFloat(e.target.value) || 0 } }))} className="h-8 text-xs" /></div>
+                </div>
+                <div className="flex items-center gap-2 mt-3">
+                  <Switch checked={trainingConfig.train.use_weighted_sampler} onCheckedChange={v => setTrainingConfig(p => ({ ...p, train: { ...p.train, use_weighted_sampler: v } }))} />
+                  <Label className="text-xs">Use Weighted Sampler</Label>
+                </div>
+              </div>
+
+              {/* Logging */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3 border-b border-border pb-2">Logging</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs">Output Dir</Label><Input value={trainingConfig.logging.out_dir} onChange={e => setTrainingConfig(p => ({ ...p, logging: { ...p.logging, out_dir: e.target.value } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">WandB Project</Label><Input value={trainingConfig.logging.wandb_project} onChange={e => setTrainingConfig(p => ({ ...p, logging: { ...p.logging, wandb_project: e.target.value } }))} className="h-8 text-xs" /></div>
+                  <div><Label className="text-xs">Log Every N Steps</Label><Input type="number" value={trainingConfig.logging.log_every_n_steps} onChange={e => setTrainingConfig(p => ({ ...p, logging: { ...p.logging, log_every_n_steps: parseInt(e.target.value) || 10 } }))} className="h-8 text-xs" /></div>
+                  <div className="flex items-center gap-2"><Switch checked={trainingConfig.logging.use_wandb} onCheckedChange={v => setTrainingConfig(p => ({ ...p, logging: { ...p.logging, use_wandb: v } }))} /><Label className="text-xs">Use WandB</Label></div>
+                </div>
+              </div>
+
+              {/* Inference */}
+              <div>
+                <h4 className="text-sm font-semibold text-foreground mb-3 border-b border-border pb-2">Inference</h4>
+                <div className="grid grid-cols-2 gap-3">
+                  <div><Label className="text-xs">Reject Threshold (empty = null)</Label><Input type="number" step="0.05" value={trainingConfig.inference.reject_threshold} onChange={e => setTrainingConfig(p => ({ ...p, inference: { ...p.inference, reject_threshold: e.target.value } }))} className="h-8 text-xs" placeholder="e.g., 0.7" /></div>
+                </div>
+              </div>
+            </div>
+          </ScrollArea>
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <Button variant="outline" size="sm" onClick={() => setTrainingConfig(DEFAULT_TRAINING_CONFIG)}>Reset to Defaults</Button>
+            <Button size="sm" onClick={() => { setShowSettingsModal(false); toast({ title: 'Settings saved' }); }}>Save Settings</Button>
           </div>
         </DialogContent>
       </Dialog>
