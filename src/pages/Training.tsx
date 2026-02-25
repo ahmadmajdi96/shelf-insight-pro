@@ -5,7 +5,8 @@ import {
   Play, Clock, CheckCircle2, AlertTriangle, X,
   MousePointer2, Square, Download, RefreshCw, Filter,
   ChevronLeft, ChevronRight, Settings, Wand2,
-  MoreVertical, Pause, BarChart3, Save
+  MoreVertical, Pause, BarChart3, Save, Eye,
+  FolderPlus, Package, FileJson
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -45,6 +46,7 @@ import {
   useDatasets, useDatasetImages, useDatasetClasses, useTrainingJobs,
   type Dataset, type DatasetImage, type DatasetClass,
 } from '@/hooks/useDatasets';
+import { useImageSets, useImageSetUpload, type ImageSet } from '@/hooks/useImageSets';
 
 const CLASS_COLORS = [
   '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
@@ -183,6 +185,8 @@ export default function Training() {
   const { images, isLoading: imagesLoading, uploadImages, updateAnnotations, deleteImage } = useDatasetImages(selectedDatasetId);
   const { classes, createClass, updateClass, deleteClass } = useDatasetClasses(selectedDatasetId);
   const { jobs, createJob } = useTrainingJobs(selectedDatasetId);
+  const { imageSets, createImageSet, updateImageSet, deleteImageSet } = useImageSets(selectedDatasetId);
+  const { uploadToSet } = useImageSetUpload();
 
   const selectedDatasetForAnnotation = datasets.find(d => d.id === selectedDatasetId);
 
@@ -298,6 +302,17 @@ export default function Training() {
   // Model versioning
   const [evaluationJobId, setEvaluationJobId] = useState<string | null>(null);
 
+  // Image sets
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [uploadSetName, setUploadSetName] = useState('');
+  const [uploadSetFiles, setUploadSetFiles] = useState<File[]>([]);
+  const [uploadingSet, setUploadingSet] = useState(false);
+  const [selectedSetIds, setSelectedSetIds] = useState<Set<string>>(new Set());
+  const [autoAnnotatingSetId, setAutoAnnotatingSetId] = useState<string | null>(null);
+  const [deleteSetId, setDeleteSetId] = useState<string | null>(null);
+
+  // Preview request
+  const [showPreviewRequest, setShowPreviewRequest] = useState(false);
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
 
   // Filtered tenants based on selected admin in dataset form
@@ -470,6 +485,142 @@ export default function Training() {
       setUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = '';
     }
+  };
+
+  // ─── Image Set Upload ─────────────────────────────────
+  const openUploadSetModal = () => {
+    setUploadSetName(`Set ${format(new Date(), 'yyyy-MM-dd HH:mm')}`);
+    setUploadSetFiles([]);
+    setShowUploadModal(true);
+  };
+
+  const handleSetFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files?.length) return;
+    const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
+    setUploadSetFiles(prev => [...prev, ...files]);
+    e.target.value = '';
+  };
+
+  const removeUploadFile = (index: number) => {
+    setUploadSetFiles(prev => prev.filter((_, i) => i !== index));
+  };
+
+  const handleSaveImageSet = async () => {
+    if (!selectedDatasetId || !uploadSetName.trim() || uploadSetFiles.length === 0) {
+      toast({ title: 'Missing info', description: 'Provide a name and at least one image.', variant: 'destructive' });
+      return;
+    }
+    setUploadingSet(true);
+    try {
+      const set = await createImageSet.mutateAsync({ dataset_id: selectedDatasetId, name: uploadSetName.trim() });
+      await uploadToSet.mutateAsync({ datasetId: selectedDatasetId, imageSetId: set.id, files: uploadSetFiles });
+      await updateImageSet.mutateAsync({ id: set.id, image_count: uploadSetFiles.length });
+      // Update dataset image_count
+      const totalImages = (images?.length || 0) + uploadSetFiles.length;
+      await supabase.from('datasets').update({ image_count: totalImages }).eq('id', selectedDatasetId);
+      qc.invalidateQueries({ queryKey: ['datasets'] });
+      qc.invalidateQueries({ queryKey: ['dataset-images', selectedDatasetId] });
+      setShowUploadModal(false);
+      toast({ title: 'Image set saved', description: `${uploadSetFiles.length} images uploaded to "${uploadSetName}".` });
+    } catch (err: any) {
+      toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setUploadingSet(false);
+    }
+  };
+
+  const toggleSetSelection = (setId: string) => {
+    setSelectedSetIds(prev => {
+      const next = new Set(prev);
+      if (next.has(setId)) next.delete(setId);
+      else next.add(setId);
+      return next;
+    });
+  };
+
+  const handleDeleteImageSet = async () => {
+    if (!deleteSetId) return;
+    await deleteImageSet.mutateAsync(deleteSetId);
+    setSelectedSetIds(prev => { const n = new Set(prev); n.delete(deleteSetId); return n; });
+    setDeleteSetId(null);
+  };
+
+  // Get images for a specific set
+  const getSetImages = (setId: string) => images.filter(img => (img as any).image_set_id === setId);
+  const getSetAnnotatedCount = (setId: string) => getSetImages(setId).filter(img => img.is_annotated).length;
+
+  // Auto-annotate entire set
+  const autoAnnotateSet = async (setId: string) => {
+    const setImages = getSetImages(setId);
+    if (setImages.length === 0) {
+      toast({ title: 'No images', description: 'This set has no images.', variant: 'destructive' });
+      return;
+    }
+    setAutoAnnotatingSetId(setId);
+    try {
+      let annotatedCount = 0;
+      for (const img of setImages) {
+        try {
+          const res = await supabase.functions.invoke('roboflow-detect', {
+            body: { image_url: img.image_url },
+          });
+          if (res.error) continue;
+          const predictions = res.data?.predictions || res.data?.outputs?.flatMap((o: any) => o?.predictions || []) || [];
+          const newBboxes = predictions.map((pred: any) => {
+            const predLabel = pred.class || pred.label || 'unknown';
+            const matchedClass = annotationClasses.find(c => c.name.toLowerCase() === predLabel.toLowerCase());
+            const imgWidth = pred.image?.width || 640;
+            const imgHeight = pred.image?.height || 640;
+            return {
+              id: crypto.randomUUID(),
+              classId: matchedClass?.id || '',
+              className: matchedClass?.name || predLabel,
+              color: matchedClass?.color || '#3B82F6',
+              x: Math.max(0, ((pred.x || 0) - (pred.width || 0) / 2) / imgWidth),
+              y: Math.max(0, ((pred.y || 0) - (pred.height || 0) / 2) / imgHeight),
+              w: Math.min(1, (pred.width || 0) / imgWidth),
+              h: Math.min(1, (pred.height || 0) / imgHeight),
+            };
+          });
+          if (newBboxes.length > 0) {
+            await updateAnnotations.mutateAsync({ imageId: img.id, annotations: newBboxes });
+            annotatedCount++;
+          }
+        } catch { /* continue */ }
+      }
+      toast({ title: 'Auto-annotation complete', description: `${annotatedCount}/${setImages.length} images annotated.` });
+    } catch (err: any) {
+      toast({ title: 'Auto-annotate failed', description: err.message, variant: 'destructive' });
+    } finally {
+      setAutoAnnotatingSetId(null);
+    }
+  };
+
+  // Build training request preview JSON
+  const buildTrainingRequestPayload = () => {
+    const selectedImages = selectedSetIds.size > 0
+      ? images.filter(img => selectedSetIds.has((img as any).image_set_id))
+      : images;
+    
+    return {
+      dataset_id: selectedDatasetId,
+      dataset_name: selectedDataset?.name,
+      config: trainingConfig,
+      classes: annotationClasses.map(c => ({ id: c.id, name: c.name, color: c.color })),
+      images: selectedImages.map(img => ({
+        id: img.id,
+        image_url: img.image_url,
+        file_name: img.file_name,
+        is_annotated: img.is_annotated,
+        annotations: (img.annotations as any[]) || [],
+      })),
+      summary: {
+        total_images: selectedImages.length,
+        annotated_images: selectedImages.filter(i => i.is_annotated).length,
+        total_classes: annotationClasses.length,
+        total_annotations: selectedImages.reduce((a, img) => a + ((img.annotations as any[])?.length || 0), 0),
+      },
+    };
   };
 
   // ─── Annotator ─────────────────────────────────────────
@@ -1044,85 +1195,128 @@ export default function Training() {
           )}
         </TabsContent>
 
-        {/* ─── Images Tab ───────────────────────────────── */}
+        {/* ─── Images Tab (Sets-based) ───────────────────── */}
         <TabsContent value="images" className="space-y-4">
           {selectedDataset && (
             <>
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <h3 className="font-semibold text-foreground">
-                  {selectedDataset.name} — Images ({images.length})
+                  {selectedDataset.name} — Image Sets ({imageSets.length})
+                  <span className="text-muted-foreground ml-2 text-sm font-normal">Total: {images.length} images</span>
                 </h3>
                 <div className="flex gap-2">
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    multiple
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleFileSelect}
-                  />
-                  <Button onClick={() => fileInputRef.current?.click()} disabled={uploading} size="sm">
-                    {uploading ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Upload className="w-4 h-4 mr-2" />}
-                    Upload Images
+                  <Button onClick={openUploadSetModal} size="sm">
+                    <FolderPlus className="w-4 h-4 mr-2" /> Upload Images
                   </Button>
                 </div>
               </div>
 
-              {imagesLoading ? (
-                <div className="flex items-center justify-center py-16">
-                  <Loader2 className="w-8 h-8 animate-spin text-primary" />
-                </div>
-              ) : images.length === 0 ? (
-                <div className="text-center py-16 text-muted-foreground">
-                  <Upload className="w-12 h-12 mx-auto mb-3 opacity-40" />
-                  <p>No images yet. Upload up to 500 images.</p>
+              {imageSets.length === 0 ? (
+                <div className="text-center py-16 text-muted-foreground rounded-xl bg-card border border-border">
+                  <Package className="w-12 h-12 mx-auto mb-3 opacity-40" />
+                  <p>No image sets yet. Click "Upload Images" to create a set.</p>
                 </div>
               ) : (
-                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
-                  {images.map((img, idx) => (
-                    <div
-                      key={img.id}
-                      className="relative group rounded-lg overflow-hidden border border-border bg-card aspect-square cursor-pointer"
-                      onClick={() => openImagePreview(idx)}
-                    >
-                      <img src={img.image_url} alt={img.file_name || ''} className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-colors flex items-center justify-center gap-2">
-                        <Square className="w-5 h-5 text-background opacity-0 group-hover:opacity-100 transition-opacity" />
-                      </div>
-                      {img.is_annotated && (
-                        <div className="absolute top-1 right-1">
-                          <CheckCircle2 className="w-4 h-4 text-success" />
+                <div className="space-y-3">
+                  {imageSets.map(set => {
+                    const setImgs = getSetImages(set.id);
+                    const annotatedCount = getSetAnnotatedCount(set.id);
+                    const isSelected = selectedSetIds.has(set.id);
+                    const isAutoAnnotating = autoAnnotatingSetId === set.id;
+                    return (
+                      <div
+                        key={set.id}
+                        className={cn(
+                          "rounded-xl bg-card border transition-colors",
+                          isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"
+                        )}
+                      >
+                        <div className="flex items-center gap-4 px-4 py-3">
+                          <Checkbox
+                            checked={isSelected}
+                            onCheckedChange={() => toggleSetSelection(set.id)}
+                          />
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="font-medium text-foreground text-sm">{set.name}</span>
+                              <Badge variant="secondary" className="text-[10px]">
+                                <ImageIcon className="w-3 h-3 mr-1" />{set.image_count} images
+                              </Badge>
+                              <Badge
+                                variant={annotatedCount === set.image_count && set.image_count > 0 ? 'default' : 'outline'}
+                                className="text-[10px]"
+                              >
+                                <CheckCircle2 className="w-3 h-3 mr-1" />{annotatedCount}/{set.image_count} annotated
+                              </Badge>
+                              {set.is_trained && (
+                                <Badge variant="default" className="text-[10px] bg-success/80">
+                                  <Brain className="w-3 h-3 mr-1" /> Trained
+                                </Badge>
+                              )}
+                            </div>
+                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                              Created {format(new Date(set.created_at), 'PPp')}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-7"
+                              disabled={isAutoAnnotating || set.image_count === 0}
+                              onClick={() => autoAnnotateSet(set.id)}
+                            >
+                              {isAutoAnnotating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Wand2 className="w-3 h-3 mr-1" />}
+                              Auto Annotate
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="w-7 h-7 text-destructive"
+                              onClick={() => setDeleteSetId(set.id)}
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </Button>
+                          </div>
                         </div>
-                      )}
-                      <div className="absolute bottom-1 right-1 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                        <Button
-                          size="icon"
-                          variant="secondary"
-                          className="w-6 h-6"
-                          onClick={(e) => { e.stopPropagation(); openAnnotator(img); }}
-                        >
-                          <Square className="w-3 h-3" />
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="secondary"
-                          className="w-6 h-6"
-                          disabled={autoAnnotating}
-                          onClick={(e) => { e.stopPropagation(); autoAnnotate(img); }}
-                        >
-                          {autoAnnotating ? <Loader2 className="w-3 h-3 animate-spin" /> : <Wand2 className="w-3 h-3" />}
-                        </Button>
-                        <Button
-                          size="icon"
-                          variant="destructive"
-                          className="w-6 h-6"
-                          onClick={(e) => { e.stopPropagation(); deleteImage.mutate(img.id); }}
-                        >
-                          <Trash2 className="w-3 h-3" />
-                        </Button>
+                        {/* Preview thumbnails */}
+                        {setImgs.length > 0 && (
+                          <div className="px-4 pb-3">
+                            <div className="flex gap-1.5 overflow-x-auto">
+                              {setImgs.slice(0, 10).map((img, idx) => (
+                                <div
+                                  key={img.id}
+                                  className="relative w-14 h-14 shrink-0 rounded border border-border overflow-hidden cursor-pointer hover:ring-2 ring-primary/50 transition-all"
+                                  onClick={() => openImagePreview(images.indexOf(img))}
+                                >
+                                  <img src={img.image_url} alt="" className="w-full h-full object-cover" />
+                                  {img.is_annotated && (
+                                    <CheckCircle2 className="absolute top-0.5 right-0.5 w-3 h-3 text-success" />
+                                  )}
+                                </div>
+                              ))}
+                              {setImgs.length > 10 && (
+                                <div className="w-14 h-14 shrink-0 rounded border border-border bg-secondary flex items-center justify-center text-xs text-muted-foreground">
+                                  +{setImgs.length - 10}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        )}
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
+                </div>
+              )}
+
+              {selectedSetIds.size > 0 && (
+                <div className="rounded-xl bg-primary/5 border border-primary/20 p-3 flex items-center justify-between">
+                  <span className="text-sm text-foreground font-medium">
+                    {selectedSetIds.size} set(s) selected — {images.filter(img => selectedSetIds.has((img as any).image_set_id)).length} total images
+                  </span>
+                  <Button size="sm" variant="outline" onClick={() => setSelectedSetIds(new Set())}>
+                    <X className="w-3 h-3 mr-1" /> Clear Selection
+                  </Button>
                 </div>
               )}
             </>
@@ -1255,6 +1449,9 @@ export default function Training() {
           <div className="flex items-center justify-between flex-wrap gap-3">
             <h3 className="font-semibold text-foreground">Training Jobs — {selectedDataset?.name}</h3>
             <div className="flex gap-2">
+              <Button variant="outline" size="sm" onClick={() => setShowPreviewRequest(true)} disabled={!selectedDatasetId || images.length === 0}>
+                <FileJson className="w-4 h-4 mr-2" /> Preview Request
+              </Button>
               <Button variant="outline" size="sm" onClick={exportDataset} disabled={!selectedDatasetId || images.length === 0 || exporting}>
                 {exporting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Download className="w-4 h-4 mr-2" />}
                 Export ZIP
@@ -1730,6 +1927,123 @@ export default function Training() {
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleDeleteClass} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* ─── Upload Image Set Modal (Full-page) ──────────── */}
+      <Dialog open={showUploadModal} onOpenChange={setShowUploadModal}>
+        <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><FolderPlus className="w-5 h-5 text-primary" /> Upload Image Set</DialogTitle>
+            <DialogDescription>Name your set, add images, remove unwanted ones, then save.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Set Name</Label>
+              <Input
+                value={uploadSetName}
+                onChange={e => setUploadSetName(e.target.value)}
+                placeholder="e.g. Store A - Shelf 3"
+              />
+            </div>
+            <div>
+              <Label>Images ({uploadSetFiles.length})</Label>
+              <div className="mt-2 border-2 border-dashed border-border rounded-xl p-6 text-center">
+                <input
+                  type="file"
+                  multiple
+                  accept="image/*"
+                  className="hidden"
+                  id="set-file-input"
+                  onChange={handleSetFileSelect}
+                />
+                <label htmlFor="set-file-input" className="cursor-pointer">
+                  <Upload className="w-8 h-8 mx-auto mb-2 text-muted-foreground" />
+                  <p className="text-sm text-muted-foreground">Click to select images or drag & drop</p>
+                  <p className="text-xs text-muted-foreground mt-1">Supports JPG, PNG, WebP</p>
+                </label>
+              </div>
+            </div>
+            {uploadSetFiles.length > 0 && (
+              <ScrollArea className="h-[40vh]">
+                <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 gap-2">
+                  {uploadSetFiles.map((file, idx) => (
+                    <div key={idx} className="relative group rounded-lg overflow-hidden border border-border bg-secondary aspect-square">
+                      <img
+                        src={URL.createObjectURL(file)}
+                        alt={file.name}
+                        className="w-full h-full object-cover"
+                      />
+                      <div className="absolute inset-0 bg-foreground/0 group-hover:bg-foreground/30 transition-colors" />
+                      <Button
+                        size="icon"
+                        variant="destructive"
+                        className="absolute top-1 right-1 w-5 h-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                        onClick={() => removeUploadFile(idx)}
+                      >
+                        <X className="w-3 h-3" />
+                      </Button>
+                      <span className="absolute bottom-0 left-0 right-0 bg-foreground/60 text-background text-[8px] px-1 truncate">
+                        {file.name}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              </ScrollArea>
+            )}
+          </div>
+          <div className="flex justify-between items-center pt-2 border-t border-border">
+            <span className="text-sm text-muted-foreground">{uploadSetFiles.length} image(s) ready</span>
+            <div className="flex gap-2">
+              <Button variant="outline" onClick={() => setShowUploadModal(false)}>Cancel</Button>
+              <Button onClick={handleSaveImageSet} disabled={uploadingSet || uploadSetFiles.length === 0 || !uploadSetName.trim()}>
+                {uploadingSet ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                Save Set
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Preview Request Dialog ───────────────────────── */}
+      <Dialog open={showPreviewRequest} onOpenChange={setShowPreviewRequest}>
+        <DialogContent className="max-w-3xl max-h-[85vh] overflow-hidden bg-card border-border">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><FileJson className="w-5 h-5 text-primary" /> Training Request Preview</DialogTitle>
+            <DialogDescription>This JSON payload will be sent to the training endpoint.</DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="h-[60vh]">
+            <pre className="text-xs text-foreground bg-secondary/50 rounded-lg p-4 overflow-x-auto whitespace-pre-wrap break-words font-mono">
+              {JSON.stringify(buildTrainingRequestPayload(), null, 2)}
+            </pre>
+          </ScrollArea>
+          <div className="flex justify-end gap-2 pt-2 border-t border-border">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                navigator.clipboard.writeText(JSON.stringify(buildTrainingRequestPayload(), null, 2));
+                toast({ title: 'Copied to clipboard' });
+              }}
+            >
+              Copy JSON
+            </Button>
+            <Button size="sm" onClick={() => setShowPreviewRequest(false)}>Close</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ─── Delete Image Set Confirmation ────────────────── */}
+      <AlertDialog open={!!deleteSetId} onOpenChange={() => setDeleteSetId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Image Set?</AlertDialogTitle>
+            <AlertDialogDescription>This will permanently delete the set and all its images.</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={handleDeleteImageSet} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
