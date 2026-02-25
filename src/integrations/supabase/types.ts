@@ -920,6 +920,7 @@ export type Database = {
       }
       tenants: {
         Row: {
+          admin_id: string | null
           created_at: string
           id: string
           is_active: boolean
@@ -938,6 +939,7 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          admin_id?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
@@ -956,6 +958,7 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          admin_id?: string | null
           created_at?: string
           id?: string
           is_active?: boolean
@@ -973,7 +976,15 @@ export type Database = {
           updated_at?: string
           username?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "tenants_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "admins"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       training_jobs: {
         Row: {
