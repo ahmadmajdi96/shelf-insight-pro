@@ -14,7 +14,9 @@ import {
   Bell,
   Users,
   FileCode,
-  Brain
+  Brain,
+  KeyRound,
+  Settings
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
@@ -29,7 +31,9 @@ const navItems = [
   { icon: Activity, label: 'Activity', path: '/activity' },
   { icon: Database, label: 'Data', path: '/data' },
   { icon: Users, label: 'Users', path: '/users' },
+  { icon: KeyRound, label: 'Access Control', path: '/access-control' },
   { icon: Bell, label: 'Notifications', path: '/notifications' },
+  { icon: Settings, label: 'Settings', path: '/settings' },
   { icon: FileCode, label: 'API Docs', path: '/api-docs' },
 ];
 

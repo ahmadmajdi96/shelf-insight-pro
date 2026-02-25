@@ -367,9 +367,6 @@ export default function Planogram() {
     { value: 'planograms', label: 'Planograms', icon: LayoutGrid },
     { value: 'categories', label: 'Categories', icon: FolderOpen },
     { value: 'products', label: 'Products', icon: Package },
-    { value: 'compliance', label: 'Compliance', icon: BarChart3 },
-    { value: 'scan-history', label: 'Scan History', icon: TrendingUp },
-    { value: 'versions', label: 'Version History', icon: History },
   ];
 
   return (
