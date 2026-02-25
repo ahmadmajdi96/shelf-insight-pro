@@ -4,7 +4,8 @@ import {
   Loader2, Image as ImageIcon, Brain, FolderOpen,
   Play, Clock, CheckCircle2, AlertTriangle, X,
   MousePointer2, Square, Download, RefreshCw, Filter,
-  ChevronLeft, ChevronRight, Settings, Wand2
+  ChevronLeft, ChevronRight, Settings, Wand2,
+  MoreVertical, Pause, BarChart3
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -36,7 +37,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
-import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rest } from '@/lib/api-client';
 import { supabase } from '@/integrations/supabase/client';
 import {
@@ -160,6 +161,35 @@ export default function Training() {
   const { classes, createClass, updateClass, deleteClass } = useDatasetClasses(selectedDatasetId);
   const { jobs, createJob } = useTrainingJobs(selectedDatasetId);
 
+  const selectedDatasetForAnnotation = datasets.find(d => d.id === selectedDatasetId);
+
+  // Fetch products for the selected dataset's tenant to use as annotation classes
+  const { data: tenantProducts = [] } = useQuery({
+    queryKey: ['products-for-annotation', selectedDatasetForAnnotation?.tenant_id],
+    queryFn: async () => {
+      if (!selectedDatasetForAnnotation?.tenant_id) return [];
+      const { data } = await rest.list('skus', { select: '*', order: 'name.asc', filters: { tenant_id: `eq.${selectedDatasetForAnnotation.tenant_id}` } });
+      return data || [];
+    },
+    enabled: !!selectedDatasetForAnnotation?.tenant_id,
+  });
+
+  // Combine dataset classes with products as annotation classes
+  const annotationClasses = useMemo(() => {
+    const fromProducts = tenantProducts.map((p: any, idx: number) => ({
+      id: p.id,
+      dataset_id: selectedDatasetId || '',
+      name: p.name,
+      color: CLASS_COLORS[idx % CLASS_COLORS.length],
+      created_at: p.created_at,
+      _source: 'product' as const,
+    }));
+    // Merge: products first, then custom classes not already covered
+    const productNames = new Set(fromProducts.map((p: any) => p.name.toLowerCase()));
+    const customClasses = classes.filter(c => !productNames.has(c.name.toLowerCase()));
+    return [...fromProducts, ...customClasses.map(c => ({ ...c, _source: 'custom' as const }))];
+  }, [tenantProducts, classes, selectedDatasetId]);
+
   // Dataset modal
   const [showDatasetModal, setShowDatasetModal] = useState(false);
   const [editingDataset, setEditingDataset] = useState<Dataset | null>(null);
@@ -203,6 +233,9 @@ export default function Training() {
 
   // Double-click class change
   const [changingClassBboxId, setChangingClassBboxId] = useState<string | null>(null);
+
+  // Model versioning
+  const [evaluationJobId, setEvaluationJobId] = useState<string | null>(null);
 
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
 
@@ -358,7 +391,7 @@ export default function Training() {
     const h = Math.abs(drawCurrent.y - drawStart.y);
     if (w < 0.01 || h < 0.01) { setDrawing(false); return; }
 
-    const cls = classes.find(c => c.id === activeClassId);
+    const cls = annotationClasses.find(c => c.id === activeClassId);
     if (!cls) { setDrawing(false); return; }
 
     setBboxes(prev => [...prev, {
@@ -378,7 +411,7 @@ export default function Training() {
   };
 
   const changeBboxClass = (bboxId: string, newClassId: string) => {
-    const cls = classes.find(c => c.id === newClassId);
+    const cls = annotationClasses.find(c => c.id === newClassId);
     if (!cls) return;
     setBboxes(prev => prev.map(b => b.id === bboxId ? { ...b, classId: cls.id, className: cls.name, color: cls.color } : b));
     setChangingClassBboxId(null);
@@ -405,8 +438,8 @@ export default function Training() {
       // Convert predictions to bboxes
       const newBboxes: BBox[] = predictions.map((pred: any) => {
         // Try to match prediction class to existing dataset classes
-        const predLabel = pred.class || pred.label || 'unknown';
-        const matchedClass = classes.find(c => c.name.toLowerCase() === predLabel.toLowerCase());
+      const predLabel = pred.class || pred.label || 'unknown';
+        const matchedClass = annotationClasses.find(c => c.name.toLowerCase() === predLabel.toLowerCase());
         
         // Calculate normalized bbox from prediction
         const imgWidth = pred.image?.width || 640;
@@ -506,6 +539,41 @@ export default function Training() {
     }
   };
 
+  // ─── Model versioning ─────────────────────────────────
+  const handleActivateModel = async (jobId: string) => {
+    try {
+      await supabase.from('training_jobs').update({ status: 'completed' }).eq('id', jobId);
+      // Suspend all other completed jobs for this dataset
+      if (selectedDatasetId) {
+        await supabase.from('training_jobs').update({ status: 'pending' }).eq('dataset_id', selectedDatasetId).neq('id', jobId).eq('status', 'completed');
+      }
+      qc.invalidateQueries({ queryKey: ['training-jobs'] });
+      toast({ title: 'Model activated', description: 'This model version is now active.' });
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    }
+  };
+
+  const handleSuspendModel = async (jobId: string) => {
+    try {
+      await supabase.from('training_jobs').update({ status: 'pending' }).eq('id', jobId);
+      qc.invalidateQueries({ queryKey: ['training-jobs'] });
+      toast({ title: 'Model suspended' });
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    }
+  };
+
+  const handleDeleteTraining = async (jobId: string) => {
+    try {
+      await supabase.from('training_jobs').delete().eq('id', jobId);
+      qc.invalidateQueries({ queryKey: ['training-jobs'] });
+      toast({ title: 'Training removed' });
+    } catch (e: any) {
+      toast({ title: 'Error', description: e.message, variant: 'destructive' });
+    }
+  };
+
   // ─── Training ──────────────────────────────────────────
   const startTraining = async () => {
     if (!selectedDatasetId) return;
@@ -531,8 +599,8 @@ export default function Training() {
   };
 
   useEffect(() => {
-    if (!activeClassId && classes.length > 0) setActiveClassId(classes[0].id);
-  }, [classes, activeClassId]);
+    if (!activeClassId && annotationClasses.length > 0) setActiveClassId(annotationClasses[0].id);
+  }, [annotationClasses, activeClassId]);
 
   const TAB_CONFIG = [
     { value: 'datasets', label: 'Datasets', icon: FolderOpen },
@@ -919,7 +987,7 @@ export default function Training() {
                         top: `${Math.min(drawStart.y, drawCurrent.y) * 100}%`,
                         width: `${Math.abs(drawCurrent.x - drawStart.x) * 100}%`,
                         height: `${Math.abs(drawCurrent.y - drawStart.y) * 100}%`,
-                        borderColor: classes.find(c => c.id === activeClassId)?.color || '#3B82F6',
+                        borderColor: annotationClasses.find(c => c.id === activeClassId)?.color || '#3B82F6',
                       }}
                     />
                   )}
@@ -928,12 +996,12 @@ export default function Training() {
 
               <div className="space-y-4">
                 <div className="rounded-xl bg-card border border-border p-4">
-                  <h4 className="text-sm font-semibold text-foreground mb-2">Active Class</h4>
-                  {classes.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">Add classes in the Classes tab first.</p>
+                  <h4 className="text-sm font-semibold text-foreground mb-2">Active Class (Products)</h4>
+                  {annotationClasses.length === 0 ? (
+                    <p className="text-xs text-muted-foreground">No products found for this tenant. Add products in Management first.</p>
                   ) : (
                     <div className="space-y-1">
-                      {classes.map(c => (
+                      {annotationClasses.map(c => (
                         <button
                           key={c.id}
                           className={cn(
@@ -944,6 +1012,9 @@ export default function Training() {
                         >
                           <span className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: c.color }} />
                           {c.name}
+                          {'_source' in c && c._source === 'product' && (
+                            <Badge variant="outline" className="text-[8px] ml-auto px-1">SKU</Badge>
+                          )}
                         </button>
                       ))}
                     </div>
@@ -996,7 +1067,7 @@ export default function Training() {
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div><p className="text-muted-foreground">Images</p><p className="font-semibold text-foreground">{images.length}</p></div>
                 <div><p className="text-muted-foreground">Annotated</p><p className="font-semibold text-foreground">{images.filter(i => i.is_annotated).length}</p></div>
-                <div><p className="text-muted-foreground">Classes</p><p className="font-semibold text-foreground">{classes.length}</p></div>
+                <div><p className="text-muted-foreground">Classes</p><p className="font-semibold text-foreground">{annotationClasses.length}</p></div>
                 <div><p className="text-muted-foreground">Total Annotations</p><p className="font-semibold text-foreground">{images.reduce((a, img) => a + ((img.annotations as any[])?.length || 0), 0)}</p></div>
               </div>
             </div>
@@ -1013,12 +1084,13 @@ export default function Training() {
                     <TableHead>Status</TableHead>
                     <TableHead>Progress</TableHead>
                     <TableHead>Created</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {jobs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                         <Brain className="w-12 h-12 mx-auto mb-3 opacity-40" />
                         <p>No training jobs yet.</p>
                       </TableCell>
@@ -1035,9 +1107,36 @@ export default function Training() {
                           <TableCell>
                             {job.status === 'training' ? (
                               <div className="w-24"><Progress value={Number(job.progress)} className="h-1.5" /></div>
+                            ) : job.status === 'completed' ? (
+                              <span className="text-xs text-success">100%</span>
                             ) : '-'}
                           </TableCell>
                           <TableCell>{format(new Date(job.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
+                          <TableCell className="text-right">
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7"><MoreVertical className="w-4 h-4" /></Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                {job.status === 'completed' && (
+                                  <>
+                                    <DropdownMenuItem onClick={() => handleActivateModel(job.id)}>
+                                      <Play className="w-4 h-4 mr-2" />Activate Model
+                                    </DropdownMenuItem>
+                                    <DropdownMenuItem onClick={() => handleSuspendModel(job.id)}>
+                                      <Pause className="w-4 h-4 mr-2" />Suspend Model
+                                    </DropdownMenuItem>
+                                  </>
+                                )}
+                                <DropdownMenuItem onClick={() => setEvaluationJobId(job.id)}>
+                                  <BarChart3 className="w-4 h-4 mr-2" />View Evaluation
+                                </DropdownMenuItem>
+                                <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteTraining(job.id)}>
+                                  <Trash2 className="w-4 h-4 mr-2" />Remove Training
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </TableCell>
                         </TableRow>
                       );
                     })
@@ -1046,6 +1145,67 @@ export default function Training() {
               </Table>
             </ScrollArea>
           </div>
+
+          {/* Model Evaluation Details */}
+          {evaluationJobId && (() => {
+            const evalJob = jobs.find(j => j.id === evaluationJobId);
+            if (!evalJob) return null;
+            return (
+              <div className="rounded-xl bg-card border border-border p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h4 className="font-semibold text-foreground flex items-center gap-2">
+                    <BarChart3 className="w-5 h-5 text-primary" /> Model Evaluation — {evalJob.model_type.toUpperCase()}
+                  </h4>
+                  <Button variant="ghost" size="sm" onClick={() => setEvaluationJobId(null)}>
+                    <X className="w-4 h-4" />
+                  </Button>
+                </div>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
+                    <p className="text-xs text-muted-foreground">Status</p>
+                    <p className="font-semibold text-foreground">{evalJob.status}</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
+                    <p className="text-xs text-muted-foreground">Epochs</p>
+                    <p className="font-semibold text-foreground">{evalJob.epochs}</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
+                    <p className="text-xs text-muted-foreground">Batch Size</p>
+                    <p className="font-semibold text-foreground">{evalJob.batch_size}</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
+                    <p className="text-xs text-muted-foreground">Progress</p>
+                    <p className="font-semibold text-foreground">{evalJob.progress || 0}%</p>
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
+                    <p className="text-xs text-muted-foreground">Started</p>
+                    <p className="text-sm text-foreground">{evalJob.started_at ? format(new Date(evalJob.started_at), 'PPpp') : 'Not started'}</p>
+                  </div>
+                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
+                    <p className="text-xs text-muted-foreground">Completed</p>
+                    <p className="text-sm text-foreground">{evalJob.completed_at ? format(new Date(evalJob.completed_at), 'PPpp') : 'In progress'}</p>
+                  </div>
+                </div>
+                {evalJob.result_url && (
+                  <div className="p-3 rounded-lg bg-success/5 border border-success/20">
+                    <p className="text-xs text-muted-foreground mb-1">Model Artifact</p>
+                    <a href={evalJob.result_url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline">{evalJob.result_url}</a>
+                  </div>
+                )}
+                {evalJob.error_message && (
+                  <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
+                    <p className="text-xs text-muted-foreground mb-1">Error</p>
+                    <p className="text-sm text-destructive">{evalJob.error_message}</p>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground italic">
+                  Detailed evaluation metrics (accuracy, F1, confusion matrix) will be populated by the training endpoint when available.
+                </p>
+              </div>
+            );
+          })()}
         </TabsContent>
       </Tabs>
 
@@ -1109,7 +1269,7 @@ export default function Training() {
             <DialogDescription>Select a new class for this annotation.</DialogDescription>
           </DialogHeader>
           <div className="space-y-1">
-            {classes.map(c => (
+            {annotationClasses.map(c => (
               <button
                 key={c.id}
                 className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm transition-colors text-left hover:bg-secondary"

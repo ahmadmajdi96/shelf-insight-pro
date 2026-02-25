@@ -369,6 +369,7 @@ export default function Planogram() {
     { value: 'products', label: 'Products', icon: Package },
   ];
 
+
   return (
     <MainLayout title="Management" subtitle="Tenants, stores, planograms, compliance, and more — all in one place.">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -928,150 +929,6 @@ export default function Planogram() {
 
         </TabsContent>
 
-        {/* ========== COMPLIANCE TAB ========== */}
-        <TabsContent value="compliance" className="space-y-4 animate-fade-in">
-          <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Compliance Scoring</h2>
-            <Select value={complianceTemplateId || ''} onValueChange={setComplianceTemplateId}>
-              <SelectTrigger className="w-[280px]"><SelectValue placeholder="Select planogram..." /></SelectTrigger>
-              <SelectContent>{templates.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-
-          {!complianceTemplateId ? (
-            <div className="text-center py-16 bg-card border border-border rounded-xl">
-              <BarChart3 className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">Select a planogram</h3>
-              <p className="text-muted-foreground">Choose a planogram to run compliance checks against shelf images.</p>
-            </div>
-          ) : (
-            <>
-              {(() => {
-                const template = templates.find(t => t.id === complianceTemplateId);
-                if (!template) return null;
-                return (
-                  <div className="bg-card border border-border rounded-xl p-4 space-y-3">
-                    <h3 className="font-semibold text-foreground">Run Compliance Scan</h3>
-                    <p className="text-sm text-muted-foreground">Provide a shelf image URL to compare against the planogram layout using AI detection.{template.layout.length === 0 && ' ⚠️ This planogram has no layout — design it first.'}</p>
-                    <div className="flex items-center gap-2">
-                      <Input value={complianceImageUrl} onChange={e => setComplianceImageUrl(e.target.value)} placeholder="Enter shelf image URL..." className="flex-1" />
-                      <Button variant="glow" disabled={template.layout.length === 0 || !complianceImageUrl.trim() || isDetecting} onClick={() => { runComplianceCheck(template, complianceImageUrl.trim()); setComplianceImageUrl(''); }}>
-                        {isDetecting ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <BarChart3 className="w-4 h-4 mr-2" />}{isDetecting ? 'Scanning...' : 'Run Scan'}
-                      </Button>
-                    </div>
-                  </div>
-                );
-              })()}
-              {scans.length > 0 && (
-                <div className="space-y-3">
-                  <h3 className="font-semibold text-foreground">Scan Results</h3>
-                  {scans.map(scan => (
-                    <div key={scan.id} className={cn("bg-card border rounded-xl p-4", getScoreBg(scan.compliance_score))}>
-                      <div className="flex items-center justify-between mb-3">
-                        <div className="flex items-center gap-3">
-                          <div className={cn("text-3xl font-bold", getScoreColor(scan.compliance_score))}>{scan.compliance_score}%</div>
-                          <div><p className="text-sm font-medium text-foreground">Compliance Score</p><p className="text-xs text-muted-foreground">{format(new Date(scan.created_at), 'MMM d, yyyy HH:mm')}</p></div>
-                        </div>
-                        <div className="flex gap-4 text-xs">
-                          <div className="text-center"><p className="text-lg font-bold text-foreground">{scan.total_expected}</p><p className="text-muted-foreground">Expected</p></div>
-                          <div className="text-center"><p className="text-lg font-bold text-green-400">{scan.total_found}</p><p className="text-muted-foreground">Found</p></div>
-                          <div className="text-center"><p className="text-lg font-bold text-red-400">{scan.total_missing}</p><p className="text-muted-foreground">Missing</p></div>
-                          <div className="text-center"><p className="text-lg font-bold text-yellow-400">{scan.total_extra}</p><p className="text-muted-foreground">Extra</p></div>
-                        </div>
-                      </div>
-                      <Progress value={scan.compliance_score} className="h-2" />
-                      {Array.isArray(scan.details) && scan.details.length > 0 && (
-                        <div className="mt-3 pt-3 border-t border-border/50">
-                          <Table>
-                            <TableHeader><TableRow><TableHead className="text-xs">Product</TableHead><TableHead className="text-xs text-center">Expected</TableHead><TableHead className="text-xs text-center">Actual</TableHead><TableHead className="text-xs text-center">Status</TableHead></TableRow></TableHeader>
-                            <TableBody>
-                              {scan.details.map((d: any, i: number) => (
-                                <TableRow key={i}>
-                                  <TableCell className="text-xs">{d.skuName}</TableCell>
-                                  <TableCell className="text-xs text-center">{d.expected}</TableCell>
-                                  <TableCell className="text-xs text-center">{d.actual}</TableCell>
-                                  <TableCell className="text-xs text-center">
-                                    {d.status === 'compliant' ? <Badge variant="default" className="text-[10px] bg-green-500/20 text-green-400 border-green-500/30"><CheckCircle2 className="w-3 h-3 mr-1" />OK</Badge>
-                                      : d.status === 'partial' ? <Badge variant="secondary" className="text-[10px] bg-yellow-500/20 text-yellow-400 border-yellow-500/30"><AlertTriangle className="w-3 h-3 mr-1" />Partial</Badge>
-                                      : <Badge variant="destructive" className="text-[10px]"><XCircle className="w-3 h-3 mr-1" />Missing</Badge>}
-                                  </TableCell>
-                                </TableRow>
-                              ))}
-                            </TableBody>
-                          </Table>
-                        </div>
-                      )}
-                    </div>
-                  ))}
-                </div>
-              )}
-            </>
-          )}
-        </TabsContent>
-
-        {/* ========== SCAN HISTORY TAB ========== */}
-        <TabsContent value="scan-history" className="space-y-4 animate-fade-in">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="w-5 h-5 text-primary" />
-            <h2 className="text-lg font-semibold text-foreground">Scan History & Compliance Trends</h2>
-          </div>
-
-          {allScans.scans.length > 1 && (() => {
-            const templateNames = new Map<string, string>();
-            allScans.scans.forEach(s => { if (s.template?.name && !templateNames.has(s.template_id)) templateNames.set(s.template_id, s.template.name); });
-            const sortedScans = [...allScans.scans].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-            const chartData = sortedScans.map(s => { const point: any = { date: format(new Date(s.created_at), 'MMM d HH:mm') }; point[s.template?.name || 'Unknown'] = s.compliance_score; return point; });
-            const colors = ['hsl(var(--primary))', 'hsl(142, 71%, 45%)', 'hsl(48, 96%, 53%)', 'hsl(0, 84%, 60%)', 'hsl(262, 83%, 58%)'];
-            return (
-              <div className="bg-card border border-border rounded-xl p-4">
-                <h3 className="font-semibold text-foreground mb-4 flex items-center gap-2"><TrendingUp className="w-4 h-4 text-primary" />Compliance Score Trends</h3>
-                <ResponsiveContainer width="100%" height={300}>
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                    <XAxis dataKey="date" tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                    <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: 'hsl(var(--muted-foreground))' }} />
-                    <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', color: 'hsl(var(--foreground))' }} />
-                    <Legend />
-                    {Array.from(templateNames.entries()).map(([, name], idx) => (
-                      <Line key={name} type="monotone" dataKey={name} stroke={colors[idx % colors.length]} strokeWidth={2} dot={{ r: 4 }} connectNulls />
-                    ))}
-                  </LineChart>
-                </ResponsiveContainer>
-              </div>
-            );
-          })()}
-
-          {allScans.scans.length === 0 ? (
-            <div className="text-center py-16 bg-card border border-border rounded-xl">
-              <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">No scans yet</h3>
-              <p className="text-muted-foreground">Run compliance scans from the Compliance tab to see history here.</p>
-            </div>
-          ) : (
-            <div className="bg-card border border-border rounded-xl overflow-hidden">
-              <Table>
-                <TableHeader><TableRow>
-                  <TableHead>Planogram</TableHead><TableHead className="text-center">Score</TableHead><TableHead className="text-center">Expected</TableHead>
-                  <TableHead className="text-center">Found</TableHead><TableHead className="text-center">Missing</TableHead><TableHead className="text-center">Extra</TableHead><TableHead>Date</TableHead>
-                </TableRow></TableHeader>
-                <TableBody>
-                  {allScans.scans.map(scan => (
-                    <TableRow key={scan.id}>
-                      <TableCell className="font-medium">{scan.template?.name || 'Unknown'}</TableCell>
-                      <TableCell className="text-center"><span className={cn("font-bold", getScoreColor(scan.compliance_score))}>{scan.compliance_score}%</span></TableCell>
-                      <TableCell className="text-center">{scan.total_expected}</TableCell>
-                      <TableCell className="text-center text-green-400">{scan.total_found}</TableCell>
-                      <TableCell className="text-center text-red-400">{scan.total_missing}</TableCell>
-                      <TableCell className="text-center text-yellow-400">{scan.total_extra}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground">{format(new Date(scan.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
-        </TabsContent>
-
         {/* ========== CATEGORIES TAB ========== */}
         <TabsContent value="categories" className="space-y-4 animate-fade-in">
           <div className="flex flex-col sm:flex-row gap-4">
@@ -1304,56 +1161,6 @@ export default function Planogram() {
             <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Product</AlertDialogTitle><AlertDialogDescription>Are you sure? This action cannot be undone.</AlertDialogDescription></AlertDialogHeader>
             <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleProductDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
           </AlertDialog>
-        </TabsContent>
-
-        {/* ========== VERSION HISTORY TAB ========== */}
-        <TabsContent value="versions" className="space-y-4 animate-fade-in">
-          <div className="flex items-center gap-3 mb-4">
-            <h2 className="text-lg font-semibold text-foreground">Version History</h2>
-            <Select value={versionTemplateId || ''} onValueChange={setVersionTemplateId}>
-              <SelectTrigger className="w-[280px]"><SelectValue placeholder="Select planogram..." /></SelectTrigger>
-              <SelectContent>{templates.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}</SelectContent>
-            </Select>
-          </div>
-
-          {!versionTemplateId ? (
-            <div className="text-center py-16 bg-card border border-border rounded-xl">
-              <History className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">Select a planogram</h3>
-              <p className="text-muted-foreground">Choose a planogram to view its version history.</p>
-            </div>
-          ) : versions.length === 0 ? (
-            <div className="text-center py-16 bg-card border border-border rounded-xl">
-              <Clock className="w-12 h-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold text-foreground mb-2">No versions yet</h3>
-              <p className="text-muted-foreground">Save the planogram designer to create the first version.</p>
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {versions.map((v, idx) => {
-                const vProducts = (v.layout || []).reduce((acc, r) => acc + (r.products || []).length, 0);
-                const vFacings = (v.layout || []).reduce((acc, r) => acc + (r.products || []).reduce((a, p) => a + (p.facings ?? 1), 0), 0);
-                return (
-                  <div key={v.id} className={cn("bg-card border rounded-xl p-4", idx === 0 ? "border-primary/30" : "border-border")}>
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-3">
-                        <div className={cn("w-10 h-10 rounded-lg flex items-center justify-center font-bold text-sm", idx === 0 ? "bg-primary/10 text-primary" : "bg-secondary text-muted-foreground")}>v{v.version_number}</div>
-                        <div>
-                          <div className="flex items-center gap-2"><span className="font-medium text-foreground">Version {v.version_number}</span>{idx === 0 && <Badge variant="default" className="text-[10px]">Current</Badge>}</div>
-                          <p className="text-xs text-muted-foreground">{format(new Date(v.created_at), 'MMM d, yyyy HH:mm')}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span>{v.layout.length} shelves</span><span>{vProducts} products</span><span>{vFacings} facings</span>
-                        {idx > 0 && <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => restoreVersion(v)}><RotateCcw className="w-3 h-3 mr-1" />Restore</Button>}
-                      </div>
-                    </div>
-                    {v.change_notes && <p className="text-xs text-muted-foreground mt-2 pl-[52px]">📝 {v.change_notes}</p>}
-                  </div>
-                );
-              })}
-            </div>
-          )}
         </TabsContent>
 
         {/* Planogram Create/Edit Dialog - placed outside TabsContent so it works from any tab */}
