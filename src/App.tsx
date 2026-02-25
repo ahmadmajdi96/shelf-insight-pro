@@ -16,6 +16,8 @@ import Training from "./pages/Training";
 import Profile from "./pages/Profile";
 import Notifications from "./pages/Notifications";
 import Users from "./pages/Users";
+import AccessControl from "./pages/AccessControl";
+import Settings from "./pages/Settings";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import NotFound from "./pages/NotFound";
@@ -40,6 +42,8 @@ const App = () => (
             <Route path="/management" element={<ProtectedRoute requiredRoles={['admin']}><Planogram /></ProtectedRoute>} />
             <Route path="/training" element={<ProtectedRoute requiredRoles={['admin']}><Training /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute requiredRoles={['admin']}><Users /></ProtectedRoute>} />
+            <Route path="/access-control" element={<ProtectedRoute requiredRoles={['admin']}><AccessControl /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute requiredRoles={['admin']}><Settings /></ProtectedRoute>} />
             <Route path="/shelves/:id" element={<ProtectedRoute requiredRoles={['admin']}><ShelfDetail /></ProtectedRoute>} />
             <Route path="/activity" element={<ProtectedRoute requiredRoles={['admin']}><Activity /></ProtectedRoute>} />
             <Route path="/data" element={<ProtectedRoute requiredRoles={['admin']}><Data /></ProtectedRoute>} />
