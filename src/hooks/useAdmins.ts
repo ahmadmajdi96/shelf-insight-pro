@@ -68,11 +68,59 @@ export function useAdmins() {
     },
   });
 
+  // Suspend/activate admin with cascade to tenants, stores, etc.
+  const suspendAdmin = useMutation({
+    mutationFn: async ({ id, suspend }: { id: string; suspend: boolean }) => {
+      // Update admin status
+      await rest.update('admins', { id: `eq.${id}` }, { is_active: !suspend });
+
+      // Get all tenants belonging to this admin
+      const { data: adminTenants } = await rest.list('tenants', {
+        select: 'id',
+        filters: { admin_id: `eq.${id}` },
+      });
+
+      if (adminTenants && adminTenants.length > 0) {
+        // Update all tenants
+        for (const tenant of adminTenants) {
+          await rest.update('tenants', { id: `eq.${tenant.id}` }, {
+            status: suspend ? 'suspended' : 'active',
+            is_active: !suspend,
+          });
+
+          // Update all stores for this tenant
+          // Note: stores don't have is_active/status columns, but we update tenants which controls access
+
+          // Update all SKUs for this tenant
+          await rest.update('skus', { tenant_id: `eq.${tenant.id}` }, {
+            is_active: !suspend,
+          });
+        }
+      }
+    },
+    onSuccess: (_, { suspend }) => {
+      queryClient.invalidateQueries({ queryKey: ['admins'] });
+      queryClient.invalidateQueries({ queryKey: ['tenants'] });
+      queryClient.invalidateQueries({ queryKey: ['stores'] });
+      queryClient.invalidateQueries({ queryKey: ['products'] });
+      toast({
+        title: suspend ? 'Admin suspended' : 'Admin activated',
+        description: suspend
+          ? 'Admin and all associated tenants, stores, and products have been suspended.'
+          : 'Admin and all associated tenants, stores, and products have been activated.',
+      });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Failed to update admin status', description: err.message, variant: 'destructive' });
+    },
+  });
+
   return {
     admins: adminsQuery.data ?? [],
     isLoading: adminsQuery.isLoading,
     createAdmin,
     updateAdmin,
     deleteAdmin,
+    suspendAdmin,
   };
 }

@@ -1,36 +1,32 @@
-import { Package, Store, TrendingUp, ImageIcon, CheckCircle2, Loader2, Building2, LayoutGrid, ArrowUpRight } from 'lucide-react';
+import { Store, ImageIcon, CheckCircle2, Loader2, Building2, ArrowUpRight, Shield } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
-import { useProducts } from '@/hooks/useProducts';
 import { useStores } from '@/hooks/useStores';
 import { useQuota } from '@/hooks/useQuota';
 import { useTenants } from '@/hooks/useTenants';
-import { useShelves } from '@/hooks/useShelves';
+import { useAdmins } from '@/hooks/useAdmins';
 import { cn } from '@/lib/utils';
+import { Badge } from '@/components/ui/badge';
 
 export default function Dashboard() {
   const navigate = useNavigate();
   const { profile } = useAuth();
-  const { products, isLoading: productsLoading } = useProducts();
   const { stores, isLoading: storesLoading } = useStores();
   const { quota, monthlyPercentage, isLoading: quotaLoading } = useQuota();
   const { tenants } = useTenants();
-  const { shelves } = useShelves();
+  const { admins, isLoading: adminsLoading } = useAdmins();
 
-  const isLoading = productsLoading || storesLoading || quotaLoading;
+  const isLoading = storesLoading || quotaLoading || adminsLoading;
 
-  const trainedCount = products.filter(p => p.training_status === 'completed').length;
-  const trainingCount = products.filter(p => p.training_status === 'training').length;
-  const pendingCount = products.filter(p => p.training_status === 'pending').length;
   const activeTenants = tenants.filter(t => t.is_active).length;
+  const activeAdmins = admins.filter(a => a.is_active).length;
 
   const stats = [
-    { label: 'Tenants', value: tenants.length, sub: `${activeTenants} active`, icon: Building2, href: '/tenants' },
-    { label: 'Stores', value: stores.length, sub: 'Monitored', icon: Store, href: '/management' },
-    { label: 'Products', value: products.length, sub: `${trainedCount} trained`, icon: Package, href: '/products' },
-    { label: 'Shelves', value: shelves.length, sub: 'Configured', icon: LayoutGrid, href: '/management' },
+    { label: 'Admins', value: admins.length, sub: `${activeAdmins} active`, icon: Shield, href: '/management?tab=admins' },
+    { label: 'Tenants', value: tenants.length, sub: `${activeTenants} active`, icon: Building2, href: '/management?tab=tenants' },
+    { label: 'Stores', value: stores.length, sub: 'Monitored', icon: Store, href: '/management?tab=stores' },
   ];
 
   return (
@@ -45,7 +41,7 @@ export default function Dashboard() {
       ) : (
         <div className="space-y-6">
           {/* Stats Grid */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
             {stats.map((stat, i) => (
               <button
                 key={stat.label}
@@ -96,44 +92,85 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Training Status */}
+            {/* Admin Summary */}
             <div className="page-section">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-foreground">Training Status</h3>
-                <CheckCircle2 className="w-5 h-5 text-success" />
+                <h3 className="font-semibold text-foreground">Admin Summary</h3>
+                <Shield className="w-5 h-5 text-primary" />
               </div>
               <div className="space-y-3">
                 <div className="flex justify-between items-center py-1.5">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-success" />
-                    <span className="text-sm text-muted-foreground">Completed</span>
+                    <span className="text-sm text-muted-foreground">Active Admins</span>
                   </div>
-                  <span className="text-sm font-semibold text-foreground">{trainedCount} SKUs</span>
-                </div>
-                <div className="flex justify-between items-center py-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-warning" />
-                    <span className="text-sm text-muted-foreground">In Progress</span>
-                  </div>
-                  <span className="text-sm font-semibold text-foreground">{trainingCount} SKUs</span>
+                  <span className="text-sm font-semibold text-foreground">{activeAdmins}</span>
                 </div>
                 <div className="flex justify-between items-center py-1.5">
                   <div className="flex items-center gap-2">
                     <span className="w-2 h-2 rounded-full bg-muted-foreground/30" />
-                    <span className="text-sm text-muted-foreground">Pending</span>
+                    <span className="text-sm text-muted-foreground">Inactive Admins</span>
                   </div>
-                  <span className="text-sm font-semibold text-foreground">{pendingCount} SKUs</span>
+                  <span className="text-sm font-semibold text-foreground">{admins.length - activeAdmins}</span>
+                </div>
+                <div className="flex justify-between items-center py-1.5">
+                  <div className="flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-primary" />
+                    <span className="text-sm text-muted-foreground">Total Monthly Limit</span>
+                  </div>
+                  <span className="text-sm font-semibold text-foreground">{admins.reduce((a, ad) => a + ad.monthly_limit, 0).toLocaleString()}</span>
                 </div>
               </div>
             </div>
           </div>
+
+          {/* Admins Overview */}
+          {admins.length > 0 && (
+            <div className="page-section">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="font-semibold text-foreground">Admins Overview</h3>
+                <Button variant="ghost" size="sm" onClick={() => navigate('/management?tab=admins')} className="text-xs text-primary">
+                  View all
+                  <ArrowUpRight className="w-3 h-3 ml-1" />
+                </Button>
+              </div>
+              <div className="space-y-3">
+                {admins.slice(0, 5).map((admin, i) => {
+                  const adminTenants = tenants.filter((t: any) => t.admin_id === admin.id);
+                  const allocatedImages = adminTenants.reduce((a, t) => a + t.max_images_per_month, 0);
+                  return (
+                    <div 
+                      key={admin.id} 
+                      className="flex items-center justify-between py-2.5 border-b border-border last:border-0 animate-fade-in"
+                      style={{ animationDelay: `${i * 40}ms` }}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-lg bg-secondary flex items-center justify-center">
+                          <Shield className="w-4 h-4 text-muted-foreground" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium text-foreground">{admin.full_name}</p>
+                          <p className="text-xs text-muted-foreground">{adminTenants.length} tenants · {allocatedImages.toLocaleString()} / {admin.monthly_limit.toLocaleString()} images</p>
+                        </div>
+                      </div>
+                      <div className="text-right">
+                        <Badge variant={admin.is_active ? 'default' : 'secondary'} className="text-[10px]">
+                          {admin.is_active ? 'Active' : 'Inactive'}
+                        </Badge>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
 
           {/* Tenant Overview */}
           {tenants.length > 0 && (
             <div className="page-section">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-foreground">Tenant Overview</h3>
-                <Button variant="ghost" size="sm" onClick={() => navigate('/tenants')} className="text-xs text-primary">
+                <Button variant="ghost" size="sm" onClick={() => navigate('/management?tab=tenants')} className="text-xs text-primary">
                   View all
                   <ArrowUpRight className="w-3 h-3 ml-1" />
                 </Button>
@@ -142,9 +179,7 @@ export default function Dashboard() {
                 {tenants.slice(0, 5).map((t, i) => (
                   <div 
                     key={t.id} 
-                    className={cn(
-                      "flex items-center justify-between py-2.5 border-b border-border last:border-0 animate-fade-in",
-                    )}
+                    className="flex items-center justify-between py-2.5 border-b border-border last:border-0 animate-fade-in"
                     style={{ animationDelay: `${i * 40}ms` }}
                   >
                     <div className="flex items-center gap-3">
