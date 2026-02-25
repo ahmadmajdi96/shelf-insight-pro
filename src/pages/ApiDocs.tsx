@@ -67,6 +67,22 @@ const examples: Record<string, { request?: any; response?: any }> = {
   },
   "DELETE /rest/v1/tenants?id=eq.{id}": { response: null },
 
+  // ── Admins ──
+  "GET /rest/v1/admins": {
+    response: [
+      { id: "adm-001", email: "admin@example.com", phone: "+1 555 000 1234", full_name: "Jane Admin", monthly_limit: 50000, is_active: true, created_at: "2025-01-10T08:00:00Z", updated_at: "2025-06-01T09:00:00Z" }
+    ]
+  },
+  "POST /rest/v1/admins": {
+    request: { email: "new@admin.com", phone: "+1 555 111 2222", password: "securePass!", full_name: "John Admin", monthly_limit: 30000, is_active: true },
+    response: { id: "adm-002", email: "new@admin.com", full_name: "John Admin", monthly_limit: 30000, is_active: true, created_at: "2026-02-25T10:00:00Z" }
+  },
+  "PATCH /rest/v1/admins?id=eq.{id}": {
+    request: { full_name: "Updated Admin", monthly_limit: 60000 },
+    response: { id: "adm-001", full_name: "Updated Admin", monthly_limit: 60000 }
+  },
+  "DELETE /rest/v1/admins?id=eq.{id}": { response: null },
+
   // ── Stores ──
   "GET /rest/v1/stores": {
     response: [
@@ -446,6 +462,7 @@ const openApiSpec = {
       UserRole: { type: "object", properties: { id: { type: "string", format: "uuid" }, user_id: { type: "string", format: "uuid" }, role: { type: "string", enum: ["admin", "tenant_admin", "tenant_user"] } } },
       UserStoreAccess: { type: "object", properties: { id: { type: "string", format: "uuid" }, user_id: { type: "string", format: "uuid" }, store_id: { type: "string", format: "uuid" }, created_at: { type: "string", format: "date-time" } } },
       UserShelfAccess: { type: "object", properties: { id: { type: "string", format: "uuid" }, user_id: { type: "string", format: "uuid" }, shelf_id: { type: "string", format: "uuid" }, created_at: { type: "string", format: "date-time" } } },
+      Admin: { type: "object", properties: { id: { type: "string", format: "uuid" }, email: { type: "string" }, phone: { type: "string", nullable: true }, password: { type: "string" }, full_name: { type: "string" }, monthly_limit: { type: "integer", default: 10000 }, is_active: { type: "boolean" }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
       Notification: { type: "object", properties: { id: { type: "string", format: "uuid" }, user_id: { type: "string", format: "uuid" }, tenant_id: { type: "string", format: "uuid", nullable: true }, title: { type: "string" }, message: { type: "string" }, type: { type: "string" }, is_read: { type: "boolean" }, metadata: { type: "object", nullable: true }, created_at: { type: "string", format: "date-time" } } },
       UsageMetric: { type: "object", properties: { id: { type: "string", format: "uuid" }, tenant_id: { type: "string", format: "uuid" }, period_type: { type: "string", enum: ["daily", "weekly", "monthly", "yearly"] }, period_start: { type: "string", format: "date-time" }, images_processed: { type: "integer" }, training_jobs: { type: "integer" }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
       Model: { type: "object", properties: { id: { type: "string", format: "uuid" }, tenant_id: { type: "string", format: "uuid" }, version: { type: "string" }, status: { type: "string" }, accuracy: { type: "number", nullable: true }, model_path: { type: "string", nullable: true }, trained_date: { type: "string", format: "date-time", nullable: true }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
@@ -459,6 +476,14 @@ const openApiSpec = {
   },
   security: [{ bearerAuth: [] }, { apiKey: [] }],
   paths: {
+    "/rest/v1/admins": {
+      get: { summary: "List admins", tags: ["Admins"], parameters: [{ name: "order", in: "query", schema: { type: "string" }, description: "e.g. created_at.desc" }], responses: { "200": { description: "Array of Admin objects" } } },
+      post: { summary: "Create admin", tags: ["Admins"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/Admin" } } } }, responses: { "201": { description: "Created" } } }
+    },
+    "/rest/v1/admins?id=eq.{id}": {
+      patch: { summary: "Update admin", tags: ["Admins"], requestBody: { content: { "application/json": { schema: { "$ref": "#/components/schemas/Admin" } } } }, responses: { "200": { description: "Updated" } } },
+      delete: { summary: "Delete admin", tags: ["Admins"], responses: { "204": { description: "Deleted" } } }
+    },
     "/rest/v1/tenants": {
       get: { summary: "List tenants", tags: ["Tenants"], parameters: [{ name: "select", in: "query", schema: { type: "string" }, description: "Columns to return (e.g. *)" }, { name: "status", in: "query", schema: { type: "string" }, description: "Filter: eq.active or eq.suspended" }, { name: "is_active", in: "query", schema: { type: "string" }, description: "Filter: eq.true" }], responses: { "200": { description: "Array of Tenant objects" } } },
       post: { summary: "Create tenant", tags: ["Tenants"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/Tenant" } } } }, responses: { "201": { description: "Created Tenant object" }, "409": { description: "Conflict – duplicate name" } } }
@@ -628,6 +653,7 @@ const methodColors: Record<string, string> = {
 };
 
 const tagIcons: Record<string, string> = {
+  "Admins": "👑",
   "Tenants": "🏢",
   "Stores": "🏪",
   "Products": "📦",
