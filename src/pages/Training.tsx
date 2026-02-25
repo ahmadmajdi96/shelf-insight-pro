@@ -310,6 +310,7 @@ export default function Training() {
   const [selectedSetIds, setSelectedSetIds] = useState<Set<string>>(new Set());
   const [autoAnnotatingSetId, setAutoAnnotatingSetId] = useState<string | null>(null);
   const [deleteSetId, setDeleteSetId] = useState<string | null>(null);
+  const [annotatingSetId, setAnnotatingSetId] = useState<string | null>(null);
 
   // Preview request
   const [showPreviewRequest, setShowPreviewRequest] = useState(false);
@@ -630,14 +631,35 @@ export default function Training() {
     setActiveTab('annotate');
   };
 
+  // Get the scoped image list (set-scoped or all)
+  const annotationScopeImages = useMemo(() => {
+    if (annotatingSetId) return images.filter(img => (img as any).image_set_id === annotatingSetId);
+    return images;
+  }, [images, annotatingSetId]);
+
+  const startManualAnnotation = (setId: string) => {
+    const setImgs = images.filter(img => (img as any).image_set_id === setId);
+    if (setImgs.length === 0) {
+      toast({ title: 'No images', description: 'This set has no images.', variant: 'destructive' });
+      return;
+    }
+    // Start with first unannotated image, or first image if all annotated
+    const firstUnannotated = setImgs.find(img => !img.is_annotated) || setImgs[0];
+    setAnnotatingSetId(setId);
+    setAnnotatingImage(firstUnannotated);
+    setBboxes((firstUnannotated.annotations as any as BBox[]) || []);
+    setActiveTab('annotate');
+  };
+
   const navigateImage = (direction: 'prev' | 'next') => {
-    if (!annotatingImage || images.length === 0) return;
-    const currentIndex = images.findIndex(img => img.id === annotatingImage.id);
+    const scopeImages = annotationScopeImages;
+    if (!annotatingImage || scopeImages.length === 0) return;
+    const currentIndex = scopeImages.findIndex(img => img.id === annotatingImage.id);
     if (currentIndex === -1) return;
     const newIndex = direction === 'prev'
-      ? (currentIndex - 1 + images.length) % images.length
-      : (currentIndex + 1) % images.length;
-    const newImg = images[newIndex];
+      ? (currentIndex - 1 + scopeImages.length) % scopeImages.length
+      : (currentIndex + 1) % scopeImages.length;
+    const newImg = scopeImages[newIndex];
     if (annotatingImage) {
       updateAnnotations.mutateAsync({ imageId: annotatingImage.id, annotations: bboxes as any }).catch(() => {});
     }
@@ -1263,6 +1285,16 @@ export default function Training() {
                               size="sm"
                               variant="outline"
                               className="text-xs h-7"
+                              disabled={set.image_count === 0}
+                              onClick={() => startManualAnnotation(set.id)}
+                            >
+                              <Square className="w-3 h-3 mr-1" />
+                              Manual Annotate
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs h-7"
                               disabled={isAutoAnnotating || set.image_count === 0}
                               onClick={() => autoAnnotateSet(set.id)}
                             >
@@ -1333,18 +1365,31 @@ export default function Training() {
           ) : (
             <div className="grid grid-cols-1 lg:grid-cols-[1fr_280px] gap-4">
               <div className="rounded-xl bg-card border border-border p-2">
-                <div className="flex items-center justify-between mb-2 px-2">
+                <div className="flex items-center justify-between mb-2 px-2 flex-wrap gap-2">
                   <div className="flex items-center gap-2">
                     <Button size="icon" variant="outline" className="w-8 h-8" onClick={() => navigateImage('prev')}>
                       <ChevronLeft className="w-4 h-4" />
                     </Button>
-                    <span className="text-sm font-medium text-foreground">{annotatingImage.file_name}</span>
+                    <div className="flex flex-col">
+                      <span className="text-sm font-medium text-foreground">{annotatingImage.file_name}</span>
+                      {annotatingSetId && (() => {
+                        const scopeImgs = annotationScopeImages;
+                        const currentIdx = scopeImgs.findIndex(img => img.id === annotatingImage.id);
+                        const annotatedInScope = scopeImgs.filter(i => i.is_annotated).length;
+                        const setName = imageSets.find(s => s.id === annotatingSetId)?.name;
+                        return (
+                          <span className="text-[10px] text-muted-foreground">
+                            {setName} — Image {currentIdx + 1} of {scopeImgs.length} • {annotatedInScope}/{scopeImgs.length} annotated
+                          </span>
+                        );
+                      })()}
+                    </div>
                     <Button size="icon" variant="outline" className="w-8 h-8" onClick={() => navigateImage('next')}>
                       <ChevronRight className="w-4 h-4" />
                     </Button>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" variant="outline" onClick={() => { setAnnotatingImage(null); setBboxes([]); }}>
+                    <Button size="sm" variant="outline" onClick={() => { setAnnotatingImage(null); setBboxes([]); setAnnotatingSetId(null); }}>
                       <X className="w-3.5 h-3.5 mr-1" /> Close
                     </Button>
                     <Button size="sm" onClick={saveAnnotations}>Save Annotations</Button>
@@ -1396,6 +1441,21 @@ export default function Training() {
               </div>
 
               <div className="space-y-4">
+                {/* Set annotation progress */}
+                {annotatingSetId && (() => {
+                  const scopeImgs = annotationScopeImages;
+                  const annotatedCount = scopeImgs.filter(i => i.is_annotated).length;
+                  const progressPct = scopeImgs.length > 0 ? (annotatedCount / scopeImgs.length) * 100 : 0;
+                  return (
+                    <div className="rounded-xl bg-card border border-border p-4">
+                      <h4 className="text-sm font-semibold text-foreground mb-2">Annotation Progress</h4>
+                      <Progress value={progressPct} className="h-2 mb-2" />
+                      <p className="text-xs text-muted-foreground">
+                        {annotatedCount} of {scopeImgs.length} images annotated ({Math.round(progressPct)}%)
+                      </p>
+                    </div>
+                  );
+                })()}
                 <div className="rounded-xl bg-card border border-border p-4">
                   <h4 className="text-sm font-semibold text-foreground mb-2">Active Class</h4>
                   {annotationClasses.length === 0 ? (
