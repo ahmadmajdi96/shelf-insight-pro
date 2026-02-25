@@ -1,0 +1,78 @@
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import { rest } from '@/lib/api-client';
+import { useToast } from '@/hooks/use-toast';
+
+export interface Admin {
+  id: string;
+  email: string;
+  phone: string | null;
+  password: string;
+  full_name: string;
+  monthly_limit: number;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+}
+
+export function useAdmins() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+
+  const adminsQuery = useQuery({
+    queryKey: ['admins'],
+    queryFn: async () => {
+      const { data } = await rest.list('admins', {
+        select: '*',
+        order: 'created_at.desc',
+      });
+      return (data || []) as Admin[];
+    },
+  });
+
+  const createAdmin = useMutation({
+    mutationFn: async (admin: Omit<Admin, 'id' | 'created_at' | 'updated_at'>) => {
+      return await rest.create('admins', admin);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admins'] });
+      toast({ title: 'Admin created successfully' });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Failed to create admin', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  const updateAdmin = useMutation({
+    mutationFn: async ({ id, ...updates }: Partial<Admin> & { id: string }) => {
+      return await rest.update('admins', { id: `eq.${id}` }, updates);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admins'] });
+      toast({ title: 'Admin updated successfully' });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Failed to update admin', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  const deleteAdmin = useMutation({
+    mutationFn: async (id: string) => {
+      await rest.remove('admins', id);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['admins'] });
+      toast({ title: 'Admin deleted successfully' });
+    },
+    onError: (err: Error) => {
+      toast({ title: 'Failed to delete admin', description: err.message, variant: 'destructive' });
+    },
+  });
+
+  return {
+    admins: adminsQuery.data ?? [],
+    isLoading: adminsQuery.isLoading,
+    createAdmin,
+    updateAdmin,
+    deleteAdmin,
+  };
+}

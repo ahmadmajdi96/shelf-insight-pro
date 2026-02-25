@@ -43,6 +43,7 @@ import { useStores } from '@/hooks/useStores';
 import { useTenants } from '@/hooks/useTenants';
 import { useProducts } from '@/hooks/useProducts';
 import { useCategories } from '@/hooks/useCategories';
+import { useAdmins, type Admin } from '@/hooks/useAdmins';
 
 import { useShelves } from '@/hooks/useShelves';
 import { usePlanogramTemplates, usePlanogramVersions, useComplianceScans, type PlanogramRow, type PlanogramTemplate } from '@/hooks/usePlanograms';
@@ -72,6 +73,7 @@ export default function Planogram() {
   const { templates, createTemplate, updateTemplate, duplicateTemplate, deleteTemplate } = usePlanogramTemplates();
   
   const { shelves } = useShelves();
+  const { admins, isLoading: adminsLoading, createAdmin, updateAdmin, deleteAdmin } = useAdmins();
   const { toast } = useToast();
   const { detectWithRoboflow, isDetecting } = useRoboflowDetection();
   const [complianceImageUrl, setComplianceImageUrl] = useState('');
@@ -146,6 +148,13 @@ export default function Planogram() {
   const [deleteProductId, setDeleteProductId] = useState<string | null>(null);
   const [editingProduct, setEditingProduct] = useState<any | null>(null);
   const [editFormData, setEditFormData] = useState({ name: '', description: '', barcode: '', category_id: '', width_cm: '' });
+
+  // Admin state
+  const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
+  const [editingAdminObj, setEditingAdminObj] = useState<Admin | null>(null);
+  const [deleteAdminId, setDeleteAdminId] = useState<string | null>(null);
+  const [adminSearch, setAdminSearch] = useState('');
+  const [adminFormData, setAdminFormData] = useState({ full_name: '', email: '', phone: '', password: '', monthly_limit: 10000 });
 
 
 
@@ -331,7 +340,28 @@ export default function Planogram() {
 
 
 
+  // Admin handlers
+  const filteredAdmins = admins.filter(a => a.full_name.toLowerCase().includes(adminSearch.toLowerCase()) || a.email.toLowerCase().includes(adminSearch.toLowerCase()));
+  const resetAdminForm = () => { setAdminFormData({ full_name: '', email: '', phone: '', password: '', monthly_limit: 10000 }); setEditingAdminObj(null); };
+  const handleAdminSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (editingAdminObj) {
+      const updates: any = { full_name: adminFormData.full_name, email: adminFormData.email, phone: adminFormData.phone || null, monthly_limit: adminFormData.monthly_limit };
+      if (adminFormData.password) updates.password = adminFormData.password;
+      await updateAdmin.mutateAsync({ id: editingAdminObj.id, ...updates });
+    } else {
+      await createAdmin.mutateAsync({ full_name: adminFormData.full_name, email: adminFormData.email, phone: adminFormData.phone || null, password: adminFormData.password, monthly_limit: adminFormData.monthly_limit, is_active: true });
+    }
+    resetAdminForm(); setIsAdminModalOpen(false);
+  };
+  const handleAdminEdit = (admin: Admin) => {
+    setAdminFormData({ full_name: admin.full_name, email: admin.email, phone: admin.phone || '', password: '', monthly_limit: admin.monthly_limit });
+    setEditingAdminObj(admin); setIsAdminModalOpen(true);
+  };
+  const handleAdminDelete = async () => { if (deleteAdminId) { await deleteAdmin.mutateAsync(deleteAdminId); setDeleteAdminId(null); } };
+
   const tabItems = [
+    { value: 'admins', label: 'Admins', icon: Building2 },
     { value: 'tenants', label: 'Tenants', icon: Building2 },
     { value: 'stores', label: 'Stores', icon: Store },
     { value: 'planograms', label: 'Planograms', icon: LayoutGrid },
@@ -365,6 +395,93 @@ export default function Planogram() {
             ))}
           </TabsList>
         </div>
+
+        {/* ========== ADMINS TAB ========== */}
+        <TabsContent value="admins" className="space-y-4 animate-fade-in">
+          <div className="flex flex-col sm:flex-row gap-4">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input placeholder="Search admins..." className="pl-9 bg-card border-border" value={adminSearch} onChange={e => setAdminSearch(e.target.value)} />
+            </div>
+            <Button variant="glow" onClick={() => { resetAdminForm(); setIsAdminModalOpen(true); }}><Plus className="w-4 h-4 mr-2" />Add Admin</Button>
+          </div>
+
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-foreground">{admins.length}</p><p className="text-sm text-muted-foreground">Total Admins</p></div>
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-success">{admins.filter(a => a.is_active).length}</p><p className="text-sm text-muted-foreground">Active</p></div>
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-primary">{admins.reduce((acc, a) => acc + a.monthly_limit, 0).toLocaleString()}</p><p className="text-sm text-muted-foreground">Total Monthly Limit</p></div>
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-foreground">{tenants.length}</p><p className="text-sm text-muted-foreground">Tenants Managed</p></div>
+          </div>
+
+          {adminsLoading ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
+          ) : (
+            <div className="space-y-4">
+              {filteredAdmins.map((admin, index) => {
+                const adminTenants = tenants.filter(t => t.is_active);
+                const usedLimit = adminTenants.reduce((acc, t) => acc + t.max_images_per_month, 0);
+                const usagePercent = admin.monthly_limit > 0 ? (usedLimit / admin.monthly_limit) * 100 : 0;
+                return (
+                  <div key={admin.id} className={cn("rounded-xl bg-card border border-border transition-all duration-300 animate-fade-in", !admin.is_active && "opacity-60")} style={{ animationDelay: `${index * 50}ms` }}>
+                    <div className="p-5">
+                      <div className="flex items-start justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><Building2 className="w-5 h-5 text-primary" /></div>
+                          <div>
+                            <h4 className="font-semibold text-foreground">{admin.full_name}</h4>
+                            <div className="flex items-center gap-2">
+                              <span className="text-sm text-muted-foreground">{admin.email}</span>
+                              {admin.phone && <span className="text-xs text-muted-foreground">· {admin.phone}</span>}
+                              <Badge variant={admin.is_active ? 'default' : 'secondary'} className="text-xs">{admin.is_active ? 'Active' : 'Inactive'}</Badge>
+                            </div>
+                          </div>
+                        </div>
+                        <DropdownMenu>
+                          <DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8"><MoreVertical className="w-4 h-4" /></Button></DropdownMenuTrigger>
+                          <DropdownMenuContent align="end">
+                            <DropdownMenuItem onClick={() => handleAdminEdit(admin)}><Pencil className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
+                            <DropdownMenuItem className="text-destructive" onClick={() => setDeleteAdminId(admin.id)}><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
+                          </DropdownMenuContent>
+                        </DropdownMenu>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div><div className="flex justify-between text-sm mb-1"><span className="text-muted-foreground">Monthly Limit</span><span className="text-foreground font-medium">{admin.monthly_limit.toLocaleString()} images</span></div></div>
+                        <div><div className="flex justify-between text-sm mb-1"><span className="text-muted-foreground">Allocated to Tenants</span><span className="text-foreground font-medium">{usedLimit.toLocaleString()} / {admin.monthly_limit.toLocaleString()}</span></div>
+                          <Progress value={Math.min(usagePercent, 100)} className={cn("h-2", usagePercent >= 90 && "[&>div]:bg-destructive", usagePercent >= 80 && usagePercent < 90 && "[&>div]:bg-warning")} /></div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+              {filteredAdmins.length === 0 && <div className="text-center py-12"><p className="text-muted-foreground">{admins.length === 0 ? 'No admins yet. Create your first admin to get started.' : 'No admins found matching your search.'}</p></div>}
+            </div>
+          )}
+
+          <Dialog open={isAdminModalOpen} onOpenChange={(open) => { setIsAdminModalOpen(open); if (!open) resetAdminForm(); }}>
+            <DialogContent className="bg-card border-border max-w-lg">
+              <DialogHeader><DialogTitle className="flex items-center gap-2"><Building2 className="w-5 h-5 text-primary" />{editingAdminObj ? 'Edit Admin' : 'Add New Admin'}</DialogTitle></DialogHeader>
+              <form onSubmit={handleAdminSubmit} className="space-y-4">
+                <div className="space-y-2"><Label>Full Name</Label><Input placeholder="e.g., John Doe" className="bg-secondary border-border" value={adminFormData.full_name} onChange={e => setAdminFormData({ ...adminFormData, full_name: e.target.value })} required /></div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>Email</Label><Input type="email" placeholder="admin@example.com" className="bg-secondary border-border" value={adminFormData.email} onChange={e => setAdminFormData({ ...adminFormData, email: e.target.value })} required /></div>
+                  <div className="space-y-2"><Label>Phone Number</Label><Input placeholder="+1 (555) 123-4567" className="bg-secondary border-border" value={adminFormData.phone} onChange={e => setAdminFormData({ ...adminFormData, phone: e.target.value })} /></div>
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2"><Label>{editingAdminObj ? 'New Password (leave blank to keep)' : 'Password'}</Label><Input type="password" placeholder="••••••••" className="bg-secondary border-border" value={adminFormData.password} onChange={e => setAdminFormData({ ...adminFormData, password: e.target.value })} required={!editingAdminObj} /></div>
+                  <div className="space-y-2"><Label>Monthly Limit</Label><Input type="number" className="bg-secondary border-border" value={adminFormData.monthly_limit} onChange={e => setAdminFormData({ ...adminFormData, monthly_limit: parseInt(e.target.value) || 0 })} /></div>
+                </div>
+                <div className="flex justify-end gap-3 pt-2">
+                  <Button type="button" variant="outline" onClick={() => { setIsAdminModalOpen(false); resetAdminForm(); }}>Cancel</Button>
+                  <Button type="submit" variant="glow" disabled={createAdmin.isPending || updateAdmin.isPending}>{(createAdmin.isPending || updateAdmin.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}{editingAdminObj ? 'Save Changes' : 'Create Admin'}</Button>
+                </div>
+              </form>
+            </DialogContent>
+          </Dialog>
+          <AlertDialog open={!!deleteAdminId} onOpenChange={() => setDeleteAdminId(null)}>
+            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Admin</AlertDialogTitle><AlertDialogDescription>This will permanently delete the admin.</AlertDialogDescription></AlertDialogHeader>
+            <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleAdminDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+          </AlertDialog>
+        </TabsContent>
 
         {/* ========== TENANTS TAB ========== */}
         <TabsContent value="tenants" className="space-y-4 animate-fade-in">
@@ -745,6 +862,7 @@ export default function Planogram() {
                     </div>
                     <Button variant="default" size="sm" onClick={handleSaveDesigner} disabled={rows.length === 0}><Save className="w-4 h-4 mr-1" />Save & Version</Button>
                   </div>
+                  <ScrollArea className="h-[600px]">
                   {rows.length === 0 ? (
                     <div className="bg-card border-2 border-dashed border-border rounded-xl flex flex-col items-center justify-center py-24">
                       <LayoutGrid className="w-16 h-16 text-muted-foreground/30 mb-4" />
@@ -805,6 +923,7 @@ export default function Planogram() {
                       ))}
                     </div>
                   )}
+                  </ScrollArea>
                 </div>
               </div>
             </>

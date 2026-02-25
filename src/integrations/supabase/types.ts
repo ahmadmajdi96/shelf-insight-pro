@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      admins: {
+        Row: {
+          created_at: string
+          email: string
+          full_name: string
+          id: string
+          is_active: boolean
+          monthly_limit: number
+          password: string
+          phone: string | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          email: string
+          full_name: string
+          id?: string
+          is_active?: boolean
+          monthly_limit?: number
+          password: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          email?: string
+          full_name?: string
+          id?: string
+          is_active?: boolean
+          monthly_limit?: number
+          password?: string
+          phone?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       compliance_scans: {
         Row: {
           compliance_score: number
