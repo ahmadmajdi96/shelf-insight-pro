@@ -56,7 +56,7 @@ export default function Settings() {
           </div>
           <div className="space-y-2">
             <Label>Base URL</Label>
-            <Input value={apiUrl} onChange={e => setApiUrl(e.target.value)} placeholder="https://your-backend.com" className="bg-secondary border-border font-mono text-sm" />
+            <Input value={apiUrl} onChange={e => setApiUrl(e.target.value)} placeholder={import.meta.env.VITE_SUPABASE_URL || 'https://your-backend.com'} className="bg-secondary border-border font-mono text-sm" />
           </div>
         </div>
 

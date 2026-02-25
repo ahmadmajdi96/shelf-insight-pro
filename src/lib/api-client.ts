@@ -1,4 +1,4 @@
-import { getApiBaseUrl } from './api-config';
+import { getApiBaseUrl, getApiKey } from './api-config';
 
 const TOKEN_KEY = 'shelfvision_access_token';
 const USER_KEY = 'shelfvision_user';
@@ -40,10 +40,13 @@ function notifyAuth(event: string, session: any) {
 async function apiFetch(path: string, opts: RequestInit = {}) {
   const base = getApiBaseUrl();
   const token = getToken();
+  const apiKey = getApiKey();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(opts.headers as Record<string, string> || {}),
   };
+  // Always include apikey for Supabase/PostgREST compatibility
+  if (apiKey) headers['apikey'] = apiKey;
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`${base}${path}`, { ...opts, headers });
@@ -53,15 +56,16 @@ async function apiFetch(path: string, opts: RequestInit = {}) {
 async function apiFetchJSON(path: string, opts: RequestInit = {}) {
   const res = await apiFetch(path, opts);
   if (res.status === 204) return null;
-  const body = await res.json();
-  if (!res.ok) throw new Error(body?.detail || body?.error || `API error ${res.status}`);
+  const text = await res.text();
+  if (!text) return null;
+  const body = JSON.parse(text);
+  if (!res.ok) throw new Error(body?.detail || body?.error || body?.message || body?.msg || `API error ${res.status}`);
   return body;
 }
 
 // ─── Auth ────────────────────────────────────────────────
 export const auth = {
   async login(email: string, password: string) {
-    // Use token endpoint for full token response
     const data = await apiFetchJSON('/auth/v1/token?grant_type=password', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
@@ -110,8 +114,8 @@ interface ListOptions {
   filters?: Record<string, string>;
   order?: string;
   limit?: number;
-  count?: boolean;      // use HEAD + Prefer: count=exact
-  head?: boolean;       // HEAD request
+  count?: boolean;
+  head?: boolean;
 }
 
 export const rest = {
@@ -153,9 +157,11 @@ export const rest = {
   async create(resource: string, payload: any) {
     const data = await apiFetchJSON(`/rest/v1/${resource}`, {
       method: 'POST',
+      headers: { 'Prefer': 'return=representation' },
       body: JSON.stringify(payload),
     });
-    return data;
+    // PostgREST returns an array; return the first item for convenience
+    return Array.isArray(data) ? data[0] : data;
   },
 
   async update(resource: string, filters: Record<string, string>, payload: any) {
@@ -163,13 +169,14 @@ export const rest = {
     Object.entries(filters).forEach(([k, v]) => params.set(k, v));
     const data = await apiFetchJSON(`/rest/v1/${resource}?${params.toString()}`, {
       method: 'PATCH',
+      headers: { 'Prefer': 'return=representation' },
       body: JSON.stringify(payload),
     });
-    return data;
+    return Array.isArray(data) ? data[0] : data;
   },
 
   async remove(resource: string, id: string) {
-    await apiFetchJSON(`/rest/v1/${resource}?id=eq.${id}`, {
+    await apiFetch(`/rest/v1/${resource}?id=eq.${id}`, {
       method: 'DELETE',
     });
   },
@@ -196,10 +203,12 @@ export const storage = {
   async upload(bucket: string, path: string, file: File) {
     const base = getApiBaseUrl();
     const token = getToken();
+    const apiKey = getApiKey();
     const formData = new FormData();
     formData.append('file', file);
 
     const headers: Record<string, string> = {};
+    if (apiKey) headers['apikey'] = apiKey;
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const res = await fetch(`${base}/storage/v1/object/${bucket}/${path}`, {
@@ -219,6 +228,7 @@ export const storage = {
   async uploadMultiple(bucket: string, path: string, files: File[], metadata?: Record<string, string>) {
     const base = getApiBaseUrl();
     const token = getToken();
+    const apiKey = getApiKey();
     const formData = new FormData();
 
     if (metadata) {
@@ -228,6 +238,7 @@ export const storage = {
     files.forEach(file => formData.append('files', file));
 
     const headers: Record<string, string> = {};
+    if (apiKey) headers['apikey'] = apiKey;
     if (token) headers['Authorization'] = `Bearer ${token}`;
 
     const res = await fetch(`${base}/storage/v1/object/${bucket}/${path}`, {
