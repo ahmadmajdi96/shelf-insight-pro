@@ -145,7 +145,16 @@ export default function Training() {
   const { data: tenants = [] } = useQuery({
     queryKey: ['tenants-for-training'],
     queryFn: async () => {
-      const { data } = await rest.list('tenants', { select: 'id,name', order: 'name.asc' });
+      const { data } = await rest.list('tenants', { select: 'id,name,admin_id', order: 'name.asc' });
+      return data || [];
+    },
+  });
+
+  // Admins
+  const { data: adminsForTraining = [] } = useQuery({
+    queryKey: ['admins-for-training'],
+    queryFn: async () => {
+      const { data } = await rest.list('admins', { select: 'id,full_name', order: 'full_name.asc' });
       return data || [];
     },
   });
@@ -153,6 +162,8 @@ export default function Training() {
   const [activeTab, setActiveTab] = useState('datasets');
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
   const [filterTenant, setFilterTenant] = useState<string>('all');
+  const [filterAdmin, setFilterAdmin] = useState<string>('all');
+  const [filterStatus, setFilterStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState('');
 
   // Data hooks
@@ -240,17 +251,21 @@ export default function Training() {
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
 
   // Filtered datasets
+  const getTenantIdsForAdmin = (adminId: string) => tenants.filter((t: any) => t.admin_id === adminId).map((t: any) => t.id);
+
   const filteredDatasets = useMemo(() => {
     return datasets.filter(d => {
       const matchesSearch = d.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (d.description || '').toLowerCase().includes(searchQuery.toLowerCase());
       const matchesTenant = filterTenant === 'all' || d.tenant_id === filterTenant;
-      return matchesSearch && matchesTenant;
+      const matchesAdmin = filterAdmin === 'all' || (d.tenant_id && getTenantIdsForAdmin(filterAdmin).includes(d.tenant_id));
+      const matchesStatus = filterStatus === 'all' || d.status === filterStatus;
+      return matchesSearch && matchesTenant && matchesAdmin && matchesStatus;
     });
-  }, [datasets, searchQuery, filterTenant]);
+  }, [datasets, searchQuery, filterTenant, filterAdmin, filterStatus, tenants]);
 
-  const hasActiveFilters = searchQuery || filterTenant !== 'all';
-  const clearFilters = () => { setSearchQuery(''); setFilterTenant('all'); };
+  const hasActiveFilters = searchQuery || filterTenant !== 'all' || filterAdmin !== 'all' || filterStatus !== 'all';
+  const clearFilters = () => { setSearchQuery(''); setFilterTenant('all'); setFilterAdmin('all'); setFilterStatus('all'); };
 
   // ─── Dataset CRUD ──────────────────────────────────────
   const openNewDataset = () => {
@@ -624,8 +639,19 @@ export default function Training() {
               className="pl-9 bg-secondary border-border"
             />
           </div>
+          <Select value={filterAdmin} onValueChange={setFilterAdmin}>
+            <SelectTrigger className="w-[170px] bg-secondary border-border">
+              <SelectValue placeholder="All Admins" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Admins</SelectItem>
+              {adminsForTraining.map((a: any) => (
+                <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
           <Select value={filterTenant} onValueChange={setFilterTenant}>
-            <SelectTrigger className="w-[180px] bg-secondary border-border">
+            <SelectTrigger className="w-[170px] bg-secondary border-border">
               <SelectValue placeholder="All Tenants" />
             </SelectTrigger>
             <SelectContent>
@@ -633,6 +659,17 @@ export default function Training() {
               {tenants.map((t: any) => (
                 <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
               ))}
+            </SelectContent>
+          </Select>
+          <Select value={filterStatus} onValueChange={setFilterStatus}>
+            <SelectTrigger className="w-[150px] bg-secondary border-border">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="draft">Draft</SelectItem>
+              <SelectItem value="ready">Ready</SelectItem>
+              <SelectItem value="archived">Archived</SelectItem>
             </SelectContent>
           </Select>
           {hasActiveFilters && (

@@ -1,5 +1,5 @@
-import { useState, useMemo } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useState, useMemo, useEffect } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { 
   LayoutGrid, Plus, Minus, Package, Store, Trash2,
   GripVertical, Save, RotateCcw, Search, Filter,
@@ -7,7 +7,7 @@ import {
   CheckCircle2, XCircle, AlertTriangle, BarChart3,
   FileText, Clock, ArrowLeft, Upload, Loader2, TrendingUp,
   FolderOpen, MoreVertical, Image, Building2, Pause, Play,
-  MapPin
+  MapPin, Shield
 } from 'lucide-react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend } from 'recharts';
 import { MainLayout } from '@/components/layout/MainLayout';
@@ -60,11 +60,9 @@ const statusConfig = {
   failed: { icon: AlertTriangle, label: 'Failed', className: 'text-destructive bg-destructive/10' },
 };
 
-
-
-
 export default function Planogram() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { isAdmin, tenantId } = useAuth();
   const { stores, createStore, updateStore, deleteStore } = useStores();
   const { tenants, isLoading: tenantsLoading, createTenant, updateTenant, suspendTenant, deleteTenant } = useTenants();
@@ -73,23 +71,44 @@ export default function Planogram() {
   const { templates, createTemplate, updateTemplate, duplicateTemplate, deleteTemplate } = usePlanogramTemplates();
   
   const { shelves } = useShelves();
-  const { admins, isLoading: adminsLoading, createAdmin, updateAdmin, deleteAdmin } = useAdmins();
+  const { admins, isLoading: adminsLoading, createAdmin, updateAdmin, deleteAdmin, suspendAdmin } = useAdmins();
   const { toast } = useToast();
   const { detectWithRoboflow, isDetecting } = useRoboflowDetection();
   const [complianceImageUrl, setComplianceImageUrl] = useState('');
 
-  const [activeTab, setActiveTab] = useState('admins');
+  // Support ?tab= query param
+  const tabFromUrl = searchParams.get('tab');
+  const [activeTab, setActiveTab] = useState(tabFromUrl || 'admins');
+
+  useEffect(() => {
+    if (tabFromUrl && ['admins', 'tenants', 'stores', 'planograms', 'categories', 'products'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl);
+    }
+  }, [tabFromUrl]);
 
   // Search states for each tab
   const [tenantSearch, setTenantSearch] = useState('');
   const [storeSearch, setStoreSearch] = useState('');
   const [storeTenantFilter, setStoreTenantFilter] = useState('all');
+  const [storeAdminFilter, setStoreAdminFilter] = useState('all');
+  const [storeStatusFilter, setStoreStatusFilter] = useState('all');
   const [planogramSearch, setPlanogramSearch] = useState('');
   const [planogramStatusFilter, setPlanogramStatusFilter] = useState('all');
+  const [planogramAdminFilter, setPlanogramAdminFilter] = useState('all');
+  const [planogramTenantFilter, setPlanogramTenantFilter] = useState('all');
+  const [planogramStoreFilter, setPlanogramStoreFilter] = useState('all');
   const [complianceSearch, setComplianceSearch] = useState('');
   const [scanHistorySearch, setScanHistorySearch] = useState('');
   const [categorySearch, setCategorySearch] = useState('');
   const [versionSearch, setVersionSearch] = useState('');
+
+  // Admin filters
+  const [adminSearch, setAdminSearch] = useState('');
+  const [adminStatusFilter, setAdminStatusFilter] = useState('all');
+
+  // Tenant filters
+  const [tenantAdminFilter, setTenantAdminFilter] = useState('all');
+  const [tenantStatusFilter, setTenantStatusFilter] = useState('all');
 
   // Tenant state
   const [isTenantModalOpen, setIsTenantModalOpen] = useState(false);
@@ -154,14 +173,21 @@ export default function Planogram() {
   const [isAdminModalOpen, setIsAdminModalOpen] = useState(false);
   const [editingAdminObj, setEditingAdminObj] = useState<Admin | null>(null);
   const [deleteAdminId, setDeleteAdminId] = useState<string | null>(null);
-  const [adminSearch, setAdminSearch] = useState('');
   const [adminFormData, setAdminFormData] = useState({ full_name: '', email: '', phone: '', password: '', monthly_limit: 10000 });
 
-
-
+  // Helper: get tenant IDs for an admin
+  const getTenantIdsForAdmin = (adminId: string) => tenants.filter((t: any) => t.admin_id === adminId).map(t => t.id);
 
   // ---- Tenant logic ----
-  const filteredTenants = tenants.filter(t => t.name.toLowerCase().includes(tenantSearch.toLowerCase()));
+  const filteredTenants = useMemo(() => {
+    return tenants.filter(t => {
+      const matchesSearch = t.name.toLowerCase().includes(tenantSearch.toLowerCase());
+      const matchesAdmin = tenantAdminFilter === 'all' || (t as any).admin_id === tenantAdminFilter;
+      const matchesStatus = tenantStatusFilter === 'all' || (tenantStatusFilter === 'active' ? t.is_active : !t.is_active);
+      return matchesSearch && matchesAdmin && matchesStatus;
+    });
+  }, [tenants, tenantSearch, tenantAdminFilter, tenantStatusFilter]);
+
   const getStoresForTenant = (tid: string) => stores.filter(s => s.tenant_id === tid);
   const toggleTenant = (tid: string) => {
     setExpandedTenants(prev => {
@@ -195,6 +221,7 @@ export default function Planogram() {
   const handleAddTenantForAdmin = (adminId: string) => {
     resetTenantForm();
     setTenantFormData(prev => ({ ...prev, admin_id: adminId }));
+    setEditingTenantObj(null);
     setIsTenantModalOpen(true);
   };
   const resetTenantForm = () => { setTenantFormData({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000, admin_id: '' }); setEditingTenantObj(null); };
@@ -223,12 +250,18 @@ export default function Planogram() {
   };
   const handleStoreDelete = async () => { if (deleteStoreId) { await deleteStore.mutateAsync(deleteStoreId); setDeleteStoreId(null); } };
 
-  // Filtered stores
-  const filteredStores = stores.filter(s => {
-    const matchesSearch = s.name.toLowerCase().includes(storeSearch.toLowerCase()) || (s.city || '').toLowerCase().includes(storeSearch.toLowerCase());
-    const matchesTenant = storeTenantFilter === 'all' || s.tenant_id === storeTenantFilter;
-    return matchesSearch && matchesTenant;
-  });
+  // Filtered stores with admin, tenant, status
+  const filteredStores = useMemo(() => {
+    return stores.filter(s => {
+      const matchesSearch = s.name.toLowerCase().includes(storeSearch.toLowerCase()) || (s.city || '').toLowerCase().includes(storeSearch.toLowerCase());
+      const matchesTenant = storeTenantFilter === 'all' || s.tenant_id === storeTenantFilter;
+      const matchesAdmin = storeAdminFilter === 'all' || getTenantIdsForAdmin(storeAdminFilter).includes(s.tenant_id);
+      // stores don't have status, use tenant status
+      const tenant = tenants.find(t => t.id === s.tenant_id);
+      const matchesStatus = storeStatusFilter === 'all' || (storeStatusFilter === 'active' ? tenant?.is_active : !tenant?.is_active);
+      return matchesSearch && matchesTenant && matchesAdmin && matchesStatus;
+    });
+  }, [stores, storeSearch, storeTenantFilter, storeAdminFilter, storeStatusFilter, tenants, admins]);
 
   // ---- Planogram CRUD ----
   const openNewTemplate = (presetStoreId?: string, presetTenantId?: string) => { setEditingTemplate(null); setTemplateName(''); setTemplateDesc(''); setTemplateStoreId(presetStoreId || ''); setTemplateTenantId(presetTenantId || tenantId || (tenants.length > 0 ? tenants[0].id : '')); setTemplateStatus('draft'); setShowTemplateDialog(true); };
@@ -243,11 +276,16 @@ export default function Planogram() {
   };
   const handleDeleteTemplate = async () => { if (deleteTemplateId) { await deleteTemplate.mutateAsync(deleteTemplateId); setDeleteTemplateId(null); } };
 
-  const filteredTemplates = templates.filter(t => {
-    const matchesSearch = t.name.toLowerCase().includes(planogramSearch.toLowerCase());
-    const matchesStatus = planogramStatusFilter === 'all' || t.status === planogramStatusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredTemplates = useMemo(() => {
+    return templates.filter(t => {
+      const matchesSearch = t.name.toLowerCase().includes(planogramSearch.toLowerCase());
+      const matchesStatus = planogramStatusFilter === 'all' || t.status === planogramStatusFilter;
+      const matchesTenant = planogramTenantFilter === 'all' || t.tenant_id === planogramTenantFilter;
+      const matchesAdmin = planogramAdminFilter === 'all' || getTenantIdsForAdmin(planogramAdminFilter).includes(t.tenant_id);
+      const matchesStore = planogramStoreFilter === 'all' || t.store_id === planogramStoreFilter;
+      return matchesSearch && matchesStatus && matchesTenant && matchesAdmin && matchesStore;
+    });
+  }, [templates, planogramSearch, planogramStatusFilter, planogramTenantFilter, planogramAdminFilter, planogramStoreFilter, tenants, admins]);
 
   // ---- Designer ----
   const designerTemplate = templates.find(t => t.id === designerTemplateId);
@@ -353,11 +391,15 @@ export default function Planogram() {
     if (editingProduct) { await updateProduct.mutateAsync({ id: editingProduct.id, name: editFormData.name, description: editFormData.description || null, barcode: editFormData.barcode || null, category_id: editFormData.category_id || null, width_cm: editFormData.width_cm ? parseFloat(editFormData.width_cm) : null }); setEditingProduct(null); }
   };
 
-
-
-
   // Admin handlers
-  const filteredAdmins = admins.filter(a => a.full_name.toLowerCase().includes(adminSearch.toLowerCase()) || a.email.toLowerCase().includes(adminSearch.toLowerCase()));
+  const filteredAdmins = useMemo(() => {
+    return admins.filter(a => {
+      const matchesSearch = a.full_name.toLowerCase().includes(adminSearch.toLowerCase()) || a.email.toLowerCase().includes(adminSearch.toLowerCase());
+      const matchesStatus = adminStatusFilter === 'all' || (adminStatusFilter === 'active' ? a.is_active : !a.is_active);
+      return matchesSearch && matchesStatus;
+    });
+  }, [admins, adminSearch, adminStatusFilter]);
+
   const resetAdminForm = () => { setAdminFormData({ full_name: '', email: '', phone: '', password: '', monthly_limit: 10000 }); setEditingAdminObj(null); };
   const handleAdminSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -377,7 +419,7 @@ export default function Planogram() {
   const handleAdminDelete = async () => { if (deleteAdminId) { await deleteAdmin.mutateAsync(deleteAdminId); setDeleteAdminId(null); } };
 
   const tabItems = [
-    { value: 'admins', label: 'Admins', icon: Building2 },
+    { value: 'admins', label: 'Admins', icon: Shield },
     { value: 'tenants', label: 'Tenants', icon: Building2 },
     { value: 'stores', label: 'Stores', icon: Store },
     { value: 'planograms', label: 'Planograms', icon: LayoutGrid },
@@ -417,6 +459,14 @@ export default function Planogram() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Search admins..." className="pl-9 bg-card border-border" value={adminSearch} onChange={e => setAdminSearch(e.target.value)} />
             </div>
+            <Select value={adminStatusFilter} onValueChange={setAdminStatusFilter}>
+              <SelectTrigger className="w-[150px] bg-card border-border"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="inactive">Inactive</SelectItem>
+              </SelectContent>
+            </Select>
             <Button variant="glow" onClick={() => { resetAdminForm(); setIsAdminModalOpen(true); }}><Plus className="w-4 h-4 mr-2" />Add Admin</Button>
           </div>
 
@@ -441,7 +491,7 @@ export default function Planogram() {
                     <div className="p-5">
                       <div className="flex items-start justify-between mb-4">
                         <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><Building2 className="w-5 h-5 text-primary" /></div>
+                          <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><Shield className="w-5 h-5 text-primary" /></div>
                           <div>
                             <h4 className="font-semibold text-foreground">{admin.full_name}</h4>
                             <div className="flex items-center gap-2">
@@ -456,6 +506,9 @@ export default function Planogram() {
                           <DropdownMenuContent align="end">
                             <DropdownMenuItem onClick={() => handleAdminEdit(admin)}><Pencil className="w-4 h-4 mr-2" />Edit</DropdownMenuItem>
                             <DropdownMenuItem onClick={() => handleAddTenantForAdmin(admin.id)}><Plus className="w-4 h-4 mr-2" />Add Tenant</DropdownMenuItem>
+                            <DropdownMenuItem onClick={() => suspendAdmin.mutate({ id: admin.id, suspend: admin.is_active })}>
+                              {admin.is_active ? <><Pause className="w-4 h-4 mr-2" />Suspend</> : <><Play className="w-4 h-4 mr-2" />Activate</>}
+                            </DropdownMenuItem>
                             <DropdownMenuItem className="text-destructive" onClick={() => setDeleteAdminId(admin.id)}><Trash2 className="w-4 h-4 mr-2" />Delete</DropdownMenuItem>
                           </DropdownMenuContent>
                         </DropdownMenu>
@@ -507,16 +560,16 @@ export default function Planogram() {
 
           <Dialog open={isAdminModalOpen} onOpenChange={(open) => { setIsAdminModalOpen(open); if (!open) resetAdminForm(); }}>
             <DialogContent className="bg-card border-border max-w-lg">
-              <DialogHeader><DialogTitle className="flex items-center gap-2"><Building2 className="w-5 h-5 text-primary" />{editingAdminObj ? 'Edit Admin' : 'Add New Admin'}</DialogTitle></DialogHeader>
+              <DialogHeader><DialogTitle className="flex items-center gap-2"><Shield className="w-5 h-5 text-primary" />{editingAdminObj ? 'Edit Admin' : 'Add New Admin'}</DialogTitle></DialogHeader>
               <form onSubmit={handleAdminSubmit} className="space-y-4">
                 <div className="space-y-2"><Label>Full Name</Label><Input placeholder="e.g., John Doe" className="bg-secondary border-border" value={adminFormData.full_name} onChange={e => setAdminFormData({ ...adminFormData, full_name: e.target.value })} required /></div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>Email</Label><Input type="email" placeholder="admin@example.com" className="bg-secondary border-border" value={adminFormData.email} onChange={e => setAdminFormData({ ...adminFormData, email: e.target.value })} required /></div>
-                  <div className="space-y-2"><Label>Phone Number</Label><Input placeholder="+1 (555) 123-4567" className="bg-secondary border-border" value={adminFormData.phone} onChange={e => setAdminFormData({ ...adminFormData, phone: e.target.value })} /></div>
+                  <div className="space-y-2"><Label>Phone</Label><Input placeholder="+1234567890" className="bg-secondary border-border" value={adminFormData.phone} onChange={e => setAdminFormData({ ...adminFormData, phone: e.target.value })} /></div>
                 </div>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2"><Label>{editingAdminObj ? 'New Password (leave blank to keep)' : 'Password'}</Label><Input type="password" placeholder="••••••••" className="bg-secondary border-border" value={adminFormData.password} onChange={e => setAdminFormData({ ...adminFormData, password: e.target.value })} required={!editingAdminObj} /></div>
-                  <div className="space-y-2"><Label>Monthly Limit</Label><Input type="number" className="bg-secondary border-border" value={adminFormData.monthly_limit} onChange={e => setAdminFormData({ ...adminFormData, monthly_limit: parseInt(e.target.value) || 0 })} /></div>
+                  <div className="space-y-2"><Label>Monthly Image Limit</Label><Input type="number" className="bg-secondary border-border" value={adminFormData.monthly_limit} onChange={e => setAdminFormData({ ...adminFormData, monthly_limit: parseInt(e.target.value) || 0 })} /></div>
                 </div>
                 <div className="flex justify-end gap-3 pt-2">
                   <Button type="button" variant="outline" onClick={() => { setIsAdminModalOpen(false); resetAdminForm(); }}>Cancel</Button>
@@ -526,7 +579,7 @@ export default function Planogram() {
             </DialogContent>
           </Dialog>
           <AlertDialog open={!!deleteAdminId} onOpenChange={() => setDeleteAdminId(null)}>
-            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Admin</AlertDialogTitle><AlertDialogDescription>This will permanently delete the admin.</AlertDialogDescription></AlertDialogHeader>
+            <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Admin</AlertDialogTitle><AlertDialogDescription>This will permanently delete the admin. Tenants will remain but become unassigned.</AlertDialogDescription></AlertDialogHeader>
             <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleAdminDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
           </AlertDialog>
         </TabsContent>
@@ -538,14 +591,29 @@ export default function Planogram() {
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Search tenants..." className="pl-9 bg-card border-border" value={tenantSearch} onChange={e => setTenantSearch(e.target.value)} />
             </div>
+            <Select value={tenantAdminFilter} onValueChange={setTenantAdminFilter}>
+              <SelectTrigger className="w-[180px] bg-card border-border"><Shield className="w-3.5 h-3.5 mr-2" /><SelectValue placeholder="All Admins" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Admins</SelectItem>
+                {admins.map(a => <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={tenantStatusFilter} onValueChange={setTenantStatusFilter}>
+              <SelectTrigger className="w-[150px] bg-card border-border"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
+              </SelectContent>
+            </Select>
             <Button variant="glow" onClick={() => { resetTenantForm(); setIsTenantModalOpen(true); }}><Plus className="w-4 h-4 mr-2" />Add Tenant</Button>
           </div>
 
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-foreground">{tenants.length}</p><p className="text-sm text-muted-foreground">Total Tenants</p></div>
-            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-success">{tenants.filter(t => t.is_active).length}</p><p className="text-sm text-muted-foreground">Active</p></div>
-            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-foreground">{tenants.reduce((acc, t) => acc + t.skuCount, 0)}</p><p className="text-sm text-muted-foreground">Total SKUs</p></div>
-            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-primary">{tenants.reduce((acc, t) => acc + t.processed_images_this_month, 0).toLocaleString()}</p><p className="text-sm text-muted-foreground">Images This Month</p></div>
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-foreground">{filteredTenants.length}</p><p className="text-sm text-muted-foreground">Tenants</p></div>
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-success">{filteredTenants.filter(t => t.is_active).length}</p><p className="text-sm text-muted-foreground">Active</p></div>
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-foreground">{filteredTenants.reduce((acc, t) => acc + t.skuCount, 0)}</p><p className="text-sm text-muted-foreground">Total SKUs</p></div>
+            <div className="p-4 rounded-lg bg-card border border-border"><p className="text-2xl font-bold text-primary">{filteredTenants.reduce((acc, t) => acc + t.processed_images_this_month, 0).toLocaleString()}</p><p className="text-sm text-muted-foreground">Images This Month</p></div>
           </div>
 
           {tenantsLoading ? (
@@ -557,6 +625,7 @@ export default function Planogram() {
                 const imagePercentage = (tenant.processed_images_this_month / tenant.max_images_per_month) * 100;
                 const tenantStores = getStoresForTenant(tenant.id);
                 const isExpanded = expandedTenants.has(tenant.id);
+                const adminName = admins.find(a => a.id === (tenant as any).admin_id)?.full_name;
                 return (
                   <div key={tenant.id} className={cn("rounded-xl bg-card border border-border transition-all duration-300 animate-fade-in", !tenant.is_active && "opacity-60")} style={{ animationDelay: `${index * 50}ms` }}>
                     <div className="p-5">
@@ -568,6 +637,7 @@ export default function Planogram() {
                             <div className="flex items-center gap-2">
                               <Badge variant={tenant.is_active ? 'default' : 'secondary'} className="text-xs">{tenant.is_active ? 'Active' : 'Suspended'}</Badge>
                               {tenant.username && <span className="text-xs text-muted-foreground">@{tenant.username}</span>}
+                              {adminName && <span className="text-xs text-muted-foreground">· Admin: {adminName}</span>}
                             </div>
                           </div>
                         </div>
@@ -620,7 +690,7 @@ export default function Planogram() {
                   </div>
                 );
               })}
-              {filteredTenants.length === 0 && <div className="text-center py-12"><p className="text-muted-foreground">{tenants.length === 0 ? 'No tenants yet. Create your first tenant to get started.' : 'No tenants found matching your search.'}</p></div>}
+              {filteredTenants.length === 0 && <div className="text-center py-12"><p className="text-muted-foreground">{tenants.length === 0 ? 'No tenants yet. Create your first tenant to get started.' : 'No tenants found matching your filters.'}</p></div>}
             </div>
           )}
 
@@ -663,16 +733,31 @@ export default function Planogram() {
 
         {/* ========== STORES TAB ========== */}
         <TabsContent value="stores" className="space-y-4 animate-fade-in">
-           <div className="flex flex-col sm:flex-row gap-4">
-            <div className="relative flex-1">
+           <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
               <Input placeholder="Search stores by name or city..." className="pl-9 bg-card border-border" value={storeSearch} onChange={e => setStoreSearch(e.target.value)} />
             </div>
+            <Select value={storeAdminFilter} onValueChange={setStoreAdminFilter}>
+              <SelectTrigger className="w-[180px] bg-card border-border"><Shield className="w-3.5 h-3.5 mr-2" /><SelectValue placeholder="All Admins" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Admins</SelectItem>
+                {admins.map(a => <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>)}
+              </SelectContent>
+            </Select>
             <Select value={storeTenantFilter} onValueChange={setStoreTenantFilter}>
-              <SelectTrigger className="w-[200px] bg-card border-border"><Building2 className="w-3.5 h-3.5 mr-2" /><SelectValue placeholder="All Tenants" /></SelectTrigger>
+              <SelectTrigger className="w-[180px] bg-card border-border"><Building2 className="w-3.5 h-3.5 mr-2" /><SelectValue placeholder="All Tenants" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Tenants</SelectItem>
                 {tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+              </SelectContent>
+            </Select>
+            <Select value={storeStatusFilter} onValueChange={setStoreStatusFilter}>
+              <SelectTrigger className="w-[150px] bg-card border-border"><SelectValue placeholder="Status" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Status</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="suspended">Suspended</SelectItem>
               </SelectContent>
             </Select>
             <Button variant="glow" onClick={() => { setStoreTenantId(''); setStoreFormData({ name: '', address: '', city: '', country: '' }); setEditingStoreObj(null); setIsStoreModalOpen(true); }}><Plus className="w-4 h-4 mr-2" />Add Store</Button>
@@ -758,11 +843,32 @@ export default function Planogram() {
         <TabsContent value="planograms" className="space-y-4 animate-fade-in">
           {!designerTemplateId ? (
             <>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
+              <div className="flex flex-col sm:flex-row gap-4 flex-wrap">
+                <div className="relative flex-1 min-w-[200px]">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
                   <Input placeholder="Search planograms..." className="pl-9 bg-card border-border" value={planogramSearch} onChange={e => setPlanogramSearch(e.target.value)} />
                 </div>
+                <Select value={planogramAdminFilter} onValueChange={setPlanogramAdminFilter}>
+                  <SelectTrigger className="w-[160px] bg-card border-border"><Shield className="w-3.5 h-3.5 mr-2" /><SelectValue placeholder="All Admins" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Admins</SelectItem>
+                    {admins.map(a => <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={planogramTenantFilter} onValueChange={setPlanogramTenantFilter}>
+                  <SelectTrigger className="w-[160px] bg-card border-border"><Building2 className="w-3.5 h-3.5 mr-2" /><SelectValue placeholder="All Tenants" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Tenants</SelectItem>
+                    {tenants.map(t => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+                <Select value={planogramStoreFilter} onValueChange={setPlanogramStoreFilter}>
+                  <SelectTrigger className="w-[160px] bg-card border-border"><Store className="w-3.5 h-3.5 mr-2" /><SelectValue placeholder="All Stores" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Stores</SelectItem>
+                    {stores.map(s => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
                 <Select value={planogramStatusFilter} onValueChange={setPlanogramStatusFilter}>
                   <SelectTrigger className="w-[150px] bg-card border-border"><SelectValue placeholder="Status" /></SelectTrigger>
                   <SelectContent>
@@ -779,13 +885,13 @@ export default function Planogram() {
                 <div className="bg-card border border-border rounded-xl p-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-primary/10 flex items-center justify-center"><FileText className="w-5 h-5 text-primary" /></div>
-                    <div><p className="text-2xl font-bold text-foreground">{templates.length}</p><p className="text-sm text-muted-foreground">Total Planograms</p></div>
+                    <div><p className="text-2xl font-bold text-foreground">{filteredTemplates.length}</p><p className="text-sm text-muted-foreground">Planograms</p></div>
                   </div>
                 </div>
                 <div className="bg-card border border-border rounded-xl p-4">
                   <div className="flex items-center gap-3">
                     <div className="w-10 h-10 rounded-lg bg-green-500/10 flex items-center justify-center"><CheckCircle2 className="w-5 h-5 text-green-400" /></div>
-                    <div><p className="text-2xl font-bold text-foreground">{templates.filter(t => t.status === 'active').length}</p><p className="text-sm text-muted-foreground">Active</p></div>
+                    <div><p className="text-2xl font-bold text-foreground">{filteredTemplates.filter(t => t.status === 'active').length}</p><p className="text-sm text-muted-foreground">Active</p></div>
                   </div>
                 </div>
                 <div className="bg-card border border-border rounded-xl p-4">
@@ -793,8 +899,8 @@ export default function Planogram() {
                     <div className="w-10 h-10 rounded-lg bg-yellow-500/10 flex items-center justify-center"><BarChart3 className="w-5 h-5 text-yellow-400" /></div>
                     <div>
                       <p className="text-2xl font-bold text-foreground">
-                        {templates.filter(t => t.latest_compliance !== null).length > 0
-                          ? `${Math.round(templates.filter(t => t.latest_compliance !== null).reduce((a, t) => a + (t.latest_compliance || 0), 0) / templates.filter(t => t.latest_compliance !== null).length)}%`
+                        {filteredTemplates.filter(t => t.latest_compliance !== null).length > 0
+                          ? `${Math.round(filteredTemplates.filter(t => t.latest_compliance !== null).reduce((a, t) => a + (t.latest_compliance || 0), 0) / filteredTemplates.filter(t => t.latest_compliance !== null).length)}%`
                           : 'N/A'}
                       </p>
                       <p className="text-sm text-muted-foreground">Avg Compliance</p>
@@ -925,59 +1031,52 @@ export default function Planogram() {
                       <LayoutGrid className="w-16 h-16 text-muted-foreground/30 mb-4" />
                       <h3 className="text-lg font-semibold text-foreground mb-1">No shelves yet</h3>
                       <p className="text-sm text-muted-foreground mb-4">Click "Add Shelf" then drag products to design your planogram.</p>
-                      <Button variant="glow" size="sm" onClick={addRow}><Plus className="w-4 h-4 mr-1" />Add First Shelf</Button>
+                      <Button variant="glow" onClick={addRow}><Plus className="w-4 h-4 mr-1" />Add First Shelf</Button>
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {rows.map((row, rowIndex) => (
-                        <div key={row.id} className="bg-card border border-border rounded-xl overflow-hidden" onDragOver={handleDragOver} onDrop={(e) => handleDrop(e, row.id)}>
-                          <div className="flex items-center gap-3 px-4 py-2.5 bg-secondary/50 border-b border-border">
-                            <span className="text-xs font-mono text-muted-foreground w-6">{rowIndex + 1}</span>
-                            <Input value={row.label} onChange={(e) => updateRowLabel(row.id, e.target.value)} className="h-7 text-sm font-medium bg-transparent border-none shadow-none px-1 max-w-[200px] focus-visible:ring-1" />
-                            <div className="flex items-center gap-1 ml-auto">
-                              <Ruler className="w-3 h-3 text-muted-foreground" />
-                              <Input type="number" value={shelfWidths[row.id]?.value || ''} onChange={e => updateShelfWidth(row.id, e.target.value, shelfWidths[row.id]?.unit || 'cm')} className="h-7 w-16 text-xs" placeholder="Width" />
-                              <Select value={shelfWidths[row.id]?.unit || 'cm'} onValueChange={(v: 'cm' | 'm') => updateShelfWidth(row.id, shelfWidths[row.id]?.value || '', v)}>
-                                <SelectTrigger className="h-7 w-16 text-xs"><SelectValue /></SelectTrigger>
-                                <SelectContent><SelectItem value="cm">cm</SelectItem><SelectItem value="m">m</SelectItem></SelectContent>
-                              </Select>
-                            </div>
-                            <Badge variant="secondary" className="text-[10px]">{row.products.length} items · {row.products.reduce((a, p) => a + p.facings, 0)} facings</Badge>
-                            <Select onValueChange={(skuId) => { const p = availableProducts.find(p => p.skuId === skuId); if (p) addProductToRow(row.id, p.skuId, p.name); }}>
-                              <SelectTrigger className="w-auto h-7 text-xs bg-transparent border-dashed gap-1"><Plus className="w-3 h-3" /><SelectValue placeholder="Add" /></SelectTrigger>
-                              <SelectContent>{availableProducts.map(p => <SelectItem key={p.skuId} value={p.skuId}>{p.name}</SelectItem>)}</SelectContent>
-                            </Select>
-                            <Button variant="ghost" size="sm" className="h-7 text-xs text-destructive/70 hover:text-destructive" onClick={() => addProductToRow(row.id, null, 'Unregistered Item')}><HelpCircle className="w-3 h-3 mr-1" />Unknown</Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeRow(row.id)}><Trash2 className="w-3.5 h-3.5" /></Button>
-                          </div>
-                          <div className="p-3 min-h-[80px]">
-                            {row.products.length === 0 ? (
-                              <div className="flex items-center justify-center h-16 border-2 border-dashed border-border/50 rounded-lg text-sm text-muted-foreground">Drag products here</div>
-                            ) : (
-                              <div className="flex flex-wrap gap-2">
-                                {row.products.map((product) => (
-                                  <div key={product.instanceId} className={cn("group relative flex items-center gap-2 px-3 py-2 rounded-lg border transition-colors", product.skuId ? "bg-primary/5 border-primary/20 hover:border-primary/40" : "bg-destructive/5 border-destructive/20 hover:border-destructive/40")}>
-                                    <div className="flex flex-col">
-                                      <span className={cn("text-xs font-medium leading-tight", product.skuId ? "text-foreground" : "text-destructive")}>{product.skuId ? product.name : '⚠ Unregistered'}</span>
-                                      <div className="flex items-center gap-1.5 mt-1">
-                                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => updateProductFacings(row.id, product.instanceId, product.facings - 1)}><Minus className="w-3 h-3" /></Button>
-                                        <span className="text-xs font-mono text-primary min-w-[20px] text-center">{product.facings}</span>
-                                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => updateProductFacings(row.id, product.instanceId, product.facings + 1)}><Plus className="w-3 h-3" /></Button>
-                                        <span className="text-[10px] text-muted-foreground">facings</span>
-                                      </div>
-                                    </div>
-                                    <Button variant="ghost" size="icon" className="h-5 w-5 opacity-0 group-hover:opacity-100 absolute -top-1.5 -right-1.5 bg-card border border-border rounded-full shadow-sm" onClick={() => removeProductFromRow(row.id, product.instanceId)}><Trash2 className="w-2.5 h-2.5" /></Button>
-                                  </div>
-                                ))}
+                      {rows.map((row, rowIndex) => {
+                        const widthCm = getShelfWidthCm(row.id);
+                        const rowWidthUsed = row.products.reduce((acc, p) => {
+                          const prod = products.find(pr => pr.id === p.skuId);
+                          return acc + (prod?.width_cm || 0) * p.facings;
+                        }, 0);
+                        const fillPercent = widthCm ? Math.min((rowWidthUsed / widthCm) * 100, 100) : null;
+                        return (
+                          <div key={row.id} className="bg-card border border-border rounded-xl p-4" onDragOver={handleDragOver} onDrop={e => handleDrop(e, row.id)}>
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2 flex-1">
+                                <Input value={row.label} onChange={e => updateRowLabel(row.id, e.target.value)} className="h-7 text-xs font-medium w-32 bg-secondary border-border" />
+                                <div className="flex items-center gap-1">
+                                  <Ruler className="w-3.5 h-3.5 text-muted-foreground" />
+                                  <Input placeholder="Width" value={shelfWidths[row.id]?.value || ''} onChange={e => updateShelfWidth(row.id, e.target.value, shelfWidths[row.id]?.unit || 'cm')} className="h-7 w-16 text-xs bg-secondary border-border" />
+                                  <Select value={shelfWidths[row.id]?.unit || 'cm'} onValueChange={v => updateShelfWidth(row.id, shelfWidths[row.id]?.value || '', v as 'cm' | 'm')}>
+                                    <SelectTrigger className="h-7 w-14 text-xs"><SelectValue /></SelectTrigger>
+                                    <SelectContent><SelectItem value="cm">cm</SelectItem><SelectItem value="m">m</SelectItem></SelectContent>
+                                  </Select>
+                                </div>
+                                {fillPercent !== null && <span className={cn("text-[10px] ml-2 font-medium", fillPercent > 100 ? 'text-destructive' : fillPercent > 80 ? 'text-warning' : 'text-success')}>{Math.round(fillPercent)}% full</span>}
                               </div>
-                            )}
+                              <Button variant="ghost" size="icon" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeRow(row.id)}><Minus className="w-3.5 h-3.5" /></Button>
+                            </div>
+                            {fillPercent !== null && <Progress value={Math.min(fillPercent, 100)} className={cn("h-1.5 mb-3", fillPercent > 100 && "[&>div]:bg-destructive")} />}
+                            <div className="min-h-[48px] rounded-lg border border-dashed border-border/60 p-2 flex flex-wrap gap-1.5">
+                              {row.products.map(p => (
+                                <div key={p.instanceId} className={cn("flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs", p.skuId ? "bg-secondary/50 border-border" : "bg-destructive/5 border-destructive/20")}>
+                                  <span className="truncate max-w-[100px]">{p.name}</span>
+                                  <div className="flex items-center gap-0.5 border-l border-border pl-1.5 ml-1">
+                                    <button onClick={() => updateProductFacings(row.id, p.instanceId, p.facings - 1)} className="hover:text-primary"><Minus className="w-3 h-3" /></button>
+                                    <span className="w-4 text-center font-semibold">{p.facings}</span>
+                                    <button onClick={() => updateProductFacings(row.id, p.instanceId, p.facings + 1)} className="hover:text-primary"><Plus className="w-3 h-3" /></button>
+                                  </div>
+                                  <button onClick={() => removeProductFromRow(row.id, p.instanceId)} className="ml-1 hover:text-destructive"><XCircle className="w-3.5 h-3.5" /></button>
+                                </div>
+                              ))}
+                              {row.products.length === 0 && <p className="text-xs text-muted-foreground/50 w-full text-center py-2">Drag products here</p>}
+                            </div>
                           </div>
-                          {getShelfWidthCm(row.id) && (
-                            <div className="px-4 py-1.5 bg-secondary/30 border-t border-border text-xs text-muted-foreground flex items-center gap-1"><Ruler className="w-3 h-3" /> Width: {formatWidth(getShelfWidthCm(row.id))}</div>
-                          )}
-                          <div className="h-1.5 bg-gradient-to-r from-muted via-border to-muted" />
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                   </ScrollArea>
@@ -985,7 +1084,6 @@ export default function Planogram() {
               </div>
             </>
           )}
-
         </TabsContent>
 
         {/* ========== CATEGORIES TAB ========== */}
