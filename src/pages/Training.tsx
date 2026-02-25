@@ -5,7 +5,7 @@ import {
   Play, Clock, CheckCircle2, AlertTriangle, X,
   MousePointer2, Square, Download, RefreshCw, Filter,
   ChevronLeft, ChevronRight, Settings, Wand2,
-  MoreVertical, Pause, BarChart3
+  MoreVertical, Pause, BarChart3, Save
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -16,6 +16,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Progress } from '@/components/ui/progress';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
 } from '@/components/ui/select';
@@ -48,6 +49,8 @@ import {
 const CLASS_COLORS = [
   '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
   '#EC4899', '#06B6D4', '#F97316', '#6366F1', '#14B8A6',
+  '#84CC16', '#D946EF', '#0EA5E9', '#F43F5E', '#A855F7',
+  '#22D3EE', '#FB923C', '#818CF8', '#2DD4BF', '#FACC15',
 ];
 
 const statusConfig: Record<string, { icon: any; label: string; className: string }> = {
@@ -159,6 +162,15 @@ export default function Training() {
     },
   });
 
+  // Categories
+  const { data: allCategories = [] } = useQuery({
+    queryKey: ['categories-for-training'],
+    queryFn: async () => {
+      const { data } = await rest.list('product_categories', { select: 'id,name,tenant_id', order: 'name.asc' });
+      return data || [];
+    },
+  });
+
   const [activeTab, setActiveTab] = useState('datasets');
   const [selectedDatasetId, setSelectedDatasetId] = useState<string | null>(null);
   const [filterTenant, setFilterTenant] = useState<string>('all');
@@ -174,7 +186,7 @@ export default function Training() {
 
   const selectedDatasetForAnnotation = datasets.find(d => d.id === selectedDatasetId);
 
-  // Fetch products for the selected dataset's tenant to use as annotation classes
+  // Fetch products for the selected dataset's tenant (for classes tab & annotation)
   const { data: tenantProducts = [] } = useQuery({
     queryKey: ['products-for-annotation', selectedDatasetForAnnotation?.tenant_id],
     queryFn: async () => {
@@ -185,26 +197,64 @@ export default function Training() {
     enabled: !!selectedDatasetForAnnotation?.tenant_id,
   });
 
+  // Categories for the selected dataset's tenant
+  const tenantCategories = useMemo(() => {
+    if (!selectedDatasetForAnnotation?.tenant_id) return [];
+    return allCategories.filter((c: any) => c.tenant_id === selectedDatasetForAnnotation.tenant_id);
+  }, [allCategories, selectedDatasetForAnnotation?.tenant_id]);
+
+  // Products grouped by category for class selection
+  const productsByCategory = useMemo(() => {
+    const groups: { categoryId: string | null; categoryName: string; products: any[] }[] = [];
+    const categorized = new Set<string>();
+
+    for (const cat of tenantCategories) {
+      const prods = tenantProducts.filter((p: any) => p.category_id === cat.id);
+      if (prods.length > 0) {
+        groups.push({ categoryId: cat.id, categoryName: cat.name, products: prods });
+        prods.forEach((p: any) => categorized.add(p.id));
+      }
+    }
+
+    const uncategorized = tenantProducts.filter((p: any) => !categorized.has(p.id));
+    if (uncategorized.length > 0) {
+      groups.push({ categoryId: null, categoryName: 'Uncategorized', products: uncategorized });
+    }
+
+    return groups;
+  }, [tenantProducts, tenantCategories]);
+
+  // Track which SKUs are selected as classes (checkbox state)
+  const [selectedSkuIds, setSelectedSkuIds] = useState<Set<string>>(new Set());
+  const [savingClasses, setSavingClasses] = useState(false);
+
+  // Initialize selectedSkuIds from existing dataset classes when dataset changes
+  useEffect(() => {
+    if (classes.length > 0 && tenantProducts.length > 0) {
+      const existingNames = new Set(classes.map(c => c.name.toLowerCase()));
+      const matched = new Set<string>();
+      tenantProducts.forEach((p: any) => {
+        if (existingNames.has(p.name.toLowerCase())) matched.add(p.id);
+      });
+      setSelectedSkuIds(matched);
+    } else {
+      setSelectedSkuIds(new Set());
+    }
+  }, [classes, tenantProducts, selectedDatasetId]);
+
   // Combine dataset classes with products as annotation classes
   const annotationClasses = useMemo(() => {
-    const fromProducts = tenantProducts.map((p: any, idx: number) => ({
-      id: p.id,
-      dataset_id: selectedDatasetId || '',
-      name: p.name,
-      color: CLASS_COLORS[idx % CLASS_COLORS.length],
-      created_at: p.created_at,
-      _source: 'product' as const,
+    // Use saved classes as the source of truth for annotation
+    return classes.map((c, idx) => ({
+      ...c,
+      color: c.color || CLASS_COLORS[idx % CLASS_COLORS.length],
     }));
-    // Merge: products first, then custom classes not already covered
-    const productNames = new Set(fromProducts.map((p: any) => p.name.toLowerCase()));
-    const customClasses = classes.filter(c => !productNames.has(c.name.toLowerCase()));
-    return [...fromProducts, ...customClasses.map(c => ({ ...c, _source: 'custom' as const }))];
-  }, [tenantProducts, classes, selectedDatasetId]);
+  }, [classes]);
 
   // Dataset modal
   const [showDatasetModal, setShowDatasetModal] = useState(false);
   const [editingDataset, setEditingDataset] = useState<Dataset | null>(null);
-  const [datasetForm, setDatasetForm] = useState({ name: '', description: '', tenant_id: '' });
+  const [datasetForm, setDatasetForm] = useState({ name: '', description: '', tenant_id: '', admin_id: '' });
   const [deleteDatasetId, setDeleteDatasetId] = useState<string | null>(null);
 
   // Upload
@@ -220,7 +270,7 @@ export default function Training() {
   const [drawCurrent, setDrawCurrent] = useState<{ x: number; y: number } | null>(null);
   const imgRef = useRef<HTMLImageElement>(null);
 
-  // Class modal
+  // Class modal (kept for manual add)
   const [showClassModal, setShowClassModal] = useState(false);
   const [editingClass, setEditingClass] = useState<DatasetClass | null>(null);
   const [classForm, setClassForm] = useState({ name: '', color: CLASS_COLORS[0] });
@@ -250,8 +300,20 @@ export default function Training() {
 
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
 
+  // Filtered tenants based on selected admin in dataset form
+  const filteredTenantsForForm = useMemo(() => {
+    if (!datasetForm.admin_id) return [];
+    return tenants.filter((t: any) => t.admin_id === datasetForm.admin_id);
+  }, [tenants, datasetForm.admin_id]);
+
   // Filtered datasets
   const getTenantIdsForAdmin = (adminId: string) => tenants.filter((t: any) => t.admin_id === adminId).map((t: any) => t.id);
+
+  // Dynamic filter: tenants filtered by selected admin filter
+  const filteredTenantsForFilter = useMemo(() => {
+    if (filterAdmin === 'all') return tenants;
+    return tenants.filter((t: any) => t.admin_id === filterAdmin);
+  }, [tenants, filterAdmin]);
 
   const filteredDatasets = useMemo(() => {
     return datasets.filter(d => {
@@ -267,15 +329,27 @@ export default function Training() {
   const hasActiveFilters = searchQuery || filterTenant !== 'all' || filterAdmin !== 'all' || filterStatus !== 'all';
   const clearFilters = () => { setSearchQuery(''); setFilterTenant('all'); setFilterAdmin('all'); setFilterStatus('all'); };
 
+  // Reset tenant filter when admin filter changes
+  useEffect(() => {
+    if (filterAdmin !== 'all') {
+      const adminTenantIds = getTenantIdsForAdmin(filterAdmin);
+      if (filterTenant !== 'all' && !adminTenantIds.includes(filterTenant)) {
+        setFilterTenant('all');
+      }
+    }
+  }, [filterAdmin]);
+
   // ─── Dataset CRUD ──────────────────────────────────────
   const openNewDataset = () => {
     setEditingDataset(null);
-    setDatasetForm({ name: '', description: '', tenant_id: tenantId || (tenants.length > 0 ? tenants[0].id : '') });
+    setDatasetForm({ name: '', description: '', tenant_id: '', admin_id: '' });
     setShowDatasetModal(true);
   };
   const openEditDataset = (d: Dataset) => {
     setEditingDataset(d);
-    setDatasetForm({ name: d.name, description: d.description || '', tenant_id: d.tenant_id || '' });
+    // Find admin_id from tenant
+    const tenant = tenants.find((t: any) => t.id === d.tenant_id);
+    setDatasetForm({ name: d.name, description: d.description || '', tenant_id: d.tenant_id || '', admin_id: tenant?.admin_id || '' });
     setShowDatasetModal(true);
   };
   const handleDatasetSubmit = async (e: React.FormEvent) => {
@@ -301,6 +375,81 @@ export default function Training() {
     }
   };
 
+  // ─── Save selected SKUs as classes ─────────────────────
+  const saveSelectedClasses = async () => {
+    if (!selectedDatasetId) return;
+    setSavingClasses(true);
+    try {
+      // Get existing class names
+      const existingClassNames = new Set(classes.map(c => c.name.toLowerCase()));
+
+      // Get selected products
+      const selectedProducts = tenantProducts.filter((p: any) => selectedSkuIds.has(p.id));
+
+      // Add new classes that don't exist yet
+      let colorIdx = classes.length;
+      for (const product of selectedProducts) {
+        if (!existingClassNames.has(product.name.toLowerCase())) {
+          await createClass.mutateAsync({
+            dataset_id: selectedDatasetId,
+            name: product.name,
+            color: CLASS_COLORS[colorIdx % CLASS_COLORS.length],
+          });
+          colorIdx++;
+        }
+      }
+
+      // Delete classes that are no longer selected (only if they came from products)
+      const selectedNames = new Set(selectedProducts.map((p: any) => p.name.toLowerCase()));
+      for (const cls of classes) {
+        const isProductClass = tenantProducts.some((p: any) => p.name.toLowerCase() === cls.name.toLowerCase());
+        if (isProductClass && !selectedNames.has(cls.name.toLowerCase())) {
+          await deleteClass.mutateAsync(cls.id);
+        }
+      }
+
+      // Update dataset class_count
+      await updateDataset.mutateAsync({ id: selectedDatasetId, class_count: selectedSkuIds.size });
+
+      qc.invalidateQueries({ queryKey: ['dataset-classes', selectedDatasetId] });
+      toast({ title: 'Classes saved', description: `${selectedSkuIds.size} classes selected.` });
+    } catch (err: any) {
+      toast({ title: 'Error saving classes', description: err.message, variant: 'destructive' });
+    } finally {
+      setSavingClasses(false);
+    }
+  };
+
+  const toggleSkuSelection = (skuId: string) => {
+    setSelectedSkuIds(prev => {
+      const next = new Set(prev);
+      if (next.has(skuId)) next.delete(skuId);
+      else next.add(skuId);
+      return next;
+    });
+  };
+
+  const toggleCategorySelection = (products: any[]) => {
+    setSelectedSkuIds(prev => {
+      const next = new Set(prev);
+      const allSelected = products.every(p => next.has(p.id));
+      if (allSelected) {
+        products.forEach(p => next.delete(p.id));
+      } else {
+        products.forEach(p => next.add(p.id));
+      }
+      return next;
+    });
+  };
+
+  const selectAllSkus = () => {
+    setSelectedSkuIds(new Set(tenantProducts.map((p: any) => p.id)));
+  };
+
+  const deselectAllSkus = () => {
+    setSelectedSkuIds(new Set());
+  };
+
   // ─── Upload (Supabase storage) ─────────────────────────
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!selectedDatasetId || !e.target.files?.length) return;
@@ -313,29 +462,7 @@ export default function Training() {
 
     setUploading(true);
     try {
-      const uploaded: DatasetImage[] = [];
-      for (const file of validFiles) {
-        const path = `${selectedDatasetId}/${crypto.randomUUID()}-${file.name}`;
-        const { error: uploadError } = await supabase.storage
-          .from('dataset-images')
-          .upload(path, file);
-        if (uploadError) throw uploadError;
-
-        const { data: { publicUrl } } = supabase.storage
-          .from('dataset-images')
-          .getPublicUrl(path);
-
-        const { data, error } = await supabase
-          .from('dataset_images')
-          .insert({ dataset_id: selectedDatasetId, image_url: publicUrl, file_name: file.name })
-          .select()
-          .single();
-        if (error) throw error;
-        uploaded.push(data as DatasetImage);
-      }
-      await supabase.from('datasets').update({ image_count: (images.length || 0) + validFiles.length }).eq('id', selectedDatasetId);
-      qc.invalidateQueries({ queryKey: ['dataset-images', selectedDatasetId] });
-      qc.invalidateQueries({ queryKey: ['datasets'] });
+      await uploadImages.mutateAsync({ datasetId: selectedDatasetId, files: validFiles });
       toast({ title: 'Images uploaded', description: `${validFiles.length} image(s) uploaded successfully.` });
     } catch (err: any) {
       toast({ title: 'Upload failed', description: err.message, variant: 'destructive' });
@@ -360,7 +487,6 @@ export default function Training() {
       ? (currentIndex - 1 + images.length) % images.length
       : (currentIndex + 1) % images.length;
     const newImg = images[newIndex];
-    // Save current annotations before navigating
     if (annotatingImage) {
       updateAnnotations.mutateAsync({ imageId: annotatingImage.id, annotations: bboxes as any }).catch(() => {});
     }
@@ -442,7 +568,6 @@ export default function Training() {
   const autoAnnotate = async (img: DatasetImage) => {
     setAutoAnnotating(true);
     try {
-      // Send to auto-annotate endpoint
       const res = await supabase.functions.invoke('roboflow-detect', {
         body: { image_url: img.image_url },
       });
@@ -450,33 +575,29 @@ export default function Training() {
       
       const predictions = res.data?.predictions || res.data?.outputs?.flatMap((o: any) => o?.predictions || []) || [];
       
-      // Convert predictions to bboxes
       const newBboxes: BBox[] = predictions.map((pred: any) => {
-        // Try to match prediction class to existing dataset classes
-      const predLabel = pred.class || pred.label || 'unknown';
+        const predLabel = pred.class || pred.label || 'unknown';
         const matchedClass = annotationClasses.find(c => c.name.toLowerCase() === predLabel.toLowerCase());
         
-        // Calculate normalized bbox from prediction
         const imgWidth = pred.image?.width || 640;
         const imgHeight = pred.image?.height || 640;
-        const x = ((pred.x || 0) - (pred.width || 0) / 2) / imgWidth;
-        const y = ((pred.y || 0) - (pred.height || 0) / 2) / imgHeight;
-        const w = (pred.width || 0) / imgWidth;
-        const h = (pred.height || 0) / imgHeight;
+        const bx = ((pred.x || 0) - (pred.width || 0) / 2) / imgWidth;
+        const by = ((pred.y || 0) - (pred.height || 0) / 2) / imgHeight;
+        const bw = (pred.width || 0) / imgWidth;
+        const bh = (pred.height || 0) / imgHeight;
         
         return {
           id: crypto.randomUUID(),
           classId: matchedClass?.id || '',
           className: matchedClass?.name || predLabel,
           color: matchedClass?.color || '#3B82F6',
-          x: Math.max(0, x),
-          y: Math.max(0, y),
-          w: Math.min(1 - Math.max(0, x), w),
-          h: Math.min(1 - Math.max(0, y), h),
+          x: Math.max(0, bx),
+          y: Math.max(0, by),
+          w: Math.min(1 - Math.max(0, bx), bw),
+          h: Math.min(1 - Math.max(0, by), bh),
         };
       });
 
-      // Open annotator with the auto-detected annotations
       setAnnotatingImage(img);
       setBboxes(newBboxes);
       setActiveTab('annotate');
@@ -501,7 +622,7 @@ export default function Training() {
     setPreviewImageIndex(newIndex);
   };
 
-  // ─── Classes ───────────────────────────────────────────
+  // ─── Classes (manual add - kept for custom classes) ────
   const openNewClass = () => {
     setEditingClass(null);
     setClassForm({ name: '', color: CLASS_COLORS[classes.length % CLASS_COLORS.length] });
@@ -558,7 +679,6 @@ export default function Training() {
   const handleActivateModel = async (jobId: string) => {
     try {
       await supabase.from('training_jobs').update({ status: 'completed' }).eq('id', jobId);
-      // Suspend all other completed jobs for this dataset
       if (selectedDatasetId) {
         await supabase.from('training_jobs').update({ status: 'pending' }).eq('dataset_id', selectedDatasetId).neq('id', jobId).eq('status', 'completed');
       }
@@ -639,7 +759,7 @@ export default function Training() {
               className="pl-9 bg-secondary border-border"
             />
           </div>
-          <Select value={filterAdmin} onValueChange={setFilterAdmin}>
+          <Select value={filterAdmin} onValueChange={v => { setFilterAdmin(v); if (v !== 'all') setFilterTenant('all'); }}>
             <SelectTrigger className="w-[170px] bg-secondary border-border">
               <SelectValue placeholder="All Admins" />
             </SelectTrigger>
@@ -656,7 +776,7 @@ export default function Training() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Tenants</SelectItem>
-              {tenants.map((t: any) => (
+              {filteredTenantsForFilter.map((t: any) => (
                 <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
               ))}
             </SelectContent>
@@ -691,7 +811,6 @@ export default function Training() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        {/* Modern centered navbar — matching Management design */}
         <div className="flex justify-center">
           <TabsList className="inline-flex h-12 items-center gap-1 rounded-2xl bg-card/80 backdrop-blur-xl border border-border/50 p-1.5 shadow-lg shadow-primary/5">
             {TAB_CONFIG.map(tab => (
@@ -732,6 +851,7 @@ export default function Training() {
                   <TableRow className="bg-secondary/50">
                     <TableHead className="w-10"></TableHead>
                     <TableHead>Name</TableHead>
+                    <TableHead>Admin</TableHead>
                     <TableHead>Tenant</TableHead>
                     <TableHead>Description</TableHead>
                     <TableHead>Status</TableHead>
@@ -744,67 +864,74 @@ export default function Training() {
                 <TableBody>
                   {datasetsLoading ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-16">
+                      <TableCell colSpan={10} className="text-center py-16">
                         <Loader2 className="w-8 h-8 animate-spin text-primary mx-auto" />
                       </TableCell>
                     </TableRow>
                   ) : filteredDatasets.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={9} className="text-center py-16 text-muted-foreground">
+                      <TableCell colSpan={10} className="text-center py-16 text-muted-foreground">
                         <FolderOpen className="w-12 h-12 mx-auto mb-3 opacity-40" />
                         <p>No datasets yet. Create one to get started.</p>
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredDatasets.map(d => (
-                      <TableRow
-                        key={d.id}
-                        className={cn(
-                          "cursor-pointer transition-colors",
-                          selectedDatasetId === d.id && "bg-primary/5 border-l-2 border-l-primary"
-                        )}
-                        onClick={() => setSelectedDatasetId(d.id)}
-                      >
-                        <TableCell>
-                          <input
-                            type="radio"
-                            name="dataset"
-                            checked={selectedDatasetId === d.id}
-                            onChange={() => setSelectedDatasetId(d.id)}
-                            className="accent-primary"
-                          />
-                        </TableCell>
-                        <TableCell className="font-medium">{d.name}</TableCell>
-                        <TableCell>
-                          {d.tenant_id ? (
-                            <Badge variant="outline" className="text-xs">
-                              {tenants.find((t: any) => t.id === d.tenant_id)?.name || 'Unknown'}
+                    filteredDatasets.map(d => {
+                      const tenant = tenants.find((t: any) => t.id === d.tenant_id);
+                      const admin = tenant?.admin_id ? adminsForTraining.find((a: any) => a.id === tenant.admin_id) : null;
+                      return (
+                        <TableRow
+                          key={d.id}
+                          className={cn(
+                            "cursor-pointer transition-colors",
+                            selectedDatasetId === d.id && "bg-primary/5 border-l-2 border-l-primary"
+                          )}
+                          onClick={() => setSelectedDatasetId(d.id)}
+                        >
+                          <TableCell>
+                            <input
+                              type="radio"
+                              name="dataset"
+                              checked={selectedDatasetId === d.id}
+                              onChange={() => setSelectedDatasetId(d.id)}
+                              className="accent-primary"
+                            />
+                          </TableCell>
+                          <TableCell className="font-medium">{d.name}</TableCell>
+                          <TableCell>
+                            {admin ? (
+                              <Badge variant="outline" className="text-xs">{admin.full_name}</Badge>
+                            ) : '-'}
+                          </TableCell>
+                          <TableCell>
+                            {tenant ? (
+                              <Badge variant="outline" className="text-xs">{tenant.name}</Badge>
+                            ) : '-'}
+                          </TableCell>
+                          <TableCell className="max-w-[200px] truncate text-muted-foreground">
+                            {d.description || '-'}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant={d.status === 'ready' ? 'default' : 'secondary'} className="text-[10px]">
+                              {d.status}
                             </Badge>
-                          ) : '-'}
-                        </TableCell>
-                        <TableCell className="max-w-[200px] truncate text-muted-foreground">
-                          {d.description || '-'}
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={d.status === 'ready' ? 'default' : 'secondary'} className="text-[10px]">
-                            {d.status}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{d.image_count}</TableCell>
-                        <TableCell>{d.class_count}</TableCell>
-                        <TableCell>{format(new Date(d.created_at), 'PP')}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button size="icon" variant="ghost" className="w-7 h-7" onClick={(e) => { e.stopPropagation(); openEditDataset(d); }}>
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteDatasetId(d.id); }}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                          </TableCell>
+                          <TableCell>{d.image_count}</TableCell>
+                          <TableCell>{d.class_count}</TableCell>
+                          <TableCell>{format(new Date(d.created_at), 'PP')}</TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button size="icon" variant="ghost" className="w-7 h-7" onClick={(e) => { e.stopPropagation(); openEditDataset(d); }}>
+                                <Pencil className="w-3.5 h-3.5" />
+                              </Button>
+                              <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteDatasetId(d.id); }}>
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
                   )}
                 </TableBody>
               </Table>
@@ -816,62 +943,105 @@ export default function Training() {
         <TabsContent value="classes">
           <div className="flex items-center justify-between mb-4 flex-wrap gap-3">
             <h3 className="font-semibold text-foreground">
-              SKU Classes — {selectedDataset?.name} ({classes.length})
+              SKU Classes — {selectedDataset?.name}
+              <span className="text-muted-foreground ml-2">({selectedSkuIds.size} selected, {classes.length} saved)</span>
             </h3>
             <div className="flex gap-2">
-              <Button variant="outline" disabled>
-                <Brain className="w-4 h-4 mr-2" /> Auto Detect Classes
+              <Button variant="outline" size="sm" onClick={selectAllSkus} disabled={tenantProducts.length === 0}>
+                Select All
               </Button>
-              <Button onClick={openNewClass} size="sm">
-                <Plus className="w-4 h-4 mr-2" /> Add Class
+              <Button variant="outline" size="sm" onClick={deselectAllSkus} disabled={selectedSkuIds.size === 0}>
+                Deselect All
+              </Button>
+              <Button onClick={saveSelectedClasses} size="sm" disabled={savingClasses || tenantProducts.length === 0}>
+                {savingClasses ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+                Save Classes
               </Button>
             </div>
           </div>
 
-          <div className="rounded-xl bg-card border border-border overflow-hidden">
-            <ScrollArea className="h-[500px]">
-              <Table>
-                <TableHeader>
-                  <TableRow className="bg-secondary/50">
-                    <TableHead className="w-12">Color</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Created</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {classes.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={4} className="text-center py-16 text-muted-foreground">
-                        <Tag className="w-12 h-12 mx-auto mb-3 opacity-40" />
-                        <p>No classes defined. Add classes to annotate images.</p>
-                      </TableCell>
-                    </TableRow>
-                  ) : (
-                    classes.map(c => (
-                      <TableRow key={c.id}>
-                        <TableCell>
-                          <span className="w-5 h-5 rounded inline-block" style={{ backgroundColor: c.color }} />
-                        </TableCell>
-                        <TableCell className="font-medium">{c.name}</TableCell>
-                        <TableCell>{format(new Date(c.created_at), 'PP')}</TableCell>
-                        <TableCell className="text-right">
-                          <div className="flex items-center justify-end gap-1">
-                            <Button size="icon" variant="ghost" className="w-7 h-7" onClick={() => openEditClass(c)}>
-                              <Pencil className="w-3.5 h-3.5" />
-                            </Button>
-                            <Button size="icon" variant="ghost" className="w-7 h-7 text-destructive" onClick={() => setDeleteClassId(c.id)}>
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
+          {tenantProducts.length === 0 ? (
+            <div className="text-center py-16 text-muted-foreground rounded-xl bg-card border border-border">
+              <Tag className="w-12 h-12 mx-auto mb-3 opacity-40" />
+              <p>No products found for this tenant. Add products in Management first.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {productsByCategory.map(group => {
+                const allSelected = group.products.every(p => selectedSkuIds.has(p.id));
+                const someSelected = group.products.some(p => selectedSkuIds.has(p.id));
+                return (
+                  <div key={group.categoryId || 'uncategorized'} className="rounded-xl bg-card border border-border overflow-hidden">
+                    <div
+                      className="flex items-center gap-3 px-4 py-3 bg-secondary/50 border-b border-border cursor-pointer hover:bg-secondary/80 transition-colors"
+                      onClick={() => toggleCategorySelection(group.products)}
+                    >
+                      <Checkbox
+                        checked={allSelected}
+                        className={someSelected && !allSelected ? 'opacity-50' : ''}
+                        onCheckedChange={() => toggleCategorySelection(group.products)}
+                      />
+                      <h4 className="text-sm font-semibold text-foreground">{group.categoryName}</h4>
+                      <Badge variant="secondary" className="text-[10px] ml-auto">
+                        {group.products.filter(p => selectedSkuIds.has(p.id)).length}/{group.products.length}
+                      </Badge>
+                    </div>
+                    <div className="divide-y divide-border">
+                      {group.products.map((product: any, idx: number) => {
+                        const colorIdx = tenantProducts.indexOf(product);
+                        const color = CLASS_COLORS[colorIdx % CLASS_COLORS.length];
+                        const isSelected = selectedSkuIds.has(product.id);
+                        return (
+                          <div
+                            key={product.id}
+                            className={cn(
+                              "flex items-center gap-3 px-4 py-2.5 cursor-pointer transition-colors",
+                              isSelected ? "bg-primary/5" : "hover:bg-secondary/30"
+                            )}
+                            onClick={() => toggleSkuSelection(product.id)}
+                          >
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleSkuSelection(product.id)}
+                            />
+                            <span
+                              className="w-4 h-4 rounded-sm shrink-0 border border-border"
+                              style={{ backgroundColor: color }}
+                            />
+                            <span className="text-sm text-foreground font-medium flex-1">{product.name}</span>
+                            {product.barcode && (
+                              <span className="text-[10px] text-muted-foreground">{product.barcode}</span>
+                            )}
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                );
+              })}
+
+              {/* Saved classes section */}
+              {classes.length > 0 && (
+                <div className="rounded-xl bg-card border border-border overflow-hidden">
+                  <div className="px-4 py-3 bg-secondary/50 border-b border-border">
+                    <h4 className="text-sm font-semibold text-foreground">Saved Classes ({classes.length})</h4>
+                  </div>
+                  <div className="divide-y divide-border">
+                    {classes.map(c => (
+                      <div key={c.id} className="flex items-center gap-3 px-4 py-2.5">
+                        <span className="w-4 h-4 rounded-sm shrink-0" style={{ backgroundColor: c.color }} />
+                        <span className="text-sm text-foreground font-medium flex-1">{c.name}</span>
+                        <span className="text-[10px] text-muted-foreground">{format(new Date(c.created_at), 'PP')}</span>
+                        <Button size="icon" variant="ghost" className="w-6 h-6 text-destructive" onClick={() => setDeleteClassId(c.id)}>
+                          <Trash2 className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
         </TabsContent>
 
         {/* ─── Images Tab ───────────────────────────────── */}
@@ -1033,9 +1203,9 @@ export default function Training() {
 
               <div className="space-y-4">
                 <div className="rounded-xl bg-card border border-border p-4">
-                  <h4 className="text-sm font-semibold text-foreground mb-2">Active Class (Products)</h4>
+                  <h4 className="text-sm font-semibold text-foreground mb-2">Active Class</h4>
                   {annotationClasses.length === 0 ? (
-                    <p className="text-xs text-muted-foreground">No products found for this tenant. Add products in Management first.</p>
+                    <p className="text-xs text-muted-foreground">No classes saved. Go to the Classes tab to select and save classes first.</p>
                   ) : (
                     <div className="space-y-1">
                       {annotationClasses.map(c => (
@@ -1049,9 +1219,6 @@ export default function Training() {
                         >
                           <span className="w-3 h-3 rounded-sm shrink-0" style={{ backgroundColor: c.color }} />
                           {c.name}
-                          {'_source' in c && c._source === 'product' && (
-                            <Badge variant="outline" className="text-[8px] ml-auto px-1">SKU</Badge>
-                          )}
                         </button>
                       ))}
                     </div>
@@ -1331,15 +1498,30 @@ export default function Training() {
             <div><Label>Name</Label><Input value={datasetForm.name} onChange={e => setDatasetForm(p => ({ ...p, name: e.target.value }))} required /></div>
             <div><Label>Description</Label><Textarea value={datasetForm.description} onChange={e => setDatasetForm(p => ({ ...p, description: e.target.value }))} rows={3} /></div>
             {!editingDataset && (
-              <div>
-                <Label>Tenant</Label>
-                <Select value={datasetForm.tenant_id} onValueChange={v => setDatasetForm(p => ({ ...p, tenant_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Select tenant..." /></SelectTrigger>
-                  <SelectContent>
-                    {tenants.map((t: any) => (<SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>))}
-                  </SelectContent>
-                </Select>
-              </div>
+              <>
+                <div>
+                  <Label>Admin</Label>
+                  <Select value={datasetForm.admin_id} onValueChange={v => setDatasetForm(p => ({ ...p, admin_id: v, tenant_id: '' }))}>
+                    <SelectTrigger><SelectValue placeholder="Select admin..." /></SelectTrigger>
+                    <SelectContent>
+                      {adminsForTraining.map((a: any) => (<SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label>Tenant</Label>
+                  <Select
+                    value={datasetForm.tenant_id}
+                    onValueChange={v => setDatasetForm(p => ({ ...p, tenant_id: v }))}
+                    disabled={!datasetForm.admin_id}
+                  >
+                    <SelectTrigger><SelectValue placeholder={datasetForm.admin_id ? "Select tenant..." : "Select admin first..."} /></SelectTrigger>
+                    <SelectContent>
+                      {filteredTenantsForForm.map((t: any) => (<SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </>
             )}
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" onClick={() => setShowDatasetModal(false)}>Cancel</Button>
