@@ -78,7 +78,7 @@ export default function Planogram() {
   const { detectWithRoboflow, isDetecting } = useRoboflowDetection();
   const [complianceImageUrl, setComplianceImageUrl] = useState('');
 
-  const [activeTab, setActiveTab] = useState('tenants');
+  const [activeTab, setActiveTab] = useState('admins');
 
   // Search states for each tab
   const [tenantSearch, setTenantSearch] = useState('');
