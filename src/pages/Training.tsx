@@ -1424,7 +1424,9 @@ export default function Training() {
                         const scopeImgs = annotationScopeImages;
                         const currentIdx = scopeImgs.findIndex(img => img.id === annotatingImage.id);
                         const annotatedInScope = scopeImgs.filter(i => i.is_annotated).length;
-                        const setName = imageSets.find(s => s.id === annotatingSetId)?.name;
+                        const setName = annotatingSetId === '__selected__'
+                          ? `${selectedSetIds.size} Selected Sets`
+                          : imageSets.find(s => s.id === annotatingSetId)?.name;
                         return (
                           <span className="text-[10px] text-muted-foreground">
                             {setName} — Image {currentIdx + 1} of {scopeImgs.length} • {annotatedInScope}/{scopeImgs.length} annotated
