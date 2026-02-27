@@ -124,6 +124,11 @@ export default function Data() {
     return (matchesSearch !== false) && matchesTenant;
   }), [scans, searchQuery, effectiveTenantFilter]);
 
+  const filteredCompliance = useMemo(() => complianceScans.filter((c: any) => {
+    const matchesTenant = effectiveTenantFilter === 'all' || c.template?.tenant_id === effectiveTenantFilter;
+    return matchesTenant;
+  }), [complianceScans, effectiveTenantFilter]);
+
   const filteredAdmins = useMemo(() => admins.filter(a =>
     a.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || a.email.toLowerCase().includes(searchQuery.toLowerCase())
   ), [admins, searchQuery]);
@@ -137,6 +142,7 @@ export default function Data() {
       case 'products': return filteredProducts.length;
       case 'shelves': return filteredShelves.length;
       case 'scans': return filteredScans.length;
+      case 'compliance': return filteredCompliance.length;
     }
   };
 
