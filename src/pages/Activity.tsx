@@ -405,7 +405,7 @@ export default function Activity() {
                 </SelectContent>
               </Select>
             </div>
-            <ScrollArea className="max-h-[600px]">
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-secondary/50">
@@ -436,7 +436,7 @@ export default function Activity() {
                   ))}
                 </TableBody>
               </Table>
-            </ScrollArea>
+            </div>
           </div>
         </TabsContent>
 
