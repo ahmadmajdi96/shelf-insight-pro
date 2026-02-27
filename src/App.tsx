@@ -35,21 +35,24 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             
-            <Route path="/" element={<ProtectedRoute requiredRoles={['admin']}><Dashboard /></ProtectedRoute>} />
-            <Route path="/tenants" element={<ProtectedRoute requiredRoles={['admin']}><Planogram /></ProtectedRoute>} />
-            <Route path="/categories" element={<ProtectedRoute requiredRoles={['admin']}><Planogram /></ProtectedRoute>} />
-            <Route path="/products" element={<ProtectedRoute requiredRoles={['admin']}><Planogram /></ProtectedRoute>} />
-            <Route path="/management" element={<ProtectedRoute requiredRoles={['admin']}><Planogram /></ProtectedRoute>} />
-            <Route path="/training" element={<ProtectedRoute requiredRoles={['admin']}><Training /></ProtectedRoute>} />
-            <Route path="/users" element={<ProtectedRoute requiredRoles={['admin']}><Users /></ProtectedRoute>} />
-            <Route path="/access-control" element={<ProtectedRoute requiredRoles={['admin']}><AccessControl /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute requiredRoles={['admin']}><Settings /></ProtectedRoute>} />
-            <Route path="/shelves/:id" element={<ProtectedRoute requiredRoles={['admin']}><ShelfDetail /></ProtectedRoute>} />
-            <Route path="/activity" element={<ProtectedRoute requiredRoles={['admin']}><Activity /></ProtectedRoute>} />
-            <Route path="/data" element={<ProtectedRoute requiredRoles={['admin']}><Data /></ProtectedRoute>} />
-            <Route path="/api-docs" element={<ProtectedRoute requiredRoles={['admin']}><ApiDocs /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute requiredRoles={['admin']}><Profile /></ProtectedRoute>} />
-            <Route path="/notifications" element={<ProtectedRoute requiredRoles={['admin']}><Notifications /></ProtectedRoute>} />
+            {/* Shared routes - accessible by owner and admin */}
+            <Route path="/" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Dashboard /></ProtectedRoute>} />
+            <Route path="/tenants" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Planogram /></ProtectedRoute>} />
+            <Route path="/categories" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Planogram /></ProtectedRoute>} />
+            <Route path="/products" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Planogram /></ProtectedRoute>} />
+            <Route path="/management" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Planogram /></ProtectedRoute>} />
+            <Route path="/users" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Users /></ProtectedRoute>} />
+            <Route path="/access-control" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><AccessControl /></ProtectedRoute>} />
+            <Route path="/shelves/:id" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><ShelfDetail /></ProtectedRoute>} />
+            <Route path="/activity" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Activity /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Profile /></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Notifications /></ProtectedRoute>} />
+            
+            {/* Owner-only routes */}
+            <Route path="/training" element={<ProtectedRoute requiredRoles={['owner']}><Training /></ProtectedRoute>} />
+            <Route path="/data" element={<ProtectedRoute requiredRoles={['owner']}><Data /></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute requiredRoles={['owner']}><Settings /></ProtectedRoute>} />
+            <Route path="/api-docs" element={<ProtectedRoute requiredRoles={['owner']}><ApiDocs /></ProtectedRoute>} />
             
             <Route path="*" element={<NotFound />} />
           </Routes>

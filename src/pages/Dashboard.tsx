@@ -9,10 +9,11 @@ import { useTenants } from '@/hooks/useTenants';
 import { useAdmins } from '@/hooks/useAdmins';
 import { cn } from '@/lib/utils';
 import { Badge } from '@/components/ui/badge';
+import { useMemo } from 'react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { profile } = useAuth();
+  const { profile, isOwner, adminId } = useAuth();
   const { stores, isLoading: storesLoading } = useStores();
   const { quota, monthlyPercentage, isLoading: quotaLoading } = useQuota();
   const { tenants } = useTenants();
@@ -20,14 +21,32 @@ export default function Dashboard() {
 
   const isLoading = storesLoading || quotaLoading || adminsLoading;
 
-  const activeTenants = tenants.filter(t => t.is_active).length;
+  // For admin role users, filter data to their admin_id
+  const filteredTenants = useMemo(() => {
+    if (isOwner) return tenants;
+    if (adminId) return tenants.filter((t: any) => t.admin_id === adminId);
+    return tenants;
+  }, [tenants, isOwner, adminId]);
+
+  const filteredStores = useMemo(() => {
+    if (isOwner) return stores;
+    const tenantIds = new Set(filteredTenants.map(t => t.id));
+    return stores.filter(s => tenantIds.has(s.tenant_id));
+  }, [stores, isOwner, filteredTenants]);
+
+  const activeTenants = filteredTenants.filter(t => t.is_active).length;
   const activeAdmins = admins.filter(a => a.is_active).length;
 
-  const stats = [
-    { label: 'Admins', value: admins.length, sub: `${activeAdmins} active`, icon: Shield, href: '/management?tab=admins' },
-    { label: 'Tenants', value: tenants.length, sub: `${activeTenants} active`, icon: Building2, href: '/management?tab=tenants' },
-    { label: 'Stores', value: stores.length, sub: 'Monitored', icon: Store, href: '/management?tab=stores' },
-  ];
+  const stats = isOwner
+    ? [
+        { label: 'Admins', value: admins.length, sub: `${activeAdmins} active`, icon: Shield, href: '/management?tab=admins' },
+        { label: 'Tenants', value: filteredTenants.length, sub: `${activeTenants} active`, icon: Building2, href: '/management?tab=tenants' },
+        { label: 'Stores', value: filteredStores.length, sub: 'Monitored', icon: Store, href: '/management?tab=stores' },
+      ]
+    : [
+        { label: 'Tenants', value: filteredTenants.length, sub: `${activeTenants} active`, icon: Building2, href: '/management?tab=tenants' },
+        { label: 'Stores', value: filteredStores.length, sub: 'Monitored', icon: Store, href: '/management?tab=stores' },
+      ];
 
   return (
     <MainLayout 
@@ -41,7 +60,7 @@ export default function Dashboard() {
       ) : (
         <div className="space-y-6">
           {/* Stats Grid */}
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+          <div className={cn("grid gap-4", isOwner ? "grid-cols-1 sm:grid-cols-3" : "grid-cols-1 sm:grid-cols-2")}>
             {stats.map((stat, i) => (
               <button
                 key={stat.label}
@@ -62,7 +81,7 @@ export default function Dashboard() {
             ))}
           </div>
 
-          {/* Quota & Training Row */}
+          {/* Quota & Admin/Tenant Summary Row */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {/* Monthly Quota */}
             <div className="page-section">
@@ -92,40 +111,72 @@ export default function Dashboard() {
               </div>
             </div>
 
-            {/* Admin Summary */}
-            <div className="page-section">
-              <div className="flex items-center justify-between mb-4">
-                <h3 className="font-semibold text-foreground">Admin Summary</h3>
-                <Shield className="w-5 h-5 text-primary" />
+            {/* Admin Summary - only for owner */}
+            {isOwner ? (
+              <div className="page-section">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-foreground">Admin Summary</h3>
+                  <Shield className="w-5 h-5 text-primary" />
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-success" />
+                      <span className="text-sm text-muted-foreground">Active Admins</span>
+                    </div>
+                    <span className="text-sm font-semibold text-foreground">{activeAdmins}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-muted-foreground/30" />
+                      <span className="text-sm text-muted-foreground">Inactive Admins</span>
+                    </div>
+                    <span className="text-sm font-semibold text-foreground">{admins.length - activeAdmins}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-primary" />
+                      <span className="text-sm text-muted-foreground">Total Monthly Limit</span>
+                    </div>
+                    <span className="text-sm font-semibold text-foreground">{admins.reduce((a, ad) => a + ad.monthly_limit, 0).toLocaleString()}</span>
+                  </div>
+                </div>
               </div>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center py-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-success" />
-                    <span className="text-sm text-muted-foreground">Active Admins</span>
-                  </div>
-                  <span className="text-sm font-semibold text-foreground">{activeAdmins}</span>
+            ) : (
+              <div className="page-section">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-foreground">Tenant Summary</h3>
+                  <Building2 className="w-5 h-5 text-primary" />
                 </div>
-                <div className="flex justify-between items-center py-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-muted-foreground/30" />
-                    <span className="text-sm text-muted-foreground">Inactive Admins</span>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-success" />
+                      <span className="text-sm text-muted-foreground">Active Tenants</span>
+                    </div>
+                    <span className="text-sm font-semibold text-foreground">{activeTenants}</span>
                   </div>
-                  <span className="text-sm font-semibold text-foreground">{admins.length - activeAdmins}</span>
-                </div>
-                <div className="flex justify-between items-center py-1.5">
-                  <div className="flex items-center gap-2">
-                    <span className="w-2 h-2 rounded-full bg-primary" />
-                    <span className="text-sm text-muted-foreground">Total Monthly Limit</span>
+                  <div className="flex justify-between items-center py-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-muted-foreground/30" />
+                      <span className="text-sm text-muted-foreground">Suspended Tenants</span>
+                    </div>
+                    <span className="text-sm font-semibold text-foreground">{filteredTenants.length - activeTenants}</span>
                   </div>
-                  <span className="text-sm font-semibold text-foreground">{admins.reduce((a, ad) => a + ad.monthly_limit, 0).toLocaleString()}</span>
+                  <div className="flex justify-between items-center py-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-primary" />
+                      <span className="text-sm text-muted-foreground">Total Stores</span>
+                    </div>
+                    <span className="text-sm font-semibold text-foreground">{filteredStores.length}</span>
+                  </div>
                 </div>
               </div>
-            </div>
+            )}
           </div>
 
-          {/* Admins Overview */}
-          {admins.length > 0 && (
+          {/* Admins Overview - owner only */}
+          {isOwner && admins.length > 0 && (
             <div className="page-section">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-foreground">Admins Overview</h3>
@@ -166,7 +217,7 @@ export default function Dashboard() {
           )}
 
           {/* Tenant Overview */}
-          {tenants.length > 0 && (
+          {filteredTenants.length > 0 && (
             <div className="page-section">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-foreground">Tenant Overview</h3>
@@ -176,7 +227,7 @@ export default function Dashboard() {
                 </Button>
               </div>
               <div className="space-y-3">
-                {tenants.slice(0, 5).map((t, i) => (
+                {filteredTenants.slice(0, 5).map((t, i) => (
                   <div 
                     key={t.id} 
                     className="flex items-center justify-between py-2.5 border-b border-border last:border-0 animate-fade-in"
@@ -188,7 +239,7 @@ export default function Dashboard() {
                       </div>
                       <div>
                         <p className="text-sm font-medium text-foreground">{t.name}</p>
-                        <p className="text-xs text-muted-foreground">{t.skuCount} SKUs · {stores.filter(s => s.tenant_id === t.id).length} stores</p>
+                        <p className="text-xs text-muted-foreground">{t.skuCount} SKUs · {filteredStores.filter(s => s.tenant_id === t.id).length} stores</p>
                       </div>
                     </div>
                     <div className="text-right">

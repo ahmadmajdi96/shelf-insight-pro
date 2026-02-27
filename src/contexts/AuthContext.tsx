@@ -3,12 +3,13 @@ import { api, auth as apiAuth, onAuthChange, getToken, getStoredUser } from '@/l
 import { rest, rpc } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 
-export type AppRole = 'admin' | 'tenant_admin' | 'tenant_user';
+export type AppRole = 'owner' | 'admin' | 'tenant_admin' | 'tenant_user';
 
 interface UserProfile {
   id: string;
   userId: string;
   tenantId: string | null;
+  adminId: string | null;
   fullName: string | null;
   avatarUrl: string | null;
 }
@@ -25,7 +26,9 @@ interface AuthContextType {
   profile: UserProfile | null;
   role: AppRole | null;
   tenantId: string | null;
+  adminId: string | null;
   isLoading: boolean;
+  isOwner: boolean;
   isAdmin: boolean;
   isTenantAdmin: boolean;
   signUp: (email: string, password: string, fullName: string, username?: string) => Promise<{ error: Error | null }>;
@@ -42,6 +45,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [role, setRole] = useState<AppRole | null>(null);
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [adminId, setAdminId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const { toast } = useToast();
 
@@ -58,10 +62,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           id: profileData.id,
           userId: profileData.user_id,
           tenantId: profileData.tenant_id,
+          adminId: profileData.admin_id || null,
           fullName: profileData.full_name,
           avatarUrl: profileData.avatar_url,
         });
         setTenantId(profileData.tenant_id);
+        setAdminId(profileData.admin_id || null);
       }
 
       // Fetch user role
@@ -86,7 +92,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Listen for auth changes
     const unsubscribe = onAuthChange((event, sess) => {
       if (event === 'SIGNED_IN' && sess?.user) {
         setSession(sess);
@@ -98,11 +103,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setProfile(null);
         setRole(null);
         setTenantId(null);
+        setAdminId(null);
       }
       setIsLoading(false);
     });
 
-    // Check existing session
     const existing = apiAuth.getSession();
     if (existing?.user) {
       setSession(existing as any);
@@ -148,11 +153,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setProfile(null);
     setRole(null);
     setTenantId(null);
+    setAdminId(null);
     toast({ title: 'Signed out', description: 'You have been signed out successfully.' });
   };
 
-  const isAdmin = role === 'admin';
-  const isTenantAdmin = role === 'tenant_admin' || role === 'admin';
+  const isOwner = role === 'owner';
+  const isAdmin = role === 'admin' || role === 'owner';
+  const isTenantAdmin = role === 'tenant_admin' || role === 'admin' || role === 'owner';
 
   return (
     <AuthContext.Provider
@@ -162,7 +169,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         profile,
         role,
         tenantId,
+        adminId,
         isLoading,
+        isOwner,
         isAdmin,
         isTenantAdmin,
         signUp,
@@ -182,7 +191,9 @@ const defaultAuthContext: AuthContextType = {
   profile: null,
   role: null,
   tenantId: null,
+  adminId: null,
   isLoading: true,
+  isOwner: false,
   isAdmin: false,
   isTenantAdmin: false,
   signUp: async () => ({ error: new Error('AuthProvider not mounted') }),

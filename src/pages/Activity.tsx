@@ -125,6 +125,7 @@ export default function Activity() {
 
   // Export PDF (basic print)
   const exportPDF = () => {
+    document.title = `ShelfVision Activity Report - ${new Date().toLocaleDateString()}`;
     window.print();
   };
 
@@ -359,7 +360,7 @@ export default function Activity() {
                 </SelectContent>
               </Select>
             </div>
-            <ScrollArea className="max-h-[400px]">
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-secondary/50">
@@ -386,7 +387,7 @@ export default function Activity() {
                   ))}
                 </TableBody>
               </Table>
-            </ScrollArea>
+            </div>
           </div>
         </TabsContent>
 
@@ -404,7 +405,7 @@ export default function Activity() {
                 </SelectContent>
               </Select>
             </div>
-            <ScrollArea className="max-h-[600px]">
+            <div className="overflow-x-auto">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-secondary/50">
@@ -435,7 +436,7 @@ export default function Activity() {
                   ))}
                 </TableBody>
               </Table>
-            </ScrollArea>
+            </div>
           </div>
         </TabsContent>
 
@@ -484,7 +485,7 @@ function ScanHistoryTable({ viewLimit, setViewLimit, selectedTenantId }: { viewL
           </SelectContent>
         </Select>
       </div>
-      <ScrollArea className="max-h-[600px]">
+      <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-secondary/50">
@@ -515,7 +516,7 @@ function ScanHistoryTable({ viewLimit, setViewLimit, selectedTenantId }: { viewL
             ))}
           </TableBody>
         </Table>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
@@ -558,7 +559,7 @@ function VersionHistoryTable({ templates, viewLimit, setViewLimit }: { templates
           </Select>
         </div>
       </div>
-      <ScrollArea className="max-h-[600px]">
+      <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-secondary/50">
@@ -581,7 +582,7 @@ function VersionHistoryTable({ templates, viewLimit, setViewLimit }: { templates
             ))}
           </TableBody>
         </Table>
-      </ScrollArea>
+      </div>
     </div>
   );
 }

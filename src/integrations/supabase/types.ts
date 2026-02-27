@@ -666,6 +666,7 @@ export type Database = {
       }
       profiles: {
         Row: {
+          admin_id: string | null
           avatar_url: string | null
           created_at: string
           full_name: string | null
@@ -677,6 +678,7 @@ export type Database = {
           username: string | null
         }
         Insert: {
+          admin_id?: string | null
           avatar_url?: string | null
           created_at?: string
           full_name?: string | null
@@ -688,6 +690,7 @@ export type Database = {
           username?: string | null
         }
         Update: {
+          admin_id?: string | null
           avatar_url?: string | null
           created_at?: string
           full_name?: string | null
@@ -699,6 +702,13 @@ export type Database = {
           username?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "profiles_admin_id_fkey"
+            columns: ["admin_id"]
+            isOneToOne: false
+            referencedRelation: "admins"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "profiles_tenant_id_fkey"
             columns: ["tenant_id"]
@@ -1231,7 +1241,7 @@ export type Database = {
       }
     }
     Enums: {
-      app_role: "admin" | "tenant_admin" | "tenant_user"
+      app_role: "admin" | "tenant_admin" | "tenant_user" | "owner"
       training_status: "pending" | "training" | "completed" | "failed"
     }
     CompositeTypes: {
@@ -1360,7 +1370,7 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
-      app_role: ["admin", "tenant_admin", "tenant_user"],
+      app_role: ["admin", "tenant_admin", "tenant_user", "owner"],
       training_status: ["pending", "training", "completed", "failed"],
     },
   },

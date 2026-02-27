@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, 
@@ -24,17 +24,17 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/hooks/useNotifications';
 
-const navItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/' },
-  { icon: Grid3X3, label: 'Management', path: '/management' },
-  { icon: Brain, label: 'Training', path: '/training' },
-  { icon: Activity, label: 'Activity', path: '/activity' },
-  { icon: Database, label: 'Data', path: '/data' },
-  { icon: Users, label: 'Users', path: '/users' },
-  { icon: KeyRound, label: 'Access Control', path: '/access-control' },
-  { icon: Bell, label: 'Notifications', path: '/notifications' },
-  { icon: Settings, label: 'Settings', path: '/settings' },
-  { icon: FileCode, label: 'API Docs', path: '/api-docs' },
+const allNavItems = [
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/', ownerOnly: false },
+  { icon: Grid3X3, label: 'Management', path: '/management', ownerOnly: false },
+  { icon: Brain, label: 'Training', path: '/training', ownerOnly: true },
+  { icon: Activity, label: 'Activity', path: '/activity', ownerOnly: false },
+  { icon: Database, label: 'Data', path: '/data', ownerOnly: true },
+  { icon: Users, label: 'Users', path: '/users', ownerOnly: false },
+  { icon: KeyRound, label: 'Access Control', path: '/access-control', ownerOnly: false },
+  { icon: Bell, label: 'Notifications', path: '/notifications', ownerOnly: false },
+  { icon: Settings, label: 'Settings', path: '/settings', ownerOnly: true },
+  { icon: FileCode, label: 'API Docs', path: '/api-docs', ownerOnly: true },
 ];
 
 export function Sidebar() {
@@ -43,8 +43,13 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { signOut } = useAuth();
+  const { signOut, isOwner } = useAuth();
   const { unreadCount } = useNotifications();
+
+  const navItems = useMemo(() => {
+    if (isOwner) return allNavItems;
+    return allNavItems.filter(item => !item.ownerOnly);
+  }, [isOwner]);
 
   const handleLogout = async () => {
     await signOut();
@@ -63,7 +68,7 @@ export function Sidebar() {
     <Button
       variant="ghost"
       size="icon"
-      className="fixed top-3 left-3 z-50 md:hidden bg-card border border-border shadow-lg"
+      className="fixed top-3 left-3 z-50 md:hidden bg-card border border-border shadow-lg print:hidden"
       onClick={() => setMobileOpen(!mobileOpen)}
     >
       {mobileOpen ? <X className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
@@ -183,7 +188,7 @@ export function Sidebar() {
       {/* Mobile sidebar */}
       <aside 
         className={cn(
-          "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-transform duration-300 flex flex-col md:hidden w-64",
+          "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-transform duration-300 flex flex-col md:hidden w-64 print:hidden",
           mobileOpen ? "translate-x-0" : "-translate-x-full"
         )}
       >
@@ -193,7 +198,7 @@ export function Sidebar() {
       {/* Desktop sidebar */}
       <aside 
         className={cn(
-          "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300 flex-col hidden md:flex",
+          "fixed left-0 top-0 z-40 h-screen bg-sidebar border-r border-sidebar-border transition-all duration-300 flex-col hidden md:flex print:hidden",
           collapsed ? "w-[60px]" : "w-60"
         )}
       >

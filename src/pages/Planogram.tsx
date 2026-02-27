@@ -63,7 +63,7 @@ const statusConfig = {
 export default function Planogram() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAdmin, tenantId } = useAuth();
+  const { isAdmin, isOwner, tenantId, adminId } = useAuth();
   const { stores, createStore, updateStore, deleteStore } = useStores();
   const { tenants, isLoading: tenantsLoading, createTenant, updateTenant, suspendTenant, deleteTenant } = useTenants();
   const { products, isLoading: productsLoading, deleteProduct, updateProduct } = useProducts();
@@ -78,13 +78,19 @@ export default function Planogram() {
 
   // Support ?tab= query param
   const tabFromUrl = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(tabFromUrl || 'admins');
+  const defaultTab = isOwner ? 'admins' : 'tenants';
+  const [activeTab, setActiveTab] = useState(tabFromUrl || defaultTab);
 
   useEffect(() => {
-    if (tabFromUrl && ['admins', 'tenants', 'stores', 'planograms', 'categories', 'products'].includes(tabFromUrl)) {
+    const validTabs = isOwner 
+      ? ['admins', 'tenants', 'stores', 'planograms', 'categories', 'products']
+      : ['tenants', 'stores', 'planograms', 'categories', 'products'];
+    if (tabFromUrl && validTabs.includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
+    } else if (tabFromUrl === 'admins' && !isOwner) {
+      setActiveTab('tenants');
     }
-  }, [tabFromUrl]);
+  }, [tabFromUrl, isOwner]);
 
   // Search states for each tab
   const [tenantSearch, setTenantSearch] = useState('');
@@ -178,15 +184,43 @@ export default function Planogram() {
   // Helper: get tenant IDs for an admin
   const getTenantIdsForAdmin = (adminId: string) => tenants.filter((t: any) => t.admin_id === adminId).map(t => t.id);
 
-  // ---- Tenant logic ----
+  // For admin role users, filter data to their admin_id
+  const scopedTenants = useMemo(() => {
+    if (isOwner) return tenants;
+    if (adminId) return tenants.filter((t: any) => t.admin_id === adminId);
+    return tenants;
+  }, [tenants, isOwner, adminId]);
+
+  const scopedTenantIds = useMemo(() => new Set(scopedTenants.map(t => t.id)), [scopedTenants]);
+
+  const scopedStores = useMemo(() => {
+    if (isOwner) return stores;
+    return stores.filter(s => scopedTenantIds.has(s.tenant_id));
+  }, [stores, isOwner, scopedTenantIds]);
+
+  const scopedProducts = useMemo(() => {
+    if (isOwner) return products;
+    return products.filter(p => scopedTenantIds.has(p.tenant_id));
+  }, [products, isOwner, scopedTenantIds]);
+
+  const scopedCategories = useMemo(() => {
+    if (isOwner) return categories;
+    return categories.filter((c: any) => scopedTenantIds.has(c.tenant_id));
+  }, [categories, isOwner, scopedTenantIds]);
+
+  const scopedTemplates = useMemo(() => {
+    if (isOwner) return templates;
+    return templates.filter(t => scopedTenantIds.has(t.tenant_id));
+  }, [templates, isOwner, scopedTenantIds]);
+
   const filteredTenants = useMemo(() => {
-    return tenants.filter(t => {
+    return scopedTenants.filter(t => {
       const matchesSearch = t.name.toLowerCase().includes(tenantSearch.toLowerCase());
       const matchesAdmin = tenantAdminFilter === 'all' || (t as any).admin_id === tenantAdminFilter;
       const matchesStatus = tenantStatusFilter === 'all' || (tenantStatusFilter === 'active' ? t.is_active : !t.is_active);
       return matchesSearch && matchesAdmin && matchesStatus;
     });
-  }, [tenants, tenantSearch, tenantAdminFilter, tenantStatusFilter]);
+  }, [scopedTenants, tenantSearch, tenantAdminFilter, tenantStatusFilter]);
 
   const getStoresForTenant = (tid: string) => stores.filter(s => s.tenant_id === tid);
   const toggleTenant = (tid: string) => {
@@ -252,12 +286,11 @@ export default function Planogram() {
 
   // Filtered stores with admin, tenant, status
   const filteredStores = useMemo(() => {
-    return stores.filter(s => {
+    return scopedStores.filter(s => {
       const matchesSearch = s.name.toLowerCase().includes(storeSearch.toLowerCase()) || (s.city || '').toLowerCase().includes(storeSearch.toLowerCase());
       const matchesTenant = storeTenantFilter === 'all' || s.tenant_id === storeTenantFilter;
       const matchesAdmin = storeAdminFilter === 'all' || getTenantIdsForAdmin(storeAdminFilter).includes(s.tenant_id);
-      // stores don't have status, use tenant status
-      const tenant = tenants.find(t => t.id === s.tenant_id);
+      const tenant = scopedTenants.find(t => t.id === s.tenant_id);
       const matchesStatus = storeStatusFilter === 'all' || (storeStatusFilter === 'active' ? tenant?.is_active : !tenant?.is_active);
       return matchesSearch && matchesTenant && matchesAdmin && matchesStatus;
     });
@@ -277,7 +310,7 @@ export default function Planogram() {
   const handleDeleteTemplate = async () => { if (deleteTemplateId) { await deleteTemplate.mutateAsync(deleteTemplateId); setDeleteTemplateId(null); } };
 
   const filteredTemplates = useMemo(() => {
-    return templates.filter(t => {
+    return scopedTemplates.filter(t => {
       const matchesSearch = t.name.toLowerCase().includes(planogramSearch.toLowerCase());
       const matchesStatus = planogramStatusFilter === 'all' || t.status === planogramStatusFilter;
       const matchesTenant = planogramTenantFilter === 'all' || t.tenant_id === planogramTenantFilter;
@@ -418,14 +451,15 @@ export default function Planogram() {
   };
   const handleAdminDelete = async () => { if (deleteAdminId) { await deleteAdmin.mutateAsync(deleteAdminId); setDeleteAdminId(null); } };
 
-  const tabItems = [
-    { value: 'admins', label: 'Admins', icon: Shield },
-    { value: 'tenants', label: 'Tenants', icon: Building2 },
-    { value: 'stores', label: 'Stores', icon: Store },
-    { value: 'planograms', label: 'Planograms', icon: LayoutGrid },
-    { value: 'categories', label: 'Categories', icon: FolderOpen },
-    { value: 'products', label: 'Products', icon: Package },
+  const allTabItems = [
+    { value: 'admins', label: 'Admins', icon: Shield, ownerOnly: true },
+    { value: 'tenants', label: 'Tenants', icon: Building2, ownerOnly: false },
+    { value: 'stores', label: 'Stores', icon: Store, ownerOnly: false },
+    { value: 'planograms', label: 'Planograms', icon: LayoutGrid, ownerOnly: false },
+    { value: 'categories', label: 'Categories', icon: FolderOpen, ownerOnly: false },
+    { value: 'products', label: 'Products', icon: Package, ownerOnly: false },
   ];
+  const tabItems = isOwner ? allTabItems : allTabItems.filter(t => !t.ownerOnly);
 
 
   return (
