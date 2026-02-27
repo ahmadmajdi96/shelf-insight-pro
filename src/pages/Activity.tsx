@@ -55,30 +55,55 @@ export default function Activity() {
   const { templates } = usePlanogramTemplates();
   const allScans = useComplianceScans();
 
-  // Filter logic
+  // Filter logic - cascading admin → tenant
   const filteredTenants = useMemo(() => {
     let result = tenants;
     if (selectedAdminId !== 'all') {
-      // For now, show all tenants when admin selected (admin-tenant relationship not stored yet)
-      result = tenants;
+      result = tenants.filter((t: any) => t.admin_id === selectedAdminId);
     }
     if (searchQuery) result = result.filter((t: any) => t.name.toLowerCase().includes(searchQuery.toLowerCase()));
     return result;
   }, [tenants, selectedAdminId, searchQuery]);
 
+  // Reset tenant/store when admin changes
+  const handleAdminChange = (v: string) => {
+    setSelectedAdminId(v);
+    setSelectedTenantId('all');
+    setSelectedStoreId('all');
+    setFilterLevel(v !== 'all' ? 'admin' : 'all');
+  };
+
+  // Reset store when tenant changes
+  const handleTenantChange = (v: string) => {
+    setSelectedTenantId(v);
+    setSelectedStoreId('all');
+    if (v !== 'all') setFilterLevel('tenant');
+  };
+
   const filteredStores = useMemo(() => {
     let result = stores;
-    if (selectedTenantId !== 'all') result = result.filter((s: any) => s.tenant_id === selectedTenantId);
+    // Filter stores by selected tenant or by tenants under selected admin
+    if (selectedTenantId !== 'all') {
+      result = result.filter((s: any) => s.tenant_id === selectedTenantId);
+    } else if (selectedAdminId !== 'all') {
+      const tenantIds = new Set(filteredTenants.map((t: any) => t.id));
+      result = result.filter((s: any) => tenantIds.has(s.tenant_id));
+    }
     if (searchQuery) result = result.filter((s: any) => s.name.toLowerCase().includes(searchQuery.toLowerCase()));
     return result;
-  }, [stores, selectedTenantId, searchQuery]);
+  }, [stores, selectedTenantId, selectedAdminId, filteredTenants, searchQuery]);
 
   const filteredDetections = useMemo(() => {
     let result = detections;
-    if (selectedTenantId !== 'all') result = result.filter((d: any) => d.tenant_id === selectedTenantId);
+    if (selectedTenantId !== 'all') {
+      result = result.filter((d: any) => d.tenant_id === selectedTenantId);
+    } else if (selectedAdminId !== 'all') {
+      const tenantIds = new Set(filteredTenants.map((t: any) => t.id));
+      result = result.filter((d: any) => tenantIds.has(d.tenant_id));
+    }
     if (selectedStoreId !== 'all') result = result.filter((d: any) => d.store_id === selectedStoreId);
     return result;
-  }, [detections, selectedTenantId, selectedStoreId]);
+  }, [detections, selectedTenantId, selectedAdminId, filteredTenants, selectedStoreId]);
 
   // Pie chart data
   const tenantPieData = useMemo(() => {
@@ -130,7 +155,7 @@ export default function Activity() {
             <Input placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9 bg-secondary border-border" />
           </div>
           {isAdmin && (
-            <Select value={selectedAdminId} onValueChange={v => { setSelectedAdminId(v); setFilterLevel(v !== 'all' ? 'admin' : 'all'); }}>
+            <Select value={selectedAdminId} onValueChange={handleAdminChange}>
               <SelectTrigger className="w-[160px] bg-secondary border-border"><SelectValue placeholder="All Admins" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Admins</SelectItem>
@@ -138,7 +163,7 @@ export default function Activity() {
               </SelectContent>
             </Select>
           )}
-          <Select value={selectedTenantId} onValueChange={v => { setSelectedTenantId(v); if (v !== 'all') setFilterLevel('tenant'); }}>
+          <Select value={selectedTenantId} onValueChange={handleTenantChange}>
             <SelectTrigger className="w-[160px] bg-secondary border-border"><SelectValue placeholder="All Tenants" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Tenants</SelectItem>
@@ -433,7 +458,7 @@ function ScanHistoryTable({ viewLimit, setViewLimit, selectedTenantId }: { viewL
     queryKey: ['activity-scan-history'],
     queryFn: async () => {
       const { data } = await rest.list('shelf_images', {
-        select: '*,shelf:shelves(name,tenant:tenants(name),store:stores(name))',
+        select: '*,shelf:shelves(name,tenant_id,tenant:tenants(name),store:stores(name))',
         order: 'created_at.desc',
         limit: 500,
       });
@@ -443,7 +468,7 @@ function ScanHistoryTable({ viewLimit, setViewLimit, selectedTenantId }: { viewL
 
   const filtered = useMemo(() => {
     if (selectedTenantId === 'all') return scans;
-    return scans.filter((s: any) => s.shelf?.tenant?.name);
+    return scans.filter((s: any) => s.shelf?.tenant_id === selectedTenantId);
   }, [scans, selectedTenantId]);
 
   return (

@@ -19,7 +19,7 @@ import { useAdmins } from '@/hooks/useAdmins';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-type DataTab = 'admins' | 'tenants' | 'stores' | 'categories' | 'products' | 'shelves' | 'scans';
+type DataTab = 'admins' | 'tenants' | 'stores' | 'categories' | 'products' | 'shelves' | 'scans' | 'compliance';
 
 const TAB_CONFIG: { value: DataTab; label: string; icon: string }[] = [
   { value: 'admins', label: 'Admins', icon: '👤' },
@@ -28,7 +28,8 @@ const TAB_CONFIG: { value: DataTab; label: string; icon: string }[] = [
   { value: 'categories', label: 'Categories', icon: '🏷️' },
   { value: 'products', label: 'Products', icon: '📦' },
   { value: 'shelves', label: 'Shelves', icon: '🗄️' },
-  { value: 'scans', label: 'Scans', icon: '📷' },
+  { value: 'scans', label: 'Shelf Images', icon: '📷' },
+  { value: 'compliance', label: 'Compliance', icon: '✅' },
 ];
 
 export default function Data() {
@@ -72,6 +73,11 @@ export default function Data() {
   const { data: scans = [], isLoading: scansLoading, refetch: refetchScans } = useQuery({
     queryKey: ['data-scans'],
     queryFn: async () => { const { data } = await rest.list('shelf_images', { select: '*,shelf:shelves(name,tenant_id,store_id)', order: 'created_at.desc', limit: 500 }); return data || []; },
+  });
+
+  const { data: complianceScans = [], isLoading: complianceLoading, refetch: refetchCompliance } = useQuery({
+    queryKey: ['data-compliance-scans'],
+    queryFn: async () => { const { data } = await rest.list('compliance_scans', { select: '*,template:planogram_templates(name,tenant_id)', order: 'created_at.desc', limit: 500 }); return data || []; },
   });
 
   // Cascading filter: admin → tenant → store
@@ -118,6 +124,11 @@ export default function Data() {
     return (matchesSearch !== false) && matchesTenant;
   }), [scans, searchQuery, effectiveTenantFilter]);
 
+  const filteredCompliance = useMemo(() => complianceScans.filter((c: any) => {
+    const matchesTenant = effectiveTenantFilter === 'all' || c.template?.tenant_id === effectiveTenantFilter;
+    return matchesTenant;
+  }), [complianceScans, effectiveTenantFilter]);
+
   const filteredAdmins = useMemo(() => admins.filter(a =>
     a.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || a.email.toLowerCase().includes(searchQuery.toLowerCase())
   ), [admins, searchQuery]);
@@ -131,6 +142,7 @@ export default function Data() {
       case 'products': return filteredProducts.length;
       case 'shelves': return filteredShelves.length;
       case 'scans': return filteredScans.length;
+      case 'compliance': return filteredCompliance.length;
     }
   };
 
@@ -140,7 +152,7 @@ export default function Data() {
       activeTab === 'stores' ? filteredStores :
       activeTab === 'categories' ? filteredCategories :
       activeTab === 'products' ? filteredProducts :
-      activeTab === 'shelves' ? filteredShelves : filteredScans;
+      activeTab === 'shelves' ? filteredShelves : activeTab === 'compliance' ? filteredCompliance : filteredScans;
     if (data.length === 0) return;
     const headers = Object.keys(data[0]).filter(k => !['tenant', 'category', 'store', 'shelf'].includes(k));
     const csvContent = [headers.join(','), ...data.map(row => headers.map(h => {
@@ -156,9 +168,9 @@ export default function Data() {
     link.click();
   };
 
-  const handleRefresh = () => { refetchTenants(); refetchStores(); refetchCategories(); refetchProducts(); refetchShelves(); refetchScans(); };
+  const handleRefresh = () => { refetchTenants(); refetchStores(); refetchCategories(); refetchProducts(); refetchShelves(); refetchScans(); refetchCompliance(); };
   const clearFilters = () => { setSearchQuery(''); setFilterAdmin('all'); setFilterTenant('all'); setFilterStore('all'); setFilterCategory('all'); };
-  const isLoading = tenantsLoading || storesLoading || categoriesLoading || productsLoading || shelvesLoading || scansLoading;
+  const isLoading = tenantsLoading || storesLoading || categoriesLoading || productsLoading || shelvesLoading || scansLoading || complianceLoading;
   const hasActiveFilters = searchQuery || filterAdmin !== 'all' || filterTenant !== 'all' || filterStore !== 'all' || filterCategory !== 'all';
 
   return (
@@ -401,6 +413,32 @@ export default function Data() {
                     </TableRow>
                   ))}
                   {filteredScans.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground">No scans found.</TableCell></TableRow>}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </div>
+        </TabsContent>
+
+        {/* Compliance Scans */}
+        <TabsContent value="compliance">
+          <div className="rounded-xl bg-card border border-border overflow-hidden">
+            <ScrollArea className="h-[600px]">
+              <Table>
+                <TableHeader><TableRow className="bg-secondary/50"><TableHead>Score</TableHead><TableHead>Planogram</TableHead><TableHead>Expected</TableHead><TableHead>Found</TableHead><TableHead>Missing</TableHead><TableHead>Extra</TableHead><TableHead>Date</TableHead><TableHead>Image</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {filteredCompliance.slice(0, viewLimit).map((c: any) => (
+                    <TableRow key={c.id}>
+                      <TableCell><Badge variant={c.compliance_score >= 80 ? 'default' : 'destructive'}>{c.compliance_score}%</Badge></TableCell>
+                      <TableCell className="font-medium">{c.template?.name || '—'}</TableCell>
+                      <TableCell>{c.total_expected}</TableCell>
+                      <TableCell>{c.total_found}</TableCell>
+                      <TableCell>{c.total_missing}</TableCell>
+                      <TableCell>{c.total_extra}</TableCell>
+                      <TableCell>{format(new Date(c.created_at), 'PP')}</TableCell>
+                      <TableCell>{c.image_url && <a href={c.image_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm">View</a>}</TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredCompliance.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No compliance scans found.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </ScrollArea>
