@@ -485,7 +485,7 @@ function ScanHistoryTable({ viewLimit, setViewLimit, selectedTenantId }: { viewL
           </SelectContent>
         </Select>
       </div>
-      <ScrollArea className="max-h-[600px]">
+      <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-secondary/50">
@@ -516,7 +516,7 @@ function ScanHistoryTable({ viewLimit, setViewLimit, selectedTenantId }: { viewL
             ))}
           </TableBody>
         </Table>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
