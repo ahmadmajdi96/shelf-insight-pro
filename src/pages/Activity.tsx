@@ -144,7 +144,7 @@ export default function Activity() {
             <Input placeholder="Search..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="pl-9 bg-secondary border-border" />
           </div>
           {isAdmin && (
-            <Select value={selectedAdminId} onValueChange={v => { setSelectedAdminId(v); setFilterLevel(v !== 'all' ? 'admin' : 'all'); }}>
+            <Select value={selectedAdminId} onValueChange={handleAdminChange}>
               <SelectTrigger className="w-[160px] bg-secondary border-border"><SelectValue placeholder="All Admins" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Admins</SelectItem>
@@ -152,7 +152,7 @@ export default function Activity() {
               </SelectContent>
             </Select>
           )}
-          <Select value={selectedTenantId} onValueChange={v => { setSelectedTenantId(v); if (v !== 'all') setFilterLevel('tenant'); }}>
+          <Select value={selectedTenantId} onValueChange={handleTenantChange}>
             <SelectTrigger className="w-[160px] bg-secondary border-border"><SelectValue placeholder="All Tenants" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Tenants</SelectItem>
