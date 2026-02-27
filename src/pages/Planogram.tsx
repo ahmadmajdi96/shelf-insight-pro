@@ -63,7 +63,7 @@ const statusConfig = {
 export default function Planogram() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAdmin, tenantId } = useAuth();
+  const { isAdmin, isOwner, tenantId, adminId } = useAuth();
   const { stores, createStore, updateStore, deleteStore } = useStores();
   const { tenants, isLoading: tenantsLoading, createTenant, updateTenant, suspendTenant, deleteTenant } = useTenants();
   const { products, isLoading: productsLoading, deleteProduct, updateProduct } = useProducts();
@@ -78,13 +78,19 @@ export default function Planogram() {
 
   // Support ?tab= query param
   const tabFromUrl = searchParams.get('tab');
-  const [activeTab, setActiveTab] = useState(tabFromUrl || 'admins');
+  const defaultTab = isOwner ? 'admins' : 'tenants';
+  const [activeTab, setActiveTab] = useState(tabFromUrl || defaultTab);
 
   useEffect(() => {
-    if (tabFromUrl && ['admins', 'tenants', 'stores', 'planograms', 'categories', 'products'].includes(tabFromUrl)) {
+    const validTabs = isOwner 
+      ? ['admins', 'tenants', 'stores', 'planograms', 'categories', 'products']
+      : ['tenants', 'stores', 'planograms', 'categories', 'products'];
+    if (tabFromUrl && validTabs.includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
+    } else if (tabFromUrl === 'admins' && !isOwner) {
+      setActiveTab('tenants');
     }
-  }, [tabFromUrl]);
+  }, [tabFromUrl, isOwner]);
 
   // Search states for each tab
   const [tenantSearch, setTenantSearch] = useState('');
