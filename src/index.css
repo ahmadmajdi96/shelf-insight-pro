@@ -253,3 +253,24 @@
     background: hsl(var(--muted-foreground) / 0.3);
   }
 }
+
+/* Print styles - hide sidebar and make content full width */
+@media print {
+  .print\\:hidden {
+    display: none !important;
+  }
+  
+  body {
+    background: white !important;
+  }
+  
+  main {
+    margin-left: 0 !important;
+    padding: 0 !important;
+  }
+  
+  /* Make the main content area full width when printing */
+  .ml-60, .ml-0 {
+    margin-left: 0 !important;
+  }
+}

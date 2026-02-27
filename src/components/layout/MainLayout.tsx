@@ -21,7 +21,7 @@ export function MainLayout({
     <div className="min-h-screen bg-background">
       <Sidebar />
       <div className={cn(
-        "transition-all duration-300",
+        "transition-all duration-300 print:ml-0",
         isMobile ? "ml-0" : "ml-60"
       )}>
         <Header title={title} subtitle={subtitle} />

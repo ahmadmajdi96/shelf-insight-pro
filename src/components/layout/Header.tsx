@@ -16,7 +16,7 @@ interface HeaderProps {
 
 export function Header({ title, subtitle }: HeaderProps) {
   const isMobile = useIsMobile();
-  const { profile, signOut } = useAuth();
+  const { profile, signOut, role, isOwner } = useAuth();
   const { notifications, unreadCount, markAsRead, markAllAsRead } = useNotifications();
   const navigate = useNavigate();
   const [showNotifications, setShowNotifications] = useState(false);
@@ -24,7 +24,6 @@ export function Header({ title, subtitle }: HeaderProps) {
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
-  // Close dropdowns on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
       if (notifRef.current && !notifRef.current.contains(e.target as Node)) setShowNotifications(false);
@@ -36,9 +35,11 @@ export function Header({ title, subtitle }: HeaderProps) {
 
   const recentNotifications = notifications.slice(0, 5);
 
+  const roleLabel = role === 'owner' ? 'Owner' : role === 'admin' ? 'Administrator' : role === 'tenant_admin' ? 'Tenant Admin' : 'User';
+
   return (
     <header className={cn(
-      "h-16 border-b border-border bg-card/60 backdrop-blur-md sticky top-0 z-30",
+      "h-16 border-b border-border bg-card/60 backdrop-blur-md sticky top-0 z-30 print:static print:border-0 print:bg-white",
       isMobile && "pl-14"
     )}>
       <div className="h-full px-4 md:px-6 flex items-center justify-between">
@@ -49,7 +50,7 @@ export function Header({ title, subtitle }: HeaderProps) {
           )}
         </div>
 
-        <div className="flex items-center gap-1.5 md:gap-2">
+        <div className="flex items-center gap-1.5 md:gap-2 print:hidden">
           {/* Notifications */}
           <div className="relative" ref={notifRef}>
             <Button 
@@ -144,7 +145,7 @@ export function Header({ title, subtitle }: HeaderProps) {
                 )}
               </div>
               <span className="hidden md:inline text-sm font-medium text-foreground max-w-[120px] truncate">
-                {profile?.fullName || 'Admin'}
+                {profile?.fullName || 'User'}
               </span>
               <ChevronDown className="w-3 h-3 text-muted-foreground hidden md:block" />
             </Button>
@@ -152,8 +153,8 @@ export function Header({ title, subtitle }: HeaderProps) {
             {showProfile && (
               <div className="absolute right-0 top-full mt-2 w-56 bg-card border border-border rounded-xl shadow-elevated overflow-hidden animate-fade-in z-50">
                 <div className="px-4 py-3 border-b border-border">
-                  <p className="text-sm font-medium text-foreground truncate">{profile?.fullName || 'Admin'}</p>
-                  <p className="text-xs text-muted-foreground truncate">Administrator</p>
+                  <p className="text-sm font-medium text-foreground truncate">{profile?.fullName || 'User'}</p>
+                  <p className="text-xs text-muted-foreground truncate">{roleLabel}</p>
                 </div>
                 <div className="py-1">
                   <button 
@@ -163,13 +164,15 @@ export function Header({ title, subtitle }: HeaderProps) {
                     <User className="w-4 h-4 text-muted-foreground" />
                     My Profile
                   </button>
-                  <button 
-                    className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-secondary/50 transition-colors"
-                    onClick={() => { navigate('/settings'); setShowProfile(false); }}
-                  >
-                    <Settings className="w-4 h-4 text-muted-foreground" />
-                    Settings
-                  </button>
+                  {isOwner && (
+                    <button 
+                      className="w-full flex items-center gap-3 px-4 py-2.5 text-sm text-foreground hover:bg-secondary/50 transition-colors"
+                      onClick={() => { navigate('/settings'); setShowProfile(false); }}
+                    >
+                      <Settings className="w-4 h-4 text-muted-foreground" />
+                      Settings
+                    </button>
+                  )}
                 </div>
                 <div className="border-t border-border py-1">
                   <button 
