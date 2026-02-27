@@ -55,16 +55,30 @@ export default function Activity() {
   const { templates } = usePlanogramTemplates();
   const allScans = useComplianceScans();
 
-  // Filter logic
+  // Filter logic - cascading admin → tenant
   const filteredTenants = useMemo(() => {
     let result = tenants;
     if (selectedAdminId !== 'all') {
-      // For now, show all tenants when admin selected (admin-tenant relationship not stored yet)
-      result = tenants;
+      result = tenants.filter((t: any) => t.admin_id === selectedAdminId);
     }
     if (searchQuery) result = result.filter((t: any) => t.name.toLowerCase().includes(searchQuery.toLowerCase()));
     return result;
   }, [tenants, selectedAdminId, searchQuery]);
+
+  // Reset tenant/store when admin changes
+  const handleAdminChange = (v: string) => {
+    setSelectedAdminId(v);
+    setSelectedTenantId('all');
+    setSelectedStoreId('all');
+    setFilterLevel(v !== 'all' ? 'admin' : 'all');
+  };
+
+  // Reset store when tenant changes
+  const handleTenantChange = (v: string) => {
+    setSelectedTenantId(v);
+    setSelectedStoreId('all');
+    if (v !== 'all') setFilterLevel('tenant');
+  };
 
   const filteredStores = useMemo(() => {
     let result = stores;
