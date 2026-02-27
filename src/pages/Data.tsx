@@ -75,6 +75,11 @@ export default function Data() {
     queryFn: async () => { const { data } = await rest.list('shelf_images', { select: '*,shelf:shelves(name,tenant_id,store_id)', order: 'created_at.desc', limit: 500 }); return data || []; },
   });
 
+  const { data: complianceScans = [], isLoading: complianceLoading, refetch: refetchCompliance } = useQuery({
+    queryKey: ['data-compliance-scans'],
+    queryFn: async () => { const { data } = await rest.list('compliance_scans', { select: '*,template:planogram_templates(name,tenant_id)', order: 'created_at.desc', limit: 500 }); return data || []; },
+  });
+
   // Cascading filter: admin → tenant → store
   const filteredTenantsByAdmin = useMemo(() => {
     if (filterAdmin === 'all') return tenants;
