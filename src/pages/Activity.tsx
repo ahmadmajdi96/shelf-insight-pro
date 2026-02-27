@@ -125,6 +125,7 @@ export default function Activity() {
 
   // Export PDF (basic print)
   const exportPDF = () => {
+    document.title = `ShelfVision Activity Report - ${new Date().toLocaleDateString()}`;
     window.print();
   };
 
