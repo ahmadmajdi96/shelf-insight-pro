@@ -310,7 +310,7 @@ export default function Planogram() {
   const handleDeleteTemplate = async () => { if (deleteTemplateId) { await deleteTemplate.mutateAsync(deleteTemplateId); setDeleteTemplateId(null); } };
 
   const filteredTemplates = useMemo(() => {
-    return templates.filter(t => {
+    return scopedTemplates.filter(t => {
       const matchesSearch = t.name.toLowerCase().includes(planogramSearch.toLowerCase());
       const matchesStatus = planogramStatusFilter === 'all' || t.status === planogramStatusFilter;
       const matchesTenant = planogramTenantFilter === 'all' || t.tenant_id === planogramTenantFilter;
