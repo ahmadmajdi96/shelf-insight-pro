@@ -184,7 +184,35 @@ export default function Planogram() {
   // Helper: get tenant IDs for an admin
   const getTenantIdsForAdmin = (adminId: string) => tenants.filter((t: any) => t.admin_id === adminId).map(t => t.id);
 
-  // ---- Tenant logic ----
+  // For admin role users, filter data to their admin_id
+  const scopedTenants = useMemo(() => {
+    if (isOwner) return tenants;
+    if (adminId) return tenants.filter((t: any) => t.admin_id === adminId);
+    return tenants;
+  }, [tenants, isOwner, adminId]);
+
+  const scopedTenantIds = useMemo(() => new Set(scopedTenants.map(t => t.id)), [scopedTenants]);
+
+  const scopedStores = useMemo(() => {
+    if (isOwner) return stores;
+    return stores.filter(s => scopedTenantIds.has(s.tenant_id));
+  }, [stores, isOwner, scopedTenantIds]);
+
+  const scopedProducts = useMemo(() => {
+    if (isOwner) return products;
+    return products.filter(p => scopedTenantIds.has(p.tenant_id));
+  }, [products, isOwner, scopedTenantIds]);
+
+  const scopedCategories = useMemo(() => {
+    if (isOwner) return categories;
+    return categories.filter((c: any) => scopedTenantIds.has(c.tenant_id));
+  }, [categories, isOwner, scopedTenantIds]);
+
+  const scopedTemplates = useMemo(() => {
+    if (isOwner) return templates;
+    return templates.filter(t => scopedTenantIds.has(t.tenant_id));
+  }, [templates, isOwner, scopedTenantIds]);
+
   const filteredTenants = useMemo(() => {
     return scopedTenants.filter(t => {
       const matchesSearch = t.name.toLowerCase().includes(tenantSearch.toLowerCase());
