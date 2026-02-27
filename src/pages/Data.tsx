@@ -76,8 +76,8 @@ export default function Data() {
 
   // Cascading filter: admin → tenant → store
   const filteredTenantsByAdmin = useMemo(() => {
-    // Admin filter doesn't directly filter tenants yet (no admin_id FK), show all
-    return tenants;
+    if (filterAdmin === 'all') return tenants;
+    return tenants.filter((t: any) => t.admin_id === filterAdmin);
   }, [tenants, filterAdmin]);
 
   const filteredTenants = useMemo(() => filteredTenantsByAdmin.filter(t =>

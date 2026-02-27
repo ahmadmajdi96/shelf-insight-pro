@@ -1239,97 +1239,115 @@ export default function Training() {
                   <p>No image sets yet. Click "Upload Images" to create a set.</p>
                 </div>
               ) : (
-                <div className="space-y-3">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {imageSets.map(set => {
                     const setImgs = getSetImages(set.id);
                     const annotatedCount = getSetAnnotatedCount(set.id);
                     const isSelected = selectedSetIds.has(set.id);
                     const isAutoAnnotating = autoAnnotatingSetId === set.id;
+                    const progressPct = set.image_count > 0 ? (annotatedCount / set.image_count) * 100 : 0;
                     return (
                       <div
                         key={set.id}
                         className={cn(
-                          "rounded-xl bg-card border transition-colors",
-                          isSelected ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"
+                          "rounded-2xl bg-card border-2 transition-all duration-200 overflow-hidden group",
+                          isSelected ? "border-primary shadow-lg shadow-primary/10" : "border-border hover:border-primary/40 hover:shadow-md"
                         )}
                       >
-                        <div className="flex items-center gap-4 px-4 py-3">
+                        {/* Header */}
+                        <div className="flex items-start gap-3 p-4 pb-2">
                           <Checkbox
                             checked={isSelected}
                             onCheckedChange={() => toggleSetSelection(set.id)}
+                            className="mt-1"
                           />
                           <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <span className="font-medium text-foreground text-sm">{set.name}</span>
-                              <Badge variant="secondary" className="text-[10px]">
-                                <ImageIcon className="w-3 h-3 mr-1" />{set.image_count} images
-                              </Badge>
-                              <Badge
-                                variant={annotatedCount === set.image_count && set.image_count > 0 ? 'default' : 'outline'}
-                                className="text-[10px]"
-                              >
-                                <CheckCircle2 className="w-3 h-3 mr-1" />{annotatedCount}/{set.image_count} annotated
-                              </Badge>
-                              {set.is_trained && (
-                                <Badge variant="default" className="text-[10px] bg-success/80">
-                                  <Brain className="w-3 h-3 mr-1" /> Trained
-                                </Badge>
-                              )}
+                            <div className="flex items-center gap-2 mb-1">
+                              <FolderOpen className="w-4 h-4 text-primary shrink-0" />
+                              <span className="font-semibold text-foreground text-sm truncate">{set.name}</span>
                             </div>
-                            <p className="text-[10px] text-muted-foreground mt-0.5">
+                            <p className="text-[10px] text-muted-foreground">
                               Created {format(new Date(set.created_at), 'PPp')}
                             </p>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs h-7"
-                              disabled={set.image_count === 0}
-                              onClick={() => startManualAnnotation(set.id)}
-                            >
-                              <Square className="w-3 h-3 mr-1" />
-                              Manual Annotate
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-xs h-7"
-                              disabled={isAutoAnnotating || set.image_count === 0}
-                              onClick={() => autoAnnotateSet(set.id)}
-                            >
-                              {isAutoAnnotating ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : <Wand2 className="w-3 h-3 mr-1" />}
-                              Auto Annotate
-                            </Button>
-                            <Button
-                              size="icon"
-                              variant="ghost"
-                              className="w-7 h-7 text-destructive"
-                              onClick={() => setDeleteSetId(set.id)}
-                            >
-                              <Trash2 className="w-3.5 h-3.5" />
-                            </Button>
-                          </div>
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button size="icon" variant="ghost" className="w-7 h-7 shrink-0">
+                                <MoreVertical className="w-4 h-4" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end">
+                              <DropdownMenuItem onClick={() => startManualAnnotation(set.id)} disabled={set.image_count === 0}>
+                                <Square className="w-3.5 h-3.5 mr-2" /> Manual Annotate
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => autoAnnotateSet(set.id)} disabled={isAutoAnnotating || set.image_count === 0}>
+                                <Wand2 className="w-3.5 h-3.5 mr-2" /> Auto Annotate
+                              </DropdownMenuItem>
+                              <DropdownMenuItem onClick={() => setDeleteSetId(set.id)} className="text-destructive focus:text-destructive">
+                                <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete Set
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
                         </div>
+
+                        {/* Stats badges */}
+                        <div className="flex items-center gap-1.5 px-4 flex-wrap">
+                          <Badge variant="secondary" className="text-[10px] gap-1">
+                            <ImageIcon className="w-3 h-3" />{set.image_count}
+                          </Badge>
+                          <Badge
+                            variant={progressPct === 100 && set.image_count > 0 ? 'default' : 'outline'}
+                            className="text-[10px] gap-1"
+                          >
+                            <CheckCircle2 className="w-3 h-3" />{annotatedCount}/{set.image_count}
+                          </Badge>
+                          {set.is_trained && (
+                            <Badge className="text-[10px] gap-1 bg-success/80 text-success-foreground">
+                              <Brain className="w-3 h-3" /> Trained
+                            </Badge>
+                          )}
+                          {isAutoAnnotating && (
+                            <Badge variant="outline" className="text-[10px] gap-1 animate-pulse">
+                              <Loader2 className="w-3 h-3 animate-spin" /> Annotating...
+                            </Badge>
+                          )}
+                        </div>
+
+                        {/* Annotation progress bar */}
+                        <div className="px-4 pt-2">
+                          <div className="h-1.5 bg-secondary rounded-full overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-500"
+                              style={{
+                                width: `${progressPct}%`,
+                                background: progressPct === 100 ? 'hsl(var(--success))' : 'hsl(var(--primary))',
+                              }}
+                            />
+                          </div>
+                          <p className="text-[9px] text-muted-foreground mt-0.5">{Math.round(progressPct)}% annotated</p>
+                        </div>
+
                         {/* Preview thumbnails */}
                         {setImgs.length > 0 && (
-                          <div className="px-4 pb-3">
-                            <div className="flex gap-1.5 overflow-x-auto">
-                              {setImgs.slice(0, 10).map((img, idx) => (
+                          <div className="px-4 pt-2 pb-3">
+                            <div className="flex gap-1 overflow-x-auto">
+                              {setImgs.slice(0, 8).map((img) => (
                                 <div
                                   key={img.id}
-                                  className="relative w-14 h-14 shrink-0 rounded border border-border overflow-hidden cursor-pointer hover:ring-2 ring-primary/50 transition-all"
+                                  className="relative w-12 h-12 shrink-0 rounded-lg border border-border overflow-hidden cursor-pointer hover:ring-2 ring-primary/50 transition-all"
                                   onClick={() => openImagePreview(images.indexOf(img))}
                                 >
                                   <img src={img.image_url} alt="" className="w-full h-full object-cover" />
                                   {img.is_annotated && (
-                                    <CheckCircle2 className="absolute top-0.5 right-0.5 w-3 h-3 text-success" />
+                                    <div className="absolute inset-0 bg-success/10 flex items-center justify-center">
+                                      <CheckCircle2 className="w-3 h-3 text-success drop-shadow" />
+                                    </div>
                                   )}
                                 </div>
                               ))}
-                              {setImgs.length > 10 && (
-                                <div className="w-14 h-14 shrink-0 rounded border border-border bg-secondary flex items-center justify-center text-xs text-muted-foreground">
-                                  +{setImgs.length - 10}
+                              {setImgs.length > 8 && (
+                                <div className="w-12 h-12 shrink-0 rounded-lg border border-dashed border-border bg-secondary/50 flex items-center justify-center text-[10px] text-muted-foreground font-medium">
+                                  +{setImgs.length - 8}
                                 </div>
                               )}
                             </div>
@@ -1341,14 +1359,43 @@ export default function Training() {
                 </div>
               )}
 
+              {/* Selection action bar */}
               {selectedSetIds.size > 0 && (
-                <div className="rounded-xl bg-primary/5 border border-primary/20 p-3 flex items-center justify-between">
-                  <span className="text-sm text-foreground font-medium">
-                    {selectedSetIds.size} set(s) selected — {images.filter(img => selectedSetIds.has((img as any).image_set_id)).length} total images
-                  </span>
-                  <Button size="sm" variant="outline" onClick={() => setSelectedSetIds(new Set())}>
-                    <X className="w-3 h-3 mr-1" /> Clear Selection
-                  </Button>
+                <div className="rounded-2xl bg-primary/5 border border-primary/20 p-4 flex items-center justify-between flex-wrap gap-3">
+                  <div>
+                    <span className="text-sm text-foreground font-semibold">
+                      {selectedSetIds.size} set(s) selected
+                    </span>
+                    <span className="text-xs text-muted-foreground ml-2">
+                      ({images.filter(img => selectedSetIds.has((img as any).image_set_id)).length} total images)
+                    </span>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      onClick={() => {
+                        // Start manual annotation for selected sets combined
+                        const selectedImages = images.filter(img => selectedSetIds.has((img as any).image_set_id));
+                        if (selectedImages.length === 0) {
+                          toast({ title: 'No images', description: 'Selected sets have no images.', variant: 'destructive' });
+                          return;
+                        }
+                        // Set annotatingSetId to a special marker, use selected sets
+                        const firstUnannotated = selectedImages.find(img => !img.is_annotated) || selectedImages[0];
+                        setAnnotatingSetId('__selected__');
+                        setAnnotatingImage(firstUnannotated);
+                        setBboxes((firstUnannotated.annotations as any as BBox[]) || []);
+                        setActiveTab('annotate');
+                      }}
+                    >
+                      <Square className="w-3.5 h-3.5 mr-1.5" />
+                      Manual Annotate Selected
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setSelectedSetIds(new Set())}>
+                      <X className="w-3 h-3 mr-1" /> Clear
+                    </Button>
+                  </div>
                 </div>
               )}
             </>
