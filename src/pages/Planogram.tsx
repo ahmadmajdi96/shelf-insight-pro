@@ -258,12 +258,11 @@ export default function Planogram() {
 
   // Filtered stores with admin, tenant, status
   const filteredStores = useMemo(() => {
-    return stores.filter(s => {
+    return scopedStores.filter(s => {
       const matchesSearch = s.name.toLowerCase().includes(storeSearch.toLowerCase()) || (s.city || '').toLowerCase().includes(storeSearch.toLowerCase());
       const matchesTenant = storeTenantFilter === 'all' || s.tenant_id === storeTenantFilter;
       const matchesAdmin = storeAdminFilter === 'all' || getTenantIdsForAdmin(storeAdminFilter).includes(s.tenant_id);
-      // stores don't have status, use tenant status
-      const tenant = tenants.find(t => t.id === s.tenant_id);
+      const tenant = scopedTenants.find(t => t.id === s.tenant_id);
       const matchesStatus = storeStatusFilter === 'all' || (storeStatusFilter === 'active' ? tenant?.is_active : !tenant?.is_active);
       return matchesSearch && matchesTenant && matchesAdmin && matchesStatus;
     });
