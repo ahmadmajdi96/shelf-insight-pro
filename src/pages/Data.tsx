@@ -168,9 +168,9 @@ export default function Data() {
     link.click();
   };
 
-  const handleRefresh = () => { refetchTenants(); refetchStores(); refetchCategories(); refetchProducts(); refetchShelves(); refetchScans(); };
+  const handleRefresh = () => { refetchTenants(); refetchStores(); refetchCategories(); refetchProducts(); refetchShelves(); refetchScans(); refetchCompliance(); };
   const clearFilters = () => { setSearchQuery(''); setFilterAdmin('all'); setFilterTenant('all'); setFilterStore('all'); setFilterCategory('all'); };
-  const isLoading = tenantsLoading || storesLoading || categoriesLoading || productsLoading || shelvesLoading || scansLoading;
+  const isLoading = tenantsLoading || storesLoading || categoriesLoading || productsLoading || shelvesLoading || scansLoading || complianceLoading;
   const hasActiveFilters = searchQuery || filterAdmin !== 'all' || filterTenant !== 'all' || filterStore !== 'all' || filterCategory !== 'all';
 
   return (
