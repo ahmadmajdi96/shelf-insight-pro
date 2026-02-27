@@ -82,17 +82,28 @@ export default function Activity() {
 
   const filteredStores = useMemo(() => {
     let result = stores;
-    if (selectedTenantId !== 'all') result = result.filter((s: any) => s.tenant_id === selectedTenantId);
+    // Filter stores by selected tenant or by tenants under selected admin
+    if (selectedTenantId !== 'all') {
+      result = result.filter((s: any) => s.tenant_id === selectedTenantId);
+    } else if (selectedAdminId !== 'all') {
+      const tenantIds = new Set(filteredTenants.map((t: any) => t.id));
+      result = result.filter((s: any) => tenantIds.has(s.tenant_id));
+    }
     if (searchQuery) result = result.filter((s: any) => s.name.toLowerCase().includes(searchQuery.toLowerCase()));
     return result;
-  }, [stores, selectedTenantId, searchQuery]);
+  }, [stores, selectedTenantId, selectedAdminId, filteredTenants, searchQuery]);
 
   const filteredDetections = useMemo(() => {
     let result = detections;
-    if (selectedTenantId !== 'all') result = result.filter((d: any) => d.tenant_id === selectedTenantId);
+    if (selectedTenantId !== 'all') {
+      result = result.filter((d: any) => d.tenant_id === selectedTenantId);
+    } else if (selectedAdminId !== 'all') {
+      const tenantIds = new Set(filteredTenants.map((t: any) => t.id));
+      result = result.filter((d: any) => tenantIds.has(d.tenant_id));
+    }
     if (selectedStoreId !== 'all') result = result.filter((d: any) => d.store_id === selectedStoreId);
     return result;
-  }, [detections, selectedTenantId, selectedStoreId]);
+  }, [detections, selectedTenantId, selectedAdminId, filteredTenants, selectedStoreId]);
 
   // Pie chart data
   const tenantPieData = useMemo(() => {
