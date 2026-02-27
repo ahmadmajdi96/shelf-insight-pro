@@ -633,9 +633,10 @@ export default function Training() {
 
   // Get the scoped image list (set-scoped or all)
   const annotationScopeImages = useMemo(() => {
+    if (annotatingSetId === '__selected__') return images.filter(img => selectedSetIds.has((img as any).image_set_id));
     if (annotatingSetId) return images.filter(img => (img as any).image_set_id === annotatingSetId);
     return images;
-  }, [images, annotatingSetId]);
+  }, [images, annotatingSetId, selectedSetIds]);
 
   const startManualAnnotation = (setId: string) => {
     const setImgs = images.filter(img => (img as any).image_set_id === setId);
