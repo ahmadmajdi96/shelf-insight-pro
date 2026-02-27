@@ -186,13 +186,13 @@ export default function Planogram() {
 
   // ---- Tenant logic ----
   const filteredTenants = useMemo(() => {
-    return tenants.filter(t => {
+    return scopedTenants.filter(t => {
       const matchesSearch = t.name.toLowerCase().includes(tenantSearch.toLowerCase());
       const matchesAdmin = tenantAdminFilter === 'all' || (t as any).admin_id === tenantAdminFilter;
       const matchesStatus = tenantStatusFilter === 'all' || (tenantStatusFilter === 'active' ? t.is_active : !t.is_active);
       return matchesSearch && matchesAdmin && matchesStatus;
     });
-  }, [tenants, tenantSearch, tenantAdminFilter, tenantStatusFilter]);
+  }, [scopedTenants, tenantSearch, tenantAdminFilter, tenantStatusFilter]);
 
   const getStoresForTenant = (tid: string) => stores.filter(s => s.tenant_id === tid);
   const toggleTenant = (tid: string) => {
