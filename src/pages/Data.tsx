@@ -418,6 +418,32 @@ export default function Data() {
             </ScrollArea>
           </div>
         </TabsContent>
+
+        {/* Compliance Scans */}
+        <TabsContent value="compliance">
+          <div className="rounded-xl bg-card border border-border overflow-hidden">
+            <ScrollArea className="h-[600px]">
+              <Table>
+                <TableHeader><TableRow className="bg-secondary/50"><TableHead>Score</TableHead><TableHead>Planogram</TableHead><TableHead>Expected</TableHead><TableHead>Found</TableHead><TableHead>Missing</TableHead><TableHead>Extra</TableHead><TableHead>Date</TableHead><TableHead>Image</TableHead></TableRow></TableHeader>
+                <TableBody>
+                  {filteredCompliance.slice(0, viewLimit).map((c: any) => (
+                    <TableRow key={c.id}>
+                      <TableCell><Badge variant={c.compliance_score >= 80 ? 'default' : 'destructive'}>{c.compliance_score}%</Badge></TableCell>
+                      <TableCell className="font-medium">{c.template?.name || '—'}</TableCell>
+                      <TableCell>{c.total_expected}</TableCell>
+                      <TableCell>{c.total_found}</TableCell>
+                      <TableCell>{c.total_missing}</TableCell>
+                      <TableCell>{c.total_extra}</TableCell>
+                      <TableCell>{format(new Date(c.created_at), 'PP')}</TableCell>
+                      <TableCell>{c.image_url && <a href={c.image_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm">View</a>}</TableCell>
+                    </TableRow>
+                  ))}
+                  {filteredCompliance.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No compliance scans found.</TableCell></TableRow>}
+                </TableBody>
+              </Table>
+            </ScrollArea>
+          </div>
+        </TabsContent>
       </Tabs>
     </MainLayout>
   );
