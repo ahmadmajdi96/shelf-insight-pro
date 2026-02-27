@@ -152,7 +152,7 @@ export default function Data() {
       activeTab === 'stores' ? filteredStores :
       activeTab === 'categories' ? filteredCategories :
       activeTab === 'products' ? filteredProducts :
-      activeTab === 'shelves' ? filteredShelves : filteredScans;
+      activeTab === 'shelves' ? filteredShelves : activeTab === 'compliance' ? filteredCompliance : filteredScans;
     if (data.length === 0) return;
     const headers = Object.keys(data[0]).filter(k => !['tenant', 'category', 'store', 'shelf'].includes(k));
     const csvContent = [headers.join(','), ...data.map(row => headers.map(h => {
