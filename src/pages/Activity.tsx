@@ -458,7 +458,7 @@ function ScanHistoryTable({ viewLimit, setViewLimit, selectedTenantId }: { viewL
     queryKey: ['activity-scan-history'],
     queryFn: async () => {
       const { data } = await rest.list('shelf_images', {
-        select: '*,shelf:shelves(name,tenant:tenants(name),store:stores(name))',
+        select: '*,shelf:shelves(name,tenant_id,tenant:tenants(name),store:stores(name))',
         order: 'created_at.desc',
         limit: 500,
       });
@@ -468,7 +468,7 @@ function ScanHistoryTable({ viewLimit, setViewLimit, selectedTenantId }: { viewL
 
   const filtered = useMemo(() => {
     if (selectedTenantId === 'all') return scans;
-    return scans.filter((s: any) => s.shelf?.tenant?.name);
+    return scans.filter((s: any) => s.shelf?.tenant_id === selectedTenantId);
   }, [scans, selectedTenantId]);
 
   return (
