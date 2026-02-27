@@ -559,7 +559,7 @@ function VersionHistoryTable({ templates, viewLimit, setViewLimit }: { templates
           </Select>
         </div>
       </div>
-      <ScrollArea className="max-h-[600px]">
+      <div className="overflow-x-auto">
         <Table>
           <TableHeader>
             <TableRow className="bg-secondary/50">
@@ -582,7 +582,7 @@ function VersionHistoryTable({ templates, viewLimit, setViewLimit }: { templates
             ))}
           </TableBody>
         </Table>
-      </ScrollArea>
+      </div>
     </div>
   );
 }
