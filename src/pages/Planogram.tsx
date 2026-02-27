@@ -424,14 +424,44 @@ export default function Planogram() {
   };
   const handleAdminDelete = async () => { if (deleteAdminId) { await deleteAdmin.mutateAsync(deleteAdminId); setDeleteAdminId(null); } };
 
-  const tabItems = [
-    { value: 'admins', label: 'Admins', icon: Shield },
-    { value: 'tenants', label: 'Tenants', icon: Building2 },
-    { value: 'stores', label: 'Stores', icon: Store },
-    { value: 'planograms', label: 'Planograms', icon: LayoutGrid },
-    { value: 'categories', label: 'Categories', icon: FolderOpen },
-    { value: 'products', label: 'Products', icon: Package },
+  const allTabItems = [
+    { value: 'admins', label: 'Admins', icon: Shield, ownerOnly: true },
+    { value: 'tenants', label: 'Tenants', icon: Building2, ownerOnly: false },
+    { value: 'stores', label: 'Stores', icon: Store, ownerOnly: false },
+    { value: 'planograms', label: 'Planograms', icon: LayoutGrid, ownerOnly: false },
+    { value: 'categories', label: 'Categories', icon: FolderOpen, ownerOnly: false },
+    { value: 'products', label: 'Products', icon: Package, ownerOnly: false },
   ];
+  const tabItems = isOwner ? allTabItems : allTabItems.filter(t => !t.ownerOnly);
+
+  // For admin role users, filter data to their admin_id
+  const scopedTenants = useMemo(() => {
+    if (isOwner) return tenants;
+    if (adminId) return tenants.filter((t: any) => t.admin_id === adminId);
+    return tenants;
+  }, [tenants, isOwner, adminId]);
+
+  const scopedTenantIds = useMemo(() => new Set(scopedTenants.map(t => t.id)), [scopedTenants]);
+
+  const scopedStores = useMemo(() => {
+    if (isOwner) return stores;
+    return stores.filter(s => scopedTenantIds.has(s.tenant_id));
+  }, [stores, isOwner, scopedTenantIds]);
+
+  const scopedProducts = useMemo(() => {
+    if (isOwner) return products;
+    return products.filter(p => scopedTenantIds.has(p.tenant_id));
+  }, [products, isOwner, scopedTenantIds]);
+
+  const scopedCategories = useMemo(() => {
+    if (isOwner) return categories;
+    return categories.filter((c: any) => scopedTenantIds.has(c.tenant_id));
+  }, [categories, isOwner, scopedTenantIds]);
+
+  const scopedTemplates = useMemo(() => {
+    if (isOwner) return templates;
+    return templates.filter(t => scopedTenantIds.has(t.tenant_id));
+  }, [templates, isOwner, scopedTenantIds]);
 
 
   return (
