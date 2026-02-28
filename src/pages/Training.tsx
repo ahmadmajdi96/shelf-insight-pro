@@ -1034,7 +1034,7 @@ export default function Training() {
 
   const handleDeleteTraining = async (jobId: string) => {
     try {
-      await supabase.from('training_jobs').delete().eq('id', jobId);
+      await rest.remove('training_jobs', jobId);
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
       toast({ title: 'Training removed' });
     } catch (e: any) {
