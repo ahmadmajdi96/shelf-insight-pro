@@ -3,11 +3,7 @@ const STORAGE_KEY = 'shelfvision_api_url';
 
 // Default to the Supabase (Lovable Cloud) URL from env
 function getDefaultUrl(): string {
-  // Use Vite env variable if available (browser context)
-  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) {
-    return import.meta.env.VITE_SUPABASE_URL;
-  }
-  return 'https://jcmtiompmpafqwqlichh.supabase.co';
+  return 'https://iralpha.backend.cortanexai.com';
 }
 
 export function getApiBaseUrl(): string {
