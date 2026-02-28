@@ -52,10 +52,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
-      const { data: profiles } = await rest.list('profiles', {
-        select: '*',
-        filters: { user_id: `eq.${userId}` },
-      });
+      // Always use Supabase client for auth-related data (profiles, roles)
+      // since these tables live in Lovable Cloud, not the custom backend
+      const { data: profiles, error: profileError } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('user_id', userId);
+
+      if (profileError) throw profileError;
 
       const profileData = profiles?.[0];
       if (profileData) {
@@ -71,10 +75,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAdminId(profileData.admin_id || null);
       }
 
-      const { data: roles } = await rest.list('user_roles', {
-        select: 'role',
-        filters: { user_id: `eq.${userId}` },
-      });
+      const { data: roles, error: roleError } = await supabase
+        .from('user_roles')
+        .select('role')
+        .eq('user_id', userId);
+
+      if (roleError) throw roleError;
 
       const roleData = roles?.[0];
       if (roleData) {
