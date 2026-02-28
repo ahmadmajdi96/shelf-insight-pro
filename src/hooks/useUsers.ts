@@ -199,14 +199,14 @@ export function useUsers() {
     queryKey: ['user-shelf-access', userId],
     queryFn: async () => {
       const { data } = await rest.list('user_shelf_access', {
-        select: '*,shelves(name)',
+        select: '*,shelf:shelves(name)',
         filters: { user_id: `eq.${userId}` },
       });
       return (data || []).map((d: any) => ({
         id: d.id,
         userId: d.user_id,
         shelfId: d.shelf_id,
-        shelfName: d.shelves?.name || 'Unknown',
+        shelfName: d.shelf?.name || d.shelves?.name || 'Unknown',
       })) as UserShelfAccess[];
     },
     enabled: !!userId,
