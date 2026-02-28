@@ -66,35 +66,38 @@ export function usePlanogramTemplates() {
   const templatesQuery = useQuery({
     queryKey: ['planogram-templates'],
     queryFn: async () => {
-      const { data } = await rest.list('planogram_templates', {
-        select: '*,store:stores(name),shelf:shelves(name)',
-        order: 'updated_at.desc',
+      // Fetch templates, versions, and scans in parallel (no N+1)
+      const [templatesRes, versionsRes, scansRes] = await Promise.all([
+        rest.list('planogram_templates', {
+          select: '*,store:stores(name),shelf:shelves(name)',
+          order: 'updated_at.desc',
+        }),
+        rest.list('planogram_versions', { select: 'id,template_id' }),
+        rest.list('compliance_scans', { select: 'template_id,compliance_score,created_at', order: 'created_at.desc' }),
+      ]);
+
+      const templates = templatesRes.data || [];
+      const versions = versionsRes.data || [];
+      const scans = scansRes.data || [];
+
+      // Count versions by template_id
+      const versionCounts = new Map<string, number>();
+      versions.forEach((v: any) => versionCounts.set(v.template_id, (versionCounts.get(v.template_id) || 0) + 1));
+
+      // Latest compliance by template_id
+      const latestCompliance = new Map<string, number>();
+      scans.forEach((s: any) => {
+        if (!latestCompliance.has(s.template_id)) {
+          latestCompliance.set(s.template_id, s.compliance_score);
+        }
       });
 
-      const enriched = await Promise.all(
-        (data || []).map(async (t: any) => {
-          const { data: versions } = await rest.list('planogram_versions', {
-            select: '*',
-            filters: { template_id: `eq.${t.id}` },
-          });
-
-          const { data: scans } = await rest.list('compliance_scans', {
-            select: 'compliance_score',
-            filters: { template_id: `eq.${t.id}` },
-            order: 'created_at.desc',
-            limit: 1,
-          });
-
-          return {
-            ...t,
-            layout: (t.layout || []) as PlanogramRow[],
-            versions_count: versions?.length ?? 0,
-            latest_compliance: scans?.[0]?.compliance_score ?? null,
-          } as PlanogramTemplate;
-        })
-      );
-
-      return enriched;
+      return templates.map((t: any): PlanogramTemplate => ({
+        ...t,
+        layout: (t.layout || []) as PlanogramRow[],
+        versions_count: versionCounts.get(t.id) || 0,
+        latest_compliance: latestCompliance.get(t.id) ?? null,
+      }));
     },
     enabled: !!user,
   });
@@ -122,7 +125,6 @@ export function usePlanogramTemplates() {
         layout: template.layout,
       });
 
-      // Create initial version
       if (data?.id) {
         await rest.create('planogram_versions', {
           template_id: data.id,
@@ -147,7 +149,6 @@ export function usePlanogramTemplates() {
   const updateTemplate = useMutation({
     mutationFn: async ({ id, changeNotes, ...updates }: any) => {
       const user = apiAuth.getUser();
-
       const data = await rest.update('planogram_templates', { id: `eq.${id}` }, updates);
 
       if (updates.layout) {
@@ -219,9 +220,7 @@ export function usePlanogramTemplates() {
   });
 
   const deleteTemplate = useMutation({
-    mutationFn: async (id: string) => {
-      await rest.remove('planogram_templates', id);
-    },
+    mutationFn: async (id: string) => { await rest.remove('planogram_templates', id); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['planogram-templates'] });
       toast({ title: 'Template deleted', description: 'The planogram template has been removed.' });
@@ -287,7 +286,7 @@ export function useComplianceScans(templateId?: string | null) {
   const createScan = useMutation({
     mutationFn: async (scan: any) => {
       const user = apiAuth.getUser();
-      return await rest.create('compliance_scans', {
+      return rest.create('compliance_scans', {
         ...scan,
         scanned_by: user?.id,
         details: scan.details || [],

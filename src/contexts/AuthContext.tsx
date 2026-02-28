@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
 import { api, auth as apiAuth, onAuthChange, getToken, getStoredUser } from '@/lib/api-client';
 import { rest, rpc } from '@/lib/api-client';
+import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
 export type AppRole = 'owner' | 'admin' | 'tenant_admin' | 'tenant_user';
@@ -70,7 +71,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAdminId(profileData.admin_id || null);
       }
 
-      // Fetch user role
       const { data: roles } = await rest.list('user_roles', {
         select: 'role',
         filters: { user_id: `eq.${userId}` },
@@ -92,10 +92,32 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Listen to Supabase auth state changes (handles token refresh)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, sess) => {
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        if (sess?.user) {
+          const simpleUser: SimpleUser = { id: sess.user.id, email: sess.user.email || '' };
+          setSession({ access_token: sess.access_token, user: simpleUser });
+          setUser(simpleUser);
+          setTimeout(() => fetchProfile(sess.user.id), 0);
+        }
+      } else if (event === 'SIGNED_OUT') {
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+        setRole(null);
+        setTenantId(null);
+        setAdminId(null);
+      }
+      setIsLoading(false);
+    });
+
+    // Also listen to custom auth events (for backward compat)
     const unsubscribe = onAuthChange((event, sess) => {
       if (event === 'SIGNED_IN' && sess?.user) {
+        const simpleUser: SimpleUser = { id: sess.user.id, email: sess.user.email || '' };
         setSession(sess);
-        setUser(sess.user);
+        setUser(simpleUser);
         setTimeout(() => fetchProfile(sess.user.id), 0);
       } else if (event === 'SIGNED_OUT') {
         setSession(null);
@@ -108,15 +130,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setIsLoading(false);
     });
 
-    const existing = apiAuth.getSession();
-    if (existing?.user) {
-      setSession(existing as any);
-      setUser(existing.user);
-      fetchProfile(existing.user.id);
-    }
-    setIsLoading(false);
+    // Check existing session from Supabase client
+    supabase.auth.getSession().then(({ data: { session: sess } }) => {
+      if (sess?.user) {
+        const simpleUser: SimpleUser = { id: sess.user.id, email: sess.user.email || '' };
+        setSession({ access_token: sess.access_token, user: simpleUser });
+        setUser(simpleUser);
+        fetchProfile(sess.user.id);
+      }
+      setIsLoading(false);
+    });
 
-    return unsubscribe;
+    return () => {
+      subscription.unsubscribe();
+      unsubscribe();
+    };
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string, username?: string) => {

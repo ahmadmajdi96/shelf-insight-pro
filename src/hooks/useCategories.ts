@@ -22,32 +22,32 @@ export function useCategories() {
   const categoriesQuery = useQuery({
     queryKey: ['categories'],
     queryFn: async () => {
-      const { data: categories } = await rest.list('product_categories', {
-        select: '*',
-        order: 'name.asc',
+      // Fetch categories and skus in parallel (no N+1)
+      const [catRes, skusRes] = await Promise.all([
+        rest.list('product_categories', { select: '*', order: 'name.asc' }),
+        rest.list('skus', { select: 'id,category_id,training_status' }),
+      ]);
+
+      const categories = catRes.data || [];
+      const skus = skusRes.data || [];
+
+      // Count by category_id client-side
+      const productCounts = new Map<string, number>();
+      const trainedCounts = new Map<string, number>();
+      skus.forEach((s: any) => {
+        if (s.category_id) {
+          productCounts.set(s.category_id, (productCounts.get(s.category_id) || 0) + 1);
+          if (s.training_status === 'completed') {
+            trainedCounts.set(s.category_id, (trainedCounts.get(s.category_id) || 0) + 1);
+          }
+        }
       });
 
-      const categoriesWithCounts: CategoryWithCounts[] = await Promise.all(
-        (categories || []).map(async (category: any) => {
-          const { data: allSkus } = await rest.list('skus', {
-            select: '*',
-            filters: { category_id: `eq.${category.id}` },
-          });
-
-          const { data: trainedSkus } = await rest.list('skus', {
-            select: '*',
-            filters: { category_id: `eq.${category.id}`, training_status: 'eq.completed' },
-          });
-
-          return {
-            ...category,
-            productCount: allSkus?.length ?? 0,
-            trainedCount: trainedSkus?.length ?? 0,
-          };
-        })
-      );
-
-      return categoriesWithCounts;
+      return categories.map((cat: any): CategoryWithCounts => ({
+        ...cat,
+        productCount: productCounts.get(cat.id) || 0,
+        trainedCount: trainedCounts.get(cat.id) || 0,
+      }));
     },
     enabled: !!user,
   });
@@ -56,7 +56,7 @@ export function useCategories() {
     mutationFn: async (category: any) => {
       const tid = category.tenant_id || tenantId;
       if (!tid) throw new Error('No tenant ID');
-      return await rest.create('product_categories', { ...category, tenant_id: tid });
+      return rest.create('product_categories', { ...category, tenant_id: tid });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
@@ -68,9 +68,7 @@ export function useCategories() {
   });
 
   const updateCategory = useMutation({
-    mutationFn: async ({ id, ...updates }: any) => {
-      return await rest.update('product_categories', { id: `eq.${id}` }, updates);
-    },
+    mutationFn: async ({ id, ...updates }: any) => rest.update('product_categories', { id: `eq.${id}` }, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
       toast({ title: 'Category updated', description: 'Changes saved successfully.' });
@@ -81,9 +79,7 @@ export function useCategories() {
   });
 
   const deleteCategory = useMutation({
-    mutationFn: async (id: string) => {
-      await rest.remove('product_categories', id);
-    },
+    mutationFn: async (id: string) => { await rest.remove('product_categories', id); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['categories'] });
       toast({ title: 'Category deleted', description: 'The category has been removed.' });

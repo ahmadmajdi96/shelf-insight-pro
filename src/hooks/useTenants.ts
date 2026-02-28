@@ -20,6 +20,7 @@ interface TenantWithStats {
   updated_at: string;
   username: string | null;
   password: string | null;
+  admin_id: string | null;
   skuCount: number;
   userCount: number;
 }
@@ -32,40 +33,37 @@ export function useTenants() {
   const tenantsQuery = useQuery({
     queryKey: ['tenants'],
     queryFn: async () => {
-      const { data: tenants } = await rest.list('tenants', {
-        select: '*',
-        order: 'name.asc',
+      // Fetch tenants, skus counts, and profile counts in parallel (no N+1)
+      const [tenantsRes, skusRes, profilesRes] = await Promise.all([
+        rest.list('tenants', { select: '*', order: 'name.asc' }),
+        rest.list('skus', { select: 'id,tenant_id' }),
+        rest.list('profiles', { select: 'id,tenant_id' }),
+      ]);
+
+      const tenants = tenantsRes.data || [];
+      const skus = skusRes.data || [];
+      const profiles = profilesRes.data || [];
+
+      // Count by tenant_id client-side
+      const skuCounts = new Map<string, number>();
+      skus.forEach((s: any) => skuCounts.set(s.tenant_id, (skuCounts.get(s.tenant_id) || 0) + 1));
+
+      const userCounts = new Map<string, number>();
+      profiles.forEach((p: any) => {
+        if (p.tenant_id) userCounts.set(p.tenant_id, (userCounts.get(p.tenant_id) || 0) + 1);
       });
 
-      const tenantsWithStats: TenantWithStats[] = await Promise.all(
-        (tenants || []).map(async (tenant: any) => {
-          const { data: skus } = await rest.list('skus', {
-            select: '*',
-            filters: { tenant_id: `eq.${tenant.id}` },
-          });
-
-          const { data: profiles } = await rest.list('profiles', {
-            select: '*',
-            filters: { tenant_id: `eq.${tenant.id}` },
-          });
-
-          return {
-            ...tenant,
-            skuCount: skus?.length ?? 0,
-            userCount: profiles?.length ?? 0,
-          };
-        })
-      );
-
-      return tenantsWithStats;
+      return tenants.map((tenant: any): TenantWithStats => ({
+        ...tenant,
+        skuCount: skuCounts.get(tenant.id) || 0,
+        userCount: userCounts.get(tenant.id) || 0,
+      }));
     },
     enabled: !!user,
   });
 
   const createTenant = useMutation({
-    mutationFn: async (tenant: any) => {
-      return await rest.create('tenants', tenant);
-    },
+    mutationFn: async (tenant: any) => rest.create('tenants', tenant),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       toast({ title: 'Tenant created', description: 'The new tenant has been added successfully.' });
@@ -76,9 +74,7 @@ export function useTenants() {
   });
 
   const updateTenant = useMutation({
-    mutationFn: async ({ id, ...updates }: any) => {
-      return await rest.update('tenants', { id: `eq.${id}` }, updates);
-    },
+    mutationFn: async ({ id, ...updates }: any) => rest.update('tenants', { id: `eq.${id}` }, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       toast({ title: 'Tenant updated', description: 'Changes saved successfully.' });
@@ -90,7 +86,7 @@ export function useTenants() {
 
   const suspendTenant = useMutation({
     mutationFn: async ({ id, suspend }: { id: string; suspend: boolean }) => {
-      return await rest.update('tenants', { id: `eq.${id}` }, {
+      return rest.update('tenants', { id: `eq.${id}` }, {
         status: suspend ? 'suspended' : 'active',
         is_active: !suspend,
       });
@@ -108,9 +104,7 @@ export function useTenants() {
   });
 
   const deleteTenant = useMutation({
-    mutationFn: async (id: string) => {
-      await rest.remove('tenants', id);
-    },
+    mutationFn: async (id: string) => { await rest.remove('tenants', id); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       toast({ title: 'Tenant deleted', description: 'The tenant has been removed.' });

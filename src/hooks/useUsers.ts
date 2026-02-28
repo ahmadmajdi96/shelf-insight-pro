@@ -86,10 +86,9 @@ export function useUsers() {
     mutationFn: async ({ email, password, fullName, username, role, tenantId }: {
       email: string; password: string; fullName: string; username?: string; role: string; tenantId?: string;
     }) => {
-      const data = await apiAuth.signup(email, password, { full_name: fullName });
-      if (!data?.user?.id && !data?.id) throw new Error('User creation failed');
-      
+      const data = await apiAuth.signup(email, password, { full_name: fullName }) as any;
       const userId = data?.user?.id || data?.id;
+      if (!userId) throw new Error('User creation failed');
 
       await rest.update('profiles', { user_id: `eq.${userId}` }, {
         full_name: fullName,
