@@ -96,7 +96,7 @@ export default function Signup() {
         </div>
         
         <p className="text-sm text-muted-foreground">
-          © 2024 ShelfVision. All rights reserved.
+          © {new Date().getFullYear()} ALPHA IR. All rights reserved.
         </p>
       </div>
 
