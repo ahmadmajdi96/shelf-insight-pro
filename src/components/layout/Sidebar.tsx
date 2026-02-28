@@ -45,13 +45,15 @@ export function Sidebar() {
   const location = useLocation();
   const navigate = useNavigate();
   const isMobile = useIsMobile();
-  const { signOut, isOwner } = useAuth();
+  const { signOut, isOwner, isAdmin } = useAuth();
   const { unreadCount } = useNotifications();
 
   const navItems = useMemo(() => {
     if (isOwner) return allNavItems;
-    return allNavItems.filter(item => !item.ownerOnly);
-  }, [isOwner]);
+    if (isAdmin) return allNavItems.filter(item => item.visibility !== 'ownerOnly');
+    // tenant_admin: only 'all' visibility items
+    return allNavItems.filter(item => item.visibility === 'all');
+  }, [isOwner, isAdmin]);
 
   const handleLogout = async () => {
     await signOut();
