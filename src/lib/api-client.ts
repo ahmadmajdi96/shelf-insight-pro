@@ -69,7 +69,7 @@ export const auth = {
     const res = await fetch(`${base}/auth/v1/login`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
+      body: JSON.stringify({ identifier: email, password }),
     });
 
     const data = await res.json();
