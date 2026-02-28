@@ -458,15 +458,20 @@ export default function Planogram() {
   };
   const handleAdminDelete = async () => { if (deleteAdminId) { await deleteAdmin.mutateAsync(deleteAdminId); setDeleteAdminId(null); } };
 
-  const allTabItems = [
-    { value: 'admins', label: 'Admins', icon: Shield, ownerOnly: true },
-    { value: 'tenants', label: 'Tenants', icon: Building2, ownerOnly: false },
-    { value: 'stores', label: 'Stores', icon: Store, ownerOnly: false },
-    { value: 'planograms', label: 'Planograms', icon: LayoutGrid, ownerOnly: false },
-    { value: 'categories', label: 'Categories', icon: FolderOpen, ownerOnly: false },
-    { value: 'products', label: 'Products', icon: Package, ownerOnly: false },
+  type TabVisibility = 'all' | 'ownerOnly' | 'adminUp';
+  const allTabItems: { value: string; label: string; icon: any; visibility: TabVisibility }[] = [
+    { value: 'admins', label: 'Admins', icon: Shield, visibility: 'ownerOnly' },
+    { value: 'tenants', label: 'Tenants', icon: Building2, visibility: 'adminUp' },
+    { value: 'stores', label: 'Stores', icon: Store, visibility: 'all' },
+    { value: 'planograms', label: 'Planograms', icon: LayoutGrid, visibility: 'all' },
+    { value: 'categories', label: 'Categories', icon: FolderOpen, visibility: 'all' },
+    { value: 'products', label: 'Products', icon: Package, visibility: 'all' },
   ];
-  const tabItems = isOwner ? allTabItems : allTabItems.filter(t => !t.ownerOnly);
+  const tabItems = isOwner 
+    ? allTabItems 
+    : isTenantOnly 
+    ? allTabItems.filter(t => t.visibility === 'all')
+    : allTabItems.filter(t => t.visibility !== 'ownerOnly');
 
 
   return (
