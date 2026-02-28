@@ -1024,7 +1024,7 @@ export default function Training() {
 
   const handleSuspendModel = async (jobId: string) => {
     try {
-      await supabase.from('training_jobs').update({ status: 'pending' }).eq('id', jobId);
+      await rest.update('training_jobs', { id: `eq.${jobId}` }, { status: 'pending' });
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
       toast({ title: 'Model suspended' });
     } catch (e: any) {
