@@ -63,7 +63,20 @@ export function useTenants() {
   });
 
   const createTenant = useMutation({
-    mutationFn: async (tenant: any) => rest.create('tenants', tenant),
+    mutationFn: async (tenant: any) => {
+      // Only send fields the backend expects; always include status + is_active
+      const payload: Record<string, any> = {
+        name: tenant.name,
+        status: 'active',
+        is_active: true,
+      };
+      if (tenant.username) payload.username = tenant.username;
+      if (tenant.password) payload.password = tenant.password;
+      if (tenant.max_skus != null) payload.max_skus = tenant.max_skus;
+      if (tenant.max_images_per_month != null) payload.max_images_per_month = tenant.max_images_per_month;
+      if (tenant.admin_id) payload.admin_id = tenant.admin_id;
+      return rest.create('tenants', payload);
+    },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
       toast({ title: 'Tenant created', description: 'The new tenant has been added successfully.' });
