@@ -86,6 +86,23 @@ export default function Activity() {
     return result;
   }, [detections, selectedTenantId, selectedAdminId, filteredTenants, selectedStoreId]);
 
+  const filteredComplianceScans = useMemo(() => {
+    let result = (allScans.scans || []) as any[];
+
+    if (selectedTenantId !== 'all') {
+      result = result.filter((scan: any) => scan.template?.tenant_id === selectedTenantId);
+    } else if (selectedAdminId !== 'all') {
+      const tenantIds = new Set(filteredTenants.map((t: any) => t.id));
+      result = result.filter((scan: any) => tenantIds.has(scan.template?.tenant_id));
+    }
+
+    if (selectedStoreId !== 'all') {
+      result = result.filter((scan: any) => scan.template?.store_id === selectedStoreId);
+    }
+
+    return result;
+  }, [allScans.scans, selectedTenantId, selectedAdminId, selectedStoreId, filteredTenants]);
+
   const tenantPieData = useMemo(() => {
     return filteredTenants.slice(0, 6).map((t: any) => ({
       name: t.name,
