@@ -1047,15 +1047,12 @@ export default function Training() {
     if (!selectedDatasetId) return;
     setTrainingStarting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('start-training', {
-        body: {
-          dataset_id: selectedDatasetId,
-          epochs: trainForm.epochs,
-          batch_size: trainForm.batch_size,
-          config: trainingConfig,
-        },
+      const data = await invoke('start-training', {
+        dataset_id: selectedDatasetId,
+        epochs: trainForm.epochs,
+        batch_size: trainForm.batch_size,
+        config: trainingConfig,
       });
-      if (error) throw error;
       setShowTrainModal(false);
       toast({ title: 'Training job started', description: data?.message || 'The model is being trained.' });
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
