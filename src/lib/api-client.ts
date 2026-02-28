@@ -1,4 +1,5 @@
 import { getApiBaseUrl, getApiKey } from './api-config';
+import { supabase } from '@/integrations/supabase/client';
 
 const TOKEN_KEY = 'shelfvision_access_token';
 const USER_KEY = 'shelfvision_user';
@@ -36,20 +37,50 @@ function notifyAuth(event: string, session: any) {
   authListeners.forEach(fn => fn(event, session));
 }
 
+// ─── Token refresh via Supabase client ───────────────────
+async function getValidToken(): Promise<string | null> {
+  // Try Supabase client session first (handles auto-refresh)
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (session?.access_token) {
+      // Sync token to our storage
+      setToken(session.access_token);
+      return session.access_token;
+    }
+  } catch {
+    // Fall through to stored token
+  }
+  return getToken();
+}
+
 // ─── Base fetch helper ───────────────────────────────────
 async function apiFetch(path: string, opts: RequestInit = {}) {
   const base = getApiBaseUrl();
-  const token = getToken();
+  const token = await getValidToken();
   const apiKey = getApiKey();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     ...(opts.headers as Record<string, string> || {}),
   };
-  // Always include apikey for Supabase/PostgREST compatibility
   if (apiKey) headers['apikey'] = apiKey;
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`${base}${path}`, { ...opts, headers });
+
+  // If 401, try refreshing the token once
+  if (res.status === 401) {
+    try {
+      const { data: { session } } = await supabase.auth.refreshSession();
+      if (session?.access_token) {
+        setToken(session.access_token);
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+        return fetch(`${base}${path}`, { ...opts, headers });
+      }
+    } catch {
+      // Refresh failed, return original 401
+    }
+  }
+
   return res;
 }
 
@@ -66,30 +97,32 @@ async function apiFetchJSON(path: string, opts: RequestInit = {}) {
 // ─── Auth ────────────────────────────────────────────────
 export const auth = {
   async login(email: string, password: string) {
-    const data = await apiFetchJSON('/auth/v1/token?grant_type=password', {
-      method: 'POST',
-      body: JSON.stringify({ email, password }),
-    });
-    if (data?.access_token) {
-      setToken(data.access_token);
-      const user = data.user || { id: data.sub, email };
+    // Use Supabase client for login (handles session persistence + refresh)
+    const { data, error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) throw error;
+    
+    if (data?.session?.access_token) {
+      setToken(data.session.access_token);
+      const user = data.user || { id: data.session.user?.id, email };
       setStoredUser(user);
-      notifyAuth('SIGNED_IN', { access_token: data.access_token, user });
+      notifyAuth('SIGNED_IN', { access_token: data.session.access_token, user });
     }
     return data;
   },
 
-  async signup(email: string, password: string, data?: Record<string, unknown>) {
-    const result = await apiFetchJSON('/auth/v1/signup', {
-      method: 'POST',
-      body: JSON.stringify({ email, password, data }),
+  async signup(email: string, password: string, userData?: Record<string, unknown>) {
+    const { data, error } = await supabase.auth.signUp({ 
+      email, 
+      password, 
+      options: { data: userData } 
     });
-    return result;
+    if (error) throw error;
+    return data;
   },
 
   async logout() {
     try {
-      await apiFetch('/auth/v1/logout', { method: 'POST' });
+      await supabase.auth.signOut();
     } catch { /* ignore */ }
     setToken(null);
     setStoredUser(null);
@@ -160,7 +193,6 @@ export const rest = {
       headers: { 'Prefer': 'return=representation' },
       body: JSON.stringify(payload),
     });
-    // PostgREST returns an array; return the first item for convenience
     return Array.isArray(data) ? data[0] : data;
   },
 
@@ -202,7 +234,7 @@ export async function invoke(fn: string, body: any) {
 export const storage = {
   async upload(bucket: string, path: string, file: File) {
     const base = getApiBaseUrl();
-    const token = getToken();
+    const token = await getValidToken();
     const apiKey = getApiKey();
     const formData = new FormData();
     formData.append('file', file);
@@ -227,7 +259,7 @@ export const storage = {
 
   async uploadMultiple(bucket: string, path: string, files: File[], metadata?: Record<string, string>) {
     const base = getApiBaseUrl();
-    const token = getToken();
+    const token = await getValidToken();
     const apiKey = getApiKey();
     const formData = new FormData();
 

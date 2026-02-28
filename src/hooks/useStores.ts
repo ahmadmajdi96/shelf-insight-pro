@@ -25,46 +25,43 @@ export function useStores() {
   const storesQuery = useQuery({
     queryKey: ['stores'],
     queryFn: async () => {
-      const { data: stores } = await rest.list('stores', {
-        select: '*',
-        order: 'name.asc',
+      // Fetch stores and detections in parallel (no N+1)
+      const [storesRes, detectionsRes] = await Promise.all([
+        rest.list('stores', { select: '*', order: 'name.asc' }),
+        rest.list('detections', { select: 'id,store_id,share_of_shelf_percentage,processed_at', order: 'processed_at.desc' }),
+      ]);
+
+      const stores = storesRes.data || [];
+      const detections = detectionsRes.data || [];
+
+      // Group detections by store_id
+      const detectionsByStore = new Map<string, any[]>();
+      detections.forEach((d: any) => {
+        if (d.store_id) {
+          if (!detectionsByStore.has(d.store_id)) detectionsByStore.set(d.store_id, []);
+          detectionsByStore.get(d.store_id)!.push(d);
+        }
       });
 
-      const storesWithStats: StoreWithStats[] = await Promise.all(
-        (stores || []).map(async (store: any) => {
-          const { data: detections } = await rest.list('detections', {
-            select: 'share_of_shelf_percentage,processed_at',
-            filters: { store_id: `eq.${store.id}` },
-            order: 'processed_at.desc',
-            limit: 100,
-          });
+      return stores.map((store: any): StoreWithStats => {
+        const storeDetections = detectionsByStore.get(store.id) || [];
+        const avgShareOfShelf = storeDetections.length > 0
+          ? storeDetections.reduce((sum: number, d: any) => sum + (d.share_of_shelf_percentage || 0), 0) / storeDetections.length
+          : 0;
 
-          const avgShareOfShelf = detections && detections.length > 0
-            ? detections.reduce((sum: number, d: any) => sum + (d.share_of_shelf_percentage || 0), 0) / detections.length
-            : 0;
-
-          const lastDetection = detections && detections.length > 0
-            ? detections[0].processed_at
-            : null;
-
-          return {
-            ...store,
-            detectionCount: detections?.length ?? 0,
-            avgShareOfShelf: Math.round(avgShareOfShelf * 10) / 10,
-            lastDetection,
-          };
-        })
-      );
-
-      return storesWithStats;
+        return {
+          ...store,
+          detectionCount: storeDetections.length,
+          avgShareOfShelf: Math.round(avgShareOfShelf * 10) / 10,
+          lastDetection: storeDetections[0]?.processed_at || null,
+        };
+      });
     },
     enabled: !!user,
   });
 
   const createStore = useMutation({
-    mutationFn: async (store: any) => {
-      return await rest.create('stores', store);
-    },
+    mutationFn: async (store: any) => rest.create('stores', store),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stores'] });
       toast({ title: 'Store created', description: 'Your store has been added successfully.' });
@@ -75,9 +72,7 @@ export function useStores() {
   });
 
   const updateStore = useMutation({
-    mutationFn: async ({ id, ...updates }: any) => {
-      return await rest.update('stores', { id: `eq.${id}` }, updates);
-    },
+    mutationFn: async ({ id, ...updates }: any) => rest.update('stores', { id: `eq.${id}` }, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stores'] });
       toast({ title: 'Store updated', description: 'Changes saved successfully.' });
@@ -88,9 +83,7 @@ export function useStores() {
   });
 
   const deleteStore = useMutation({
-    mutationFn: async (id: string) => {
-      await rest.remove('stores', id);
-    },
+    mutationFn: async (id: string) => { await rest.remove('stores', id); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['stores'] });
       toast({ title: 'Store deleted', description: 'The store has been removed.' });

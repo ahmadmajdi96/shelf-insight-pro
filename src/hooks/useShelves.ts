@@ -27,29 +27,33 @@ export function useShelves() {
   const shelvesQuery = useQuery({
     queryKey: ['shelves'],
     queryFn: async () => {
-      const { data: shelves } = await rest.list('shelves', {
-        select: '*,store:stores(*),products:shelf_products(*,sku:skus(*))',
-        order: 'name.asc',
+      // Fetch shelves with joins and images in parallel (no N+1)
+      const [shelvesRes, imagesRes] = await Promise.all([
+        rest.list('shelves', {
+          select: '*,store:stores(*),products:shelf_products(*,sku:skus(*))',
+          order: 'name.asc',
+        }),
+        rest.list('shelf_images', { select: 'id,shelf_id,created_at', order: 'created_at.desc' }),
+      ]);
+
+      const shelves = shelvesRes.data || [];
+      const images = imagesRes.data || [];
+
+      // Group images by shelf_id
+      const imagesByShelf = new Map<string, any[]>();
+      images.forEach((img: any) => {
+        if (!imagesByShelf.has(img.shelf_id)) imagesByShelf.set(img.shelf_id, []);
+        imagesByShelf.get(img.shelf_id)!.push(img);
       });
 
-      const shelvesWithDetails: ShelfWithDetails[] = await Promise.all(
-        (shelves || []).map(async (shelf: any) => {
-          const { data: images } = await rest.list('shelf_images', {
-            select: '*',
-            filters: { shelf_id: `eq.${shelf.id}` },
-            order: 'created_at.desc',
-            limit: 1,
-          });
-
-          return {
-            ...shelf,
-            imageCount: images?.length ?? 0,
-            lastImage: images?.[0] ?? null,
-          };
-        })
-      );
-
-      return shelvesWithDetails;
+      return shelves.map((shelf: any): ShelfWithDetails => {
+        const shelfImages = imagesByShelf.get(shelf.id) || [];
+        return {
+          ...shelf,
+          imageCount: shelfImages.length,
+          lastImage: shelfImages[0] ?? null,
+        };
+      });
     },
     enabled: !!user,
   });
@@ -58,7 +62,7 @@ export function useShelves() {
     mutationFn: async (shelf: any) => {
       const tid = shelf.tenant_id || tenantId;
       if (!tid) throw new Error('No tenant ID');
-      return await rest.create('shelves', { ...shelf, tenant_id: tid });
+      return rest.create('shelves', { ...shelf, tenant_id: tid });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
@@ -70,9 +74,7 @@ export function useShelves() {
   });
 
   const updateShelf = useMutation({
-    mutationFn: async ({ id, ...updates }: any) => {
-      return await rest.update('shelves', { id: `eq.${id}` }, updates);
-    },
+    mutationFn: async ({ id, ...updates }: any) => rest.update('shelves', { id: `eq.${id}` }, updates),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
       toast({ title: 'Shelf updated', description: 'Changes saved successfully.' });
@@ -83,9 +85,7 @@ export function useShelves() {
   });
 
   const deleteShelf = useMutation({
-    mutationFn: async (id: string) => {
-      await rest.remove('shelves', id);
-    },
+    mutationFn: async (id: string) => { await rest.remove('shelves', id); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
       toast({ title: 'Shelf deleted', description: 'The shelf has been removed.' });
@@ -97,7 +97,6 @@ export function useShelves() {
 
   const assignProducts = useMutation({
     mutationFn: async ({ shelfId, skuIds, quantities }: { shelfId: string; skuIds: string[]; quantities?: Record<string, number> }) => {
-      // Delete existing assignments
       const { data: existing } = await rest.list('shelf_products', {
         select: 'id',
         filters: { shelf_id: `eq.${shelfId}` },
@@ -106,7 +105,6 @@ export function useShelves() {
         await rest.remove('shelf_products', item.id);
       }
 
-      // Insert new
       if (skuIds.length > 0) {
         for (let i = 0; i < skuIds.length; i++) {
           await rest.create('shelf_products', {
@@ -158,7 +156,7 @@ export function useShelfImages(shelfId: string | null) {
 
   const addImage = useMutation({
     mutationFn: async ({ shelfId, imageUrl }: { shelfId: string; imageUrl: string }) => {
-      return await rest.create('shelf_images', { shelf_id: shelfId, image_url: imageUrl });
+      return rest.create('shelf_images', { shelf_id: shelfId, image_url: imageUrl });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelf-images'] });
@@ -170,9 +168,7 @@ export function useShelfImages(shelfId: string | null) {
   });
 
   const deleteImage = useMutation({
-    mutationFn: async (imageId: string) => {
-      await rest.remove('shelf_images', imageId);
-    },
+    mutationFn: async (imageId: string) => { await rest.remove('shelf_images', imageId); },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['shelf-images'] });
       queryClient.invalidateQueries({ queryKey: ['shelves'] });
