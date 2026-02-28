@@ -30,8 +30,11 @@ export function ProtectedRoute({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (requiredRoles && role && !requiredRoles.includes(role)) {
-    return <Navigate to="/" replace />;
+  // If route requires specific roles and user has a role, check it
+  if (requiredRoles && requiredRoles.length > 0) {
+    if (!role || !requiredRoles.includes(role)) {
+      return <Navigate to="/login" replace />;
+    }
   }
 
   return <>{children}</>;
