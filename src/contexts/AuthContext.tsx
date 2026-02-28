@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { api, auth as apiAuth, onAuthChange, getToken, getStoredUser } from '@/lib/api-client';
+import { api, auth as apiAuth } from '@/lib/api-client';
 import { rest, rpc } from '@/lib/api-client';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
