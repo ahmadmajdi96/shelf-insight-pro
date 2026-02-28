@@ -73,7 +73,7 @@ export default function Signup() {
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
             <ScanLine className="w-6 h-6 text-primary-foreground" />
           </div>
-          <span className="text-xl font-bold text-foreground">ShelfVision</span>
+          <span className="text-xl font-bold text-foreground">ALPHA IR</span>
         </div>
         
         <div className="space-y-6">
@@ -81,7 +81,7 @@ export default function Signup() {
             Start Detecting<br />SKUs Today
           </h1>
           <p className="text-lg text-muted-foreground max-w-md">
-            Join hundreds of retail brands using ShelfVision to optimize their shelf presence and drive sales.
+            Join hundreds of retail brands using ALPHA IR to optimize their shelf presence and drive sales.
           </p>
           <div className="space-y-3">
             {['Train unlimited SKUs', 'Real-time share of shelf analytics', 'Multi-store monitoring'].map(text => (
@@ -96,7 +96,7 @@ export default function Signup() {
         </div>
         
         <p className="text-sm text-muted-foreground">
-          © 2024 ShelfVision. All rights reserved.
+          © {new Date().getFullYear()} ALPHA IR. All rights reserved.
         </p>
       </div>
 
@@ -108,7 +108,7 @@ export default function Signup() {
             <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
               <ScanLine className="w-6 h-6 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold text-foreground">ShelfVision</span>
+            <span className="text-xl font-bold text-foreground">ALPHA IR</span>
           </div>
 
           <div className="text-center lg:text-left">

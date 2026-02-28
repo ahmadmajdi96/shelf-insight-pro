@@ -5,7 +5,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
-import { Download, Copy, Check, FileText, Code, ChevronDown, ChevronRight, BookOpen } from 'lucide-react';
+import { Download, Copy, Check, FileText, Code, ChevronDown, ChevronRight, BookOpen, Shield, Zap, Brain, Server } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
 // ─── DATA EXAMPLES ───────────────────────────────────────────────────────────
@@ -86,36 +86,12 @@ const examples: Record<string, { request?: any; response?: any }> = {
   // ── Stores ──
   "GET /rest/v1/stores": {
     response: [
-      {
-        id: "b2c3d4e5-f6a7-8901-bcde-f12345678901",
-        tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-        name: "Downtown Flagship Store",
-        address: "123 Main Street",
-        city: "New York",
-        country: "US",
-        created_at: "2025-03-01T09:00:00Z",
-        updated_at: "2025-06-15T11:30:00Z"
-      }
+      { id: "b2c3d4e5-f6a7-8901-bcde-f12345678901", tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", name: "Downtown Flagship Store", address: "123 Main Street", city: "New York", country: "US", created_at: "2025-03-01T09:00:00Z", updated_at: "2025-06-15T11:30:00Z" }
     ]
   },
   "POST /rest/v1/stores": {
-    request: {
-      tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      name: "Westside Branch",
-      address: "456 Oak Avenue",
-      city: "Los Angeles",
-      country: "US"
-    },
-    response: {
-      id: "c3d4e5f6-a7b8-9012-cdef-123456789012",
-      tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      name: "Westside Branch",
-      address: "456 Oak Avenue",
-      city: "Los Angeles",
-      country: "US",
-      created_at: "2026-02-18T10:00:00Z",
-      updated_at: "2026-02-18T10:00:00Z"
-    }
+    request: { tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", name: "Westside Branch", address: "456 Oak Avenue", city: "Los Angeles", country: "US" },
+    response: { id: "c3d4e5f6-a7b8-9012-cdef-123456789012", tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", name: "Westside Branch", address: "456 Oak Avenue", city: "Los Angeles", country: "US", created_at: "2026-02-18T10:00:00Z", updated_at: "2026-02-18T10:00:00Z" }
   },
   "PATCH /rest/v1/stores?id=eq.{id}": {
     request: { name: "Renamed Store", city: "Chicago" },
@@ -126,37 +102,12 @@ const examples: Record<string, { request?: any; response?: any }> = {
   // ── Products (SKUs) ──
   "GET /rest/v1/skus": {
     response: [
-      {
-        id: "d4e5f6a7-b8c9-0123-def0-123456789abc",
-        tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-        category_id: "e5f6a7b8-c9d0-1234-ef01-23456789abcd",
-        name: "Cola Classic 330ml",
-        description: "Classic cola soft drink, 330ml can",
-        barcode: "5901234123457",
-        is_active: true,
-        training_status: "completed",
-        created_at: "2025-02-20T14:00:00Z",
-        updated_at: "2025-05-10T09:15:00Z"
-      }
+      { id: "d4e5f6a7-b8c9-0123-def0-123456789abc", tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", category_id: "e5f6a7b8-c9d0-1234-ef01-23456789abcd", name: "Cola Classic 330ml", description: "Classic cola soft drink, 330ml can", barcode: "5901234123457", is_active: true, training_status: "completed", created_at: "2025-02-20T14:00:00Z", updated_at: "2025-05-10T09:15:00Z" }
     ]
   },
   "POST /rest/v1/skus": {
-    request: {
-      tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      category_id: "e5f6a7b8-c9d0-1234-ef01-23456789abcd",
-      name: "Sparkling Water 500ml",
-      description: "Premium sparkling mineral water",
-      barcode: "5901234567890",
-      is_active: true,
-      training_status: "pending"
-    },
-    response: {
-      id: "f6a7b8c9-d0e1-2345-f012-3456789abcde",
-      tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      name: "Sparkling Water 500ml",
-      training_status: "pending",
-      created_at: "2026-02-18T10:00:00Z"
-    }
+    request: { tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", category_id: "e5f6a7b8-c9d0-1234-ef01-23456789abcd", name: "Sparkling Water 500ml", description: "Premium sparkling mineral water", barcode: "5901234567890", is_active: true, training_status: "pending" },
+    response: { id: "f6a7b8c9-d0e1-2345-f012-3456789abcde", tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", name: "Sparkling Water 500ml", training_status: "pending", created_at: "2026-02-18T10:00:00Z" }
   },
 
   // ── SKU Images ──
@@ -188,15 +139,9 @@ const examples: Record<string, { request?: any; response?: any }> = {
     ]
   },
   "POST /rest/v1/planogram_templates": {
-    request: {
-      tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      name: "New Snack Aisle Layout",
-      status: "draft",
-      layout: [{ row: 1, position: 1, sku_id: "f6a7b8c9-d0e1-2345-f012-3456789abcde", facings: 4 }]
-    },
+    request: { tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", name: "New Snack Aisle Layout", status: "draft", layout: [{ row: 1, position: 1, sku_id: "f6a7b8c9-d0e1-2345-f012-3456789abcde", facings: 4 }] },
     response: { id: "pt-new-001", name: "New Snack Aisle Layout", status: "draft", created_at: "2026-02-18T10:00:00Z" }
   },
-
   "GET /rest/v1/planogram_versions": {
     response: [
       { id: "pv-001", template_id: "pt-001", version_number: 1, layout: [], change_notes: "Initial version", created_at: "2025-04-01T12:00:00Z" }
@@ -217,7 +162,6 @@ const examples: Record<string, { request?: any; response?: any }> = {
     request: { tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", store_id: "b2c3d4e5-f6a7-8901-bcde-f12345678901", name: "Aisle 5 - Bottom Shelf", location_in_store: "Aisle 5, Section B", width_cm: 90 },
     response: { id: "sh-new-001", name: "Aisle 5 - Bottom Shelf", width_cm: 90, created_at: "2026-02-18T10:00:00Z" }
   },
-
   "GET /rest/v1/shelf_products": {
     response: [
       { id: "sp-001", shelf_id: "sh-001", sku_id: "d4e5f6a7-b8c9-0123-def0-123456789abc", expected_facings: 3, position_order: 1, created_at: "2025-03-15T10:30:00Z" }
@@ -227,7 +171,6 @@ const examples: Record<string, { request?: any; response?: any }> = {
     request: { shelf_id: "sh-001", sku_id: "f6a7b8c9-d0e1-2345-f012-3456789abcde", expected_facings: 2, position_order: 2 },
     response: { id: "sp-new-001", shelf_id: "sh-001", sku_id: "f6a7b8c9-d0e1-2345-f012-3456789abcde", expected_facings: 2, position_order: 2, created_at: "2026-02-18T10:00:00Z" }
   },
-
   "GET /rest/v1/shelf_images": {
     response: [
       { id: "si-001", shelf_id: "sh-001", image_url: "https://storage.example.com/shelf-images/aisle3-20250601.jpg", detection_result: { predictions: [] }, processed_at: "2025-06-01T14:30:00Z", created_at: "2025-06-01T14:30:00Z" }
@@ -242,22 +185,15 @@ const examples: Record<string, { request?: any; response?: any }> = {
   "GET /rest/v1/detections": {
     response: [
       {
-        id: "det-001",
-        tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-        store_id: "b2c3d4e5-f6a7-8901-bcde-f12345678901",
+        id: "det-001", tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", store_id: "b2c3d4e5-f6a7-8901-bcde-f12345678901",
         original_image_url: "uploaded",
         detection_result: {
           detections: [{ skuId: "d4e5f6a7-b8c9-0123-def0-123456789abc", skuName: "Cola Classic 330ml", isAvailable: true, facings: 3, confidence: 0.95, boundingBox: { x: 10, y: 20, width: 15, height: 25 } }],
           missingSkus: [],
           shareOfShelf: { totalShelfArea: 100, trainedProductsArea: 35, percentage: 35.0 },
-          totalFacings: 3,
-          summary: "Detected 1 product with 3 facings"
+          totalFacings: 3, summary: "Detected 1 product with 3 facings"
         },
-        share_of_shelf_percentage: 35.0,
-        total_facings: 3,
-        detected_skus: 1,
-        missing_skus: 0,
-        processed_at: "2025-06-15T16:00:00Z"
+        share_of_shelf_percentage: 35.0, total_facings: 3, detected_skus: 1, missing_skus: 0, processed_at: "2025-06-15T16:00:00Z"
       }
     ]
   },
@@ -344,6 +280,57 @@ const examples: Record<string, { request?: any; response?: any }> = {
     ]
   },
 
+  // ── Datasets ──
+  "GET /rest/v1/datasets": {
+    response: [
+      { id: "ds-001", name: "Q1 Beverage Training", description: "Training images for beverage category", tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", status: "ready", image_count: 450, class_count: 12, created_by: "auth-user-001", created_at: "2025-04-01T10:00:00Z", updated_at: "2025-06-01T14:00:00Z" }
+    ]
+  },
+  "POST /rest/v1/datasets": {
+    request: { name: "Q2 Snacks Dataset", description: "Training data for snack products", tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890", status: "draft" },
+    response: { id: "ds-new-001", name: "Q2 Snacks Dataset", status: "draft", image_count: 0, class_count: 0, created_at: "2026-02-18T10:00:00Z" }
+  },
+
+  // ── Dataset Image Sets ──
+  "GET /rest/v1/dataset_image_sets": {
+    response: [
+      { id: "dis-001", dataset_id: "ds-001", name: "Batch 1 - Store A", image_count: 150, is_trained: true, created_at: "2025-04-05T10:00:00Z" }
+    ]
+  },
+  "POST /rest/v1/dataset_image_sets": {
+    request: { dataset_id: "ds-001", name: "Batch 3 - Store C" },
+    response: { id: "dis-new-001", dataset_id: "ds-001", name: "Batch 3 - Store C", image_count: 0, is_trained: false, created_at: "2026-02-18T10:00:00Z" }
+  },
+
+  // ── Dataset Images ──
+  "GET /rest/v1/dataset_images": {
+    response: [
+      { id: "di-001", dataset_id: "ds-001", image_set_id: "dis-001", image_url: "https://storage.example.com/dataset-images/img001.jpg", file_name: "img001.jpg", is_annotated: true, annotations: [{ class: "cola_330ml", x: 0.15, y: 0.20, width: 0.10, height: 0.25 }], created_at: "2025-04-05T10:05:00Z" }
+    ]
+  },
+  "POST /rest/v1/dataset_images": {
+    request: { dataset_id: "ds-001", image_set_id: "dis-001", image_url: "https://storage.example.com/dataset-images/newimg.jpg", file_name: "newimg.jpg" },
+    response: { id: "di-new-001", dataset_id: "ds-001", is_annotated: false, annotations: [], created_at: "2026-02-18T10:00:00Z" }
+  },
+
+  // ── Dataset Classes ──
+  "GET /rest/v1/dataset_classes": {
+    response: [
+      { id: "dc-001", dataset_id: "ds-001", name: "Cola Classic 330ml", color: "#EF4444", created_at: "2025-04-01T10:05:00Z" }
+    ]
+  },
+  "POST /rest/v1/dataset_classes": {
+    request: { dataset_id: "ds-001", name: "Sparkling Water 500ml", color: "#3B82F6" },
+    response: { id: "dc-new-001", dataset_id: "ds-001", name: "Sparkling Water 500ml", color: "#3B82F6", created_at: "2026-02-18T10:00:00Z" }
+  },
+
+  // ── Training Jobs ──
+  "GET /rest/v1/training_jobs": {
+    response: [
+      { id: "tj-001", dataset_id: "ds-001", status: "completed", epochs: 100, batch_size: 16, model_type: "yolov8", progress: 100, started_at: "2025-05-20T10:00:00Z", completed_at: "2025-05-20T12:00:00Z", result_url: "https://storage.example.com/models/model-v1.2.pt", created_by: "auth-user-001", created_at: "2025-05-20T10:00:00Z" }
+    ]
+  },
+
   // ── RPC ──
   "POST /rest/v1/rpc/check_tenant_quota": {
     request: { _tenant_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890" },
@@ -374,33 +361,26 @@ const examples: Record<string, { request?: any; response?: any }> = {
       ]
     },
     response: {
-      success: true,
-      detectionId: "det-new-001",
+      success: true, detectionId: "det-new-001",
       result: {
-        detections: [
-          { skuId: "d4e5f6a7-b8c9-0123-def0-123456789abc", skuName: "Cola Classic 330ml", isAvailable: true, facings: 4, confidence: 0.92, boundingBox: { x: 12, y: 18, width: 20, height: 30 } }
-        ],
-        missingSkus: [
-          { skuId: "f6a7b8c9-d0e1-2345-f012-3456789abcde", skuName: "Sparkling Water 500ml" }
-        ],
+        detections: [{ skuId: "d4e5f6a7-b8c9-0123-def0-123456789abc", skuName: "Cola Classic 330ml", isAvailable: true, facings: 4, confidence: 0.92, boundingBox: { x: 12, y: 18, width: 20, height: 30 } }],
+        missingSkus: [{ skuId: "f6a7b8c9-d0e1-2345-f012-3456789abcde", skuName: "Sparkling Water 500ml" }],
         shareOfShelf: { totalShelfArea: 100, trainedProductsArea: 28, percentage: 28.0 },
-        totalFacings: 4,
-        summary: "Detected 1 of 2 products. Cola Classic found with 4 facings. Sparkling Water not found."
+        totalFacings: 4, summary: "Detected 1 of 2 products. Cola Classic found with 4 facings. Sparkling Water not found."
       }
     }
   },
   "POST /functions/v1/roboflow-detect": {
-    request: {
-      imageUrl: "https://storage.example.com/shelf-images/aisle3-capture.jpg",
-      shelfId: "sh-001",
-      tenantId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-    },
-    response: {
-      success: true,
-      result: {
-        outputs: [{ predictions: { predictions: [{ class: "product", confidence: 0.89, x: 120, y: 80, width: 60, height: 100 }] } }]
-      }
-    }
+    request: { imageUrl: "https://storage.example.com/shelf-images/aisle3-capture.jpg", shelfId: "sh-001", tenantId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890" },
+    response: { success: true, result: { outputs: [{ predictions: { predictions: [{ class: "product", confidence: 0.89, x: 120, y: 80, width: 60, height: 100 }] } }] } }
+  },
+  "POST /functions/v1/start-training": {
+    request: { dataset_id: "ds-001", epochs: 100, batch_size: 16 },
+    response: { success: true, job_id: "tj-new-001", message: "Training job started." }
+  },
+  "POST /functions/v1/export-dataset": {
+    request: { dataset_id: "ds-001", format: "yolov8" },
+    response: { success: true, download_url: "https://storage.example.com/exports/ds-001-export.zip", image_count: 450, class_count: 12 }
   },
 
   // ── Auth ──
@@ -425,6 +405,11 @@ const examples: Record<string, { request?: any; response?: any }> = {
     response: { Key: "sku-training-images/tenant-id/sku-id/image1.jpg" }
   },
   "GET /storage/v1/object/sku-training-images/{path}": { response: "Binary image data" },
+  "POST /storage/v1/object/dataset-images/{path}": {
+    request: "Binary file upload (multipart/form-data)",
+    response: { Key: "dataset-images/dataset-id/set-id/image1.jpg" }
+  },
+  "GET /storage/v1/object/dataset-images/{path}": { response: "Binary image data" },
 };
 
 // ─── OPEN API SPEC ───────────────────────────────────────────────────────────
@@ -432,23 +417,23 @@ const examples: Record<string, { request?: any; response?: any }> = {
 const openApiSpec = {
   openapi: "3.0.3",
   info: {
-    title: "ShelfVision API",
-    description: "Complete REST API for the ShelfVision retail shelf detection, planogram compliance, and inventory management platform.",
-    version: "2.0.0",
-    contact: { name: "ShelfVision Team" }
+    title: "ALPHA IR API",
+    description: "Complete REST API for the ALPHA IR retail shelf detection, planogram compliance, model training, and inventory management platform. This API supports multi-tenant architecture with role-based access control (RBAC), quota management, and AI-powered inferencing.",
+    version: "3.0.0",
+    contact: { name: "ALPHA IR Engineering Team", email: "api@alpha-ir.com" }
   },
   servers: [
     { url: "https://{project_id}.supabase.co", description: "Production", variables: { project_id: { default: "your-project-id" } } }
   ],
   components: {
     securitySchemes: {
-      bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT", description: "User's access_token from sign-in" },
-      apiKey: { type: "apiKey", in: "header", name: "apikey", description: "Project anon or service_role key" }
+      bearerAuth: { type: "http", scheme: "bearer", bearerFormat: "JWT", description: "User's access_token obtained from sign-in. Required for all authenticated endpoints." },
+      apiKey: { type: "apiKey", in: "header", name: "apikey", description: "Project anon key or service_role key. Required on every request." }
     },
     schemas: {
-      Tenant: { type: "object", properties: { id: { type: "string", format: "uuid" }, name: { type: "string" }, status: { type: "string", enum: ["active", "suspended"] }, is_active: { type: "boolean" }, logo_url: { type: "string", nullable: true }, username: { type: "string", nullable: true }, password: { type: "string", nullable: true }, max_skus: { type: "integer", default: 50 }, max_images_per_month: { type: "integer", default: 1000 }, max_images_per_week: { type: "integer", default: 300 }, max_images_per_year: { type: "integer", default: 10000 }, processed_images_this_month: { type: "integer" }, processed_images_this_week: { type: "integer" }, processed_images_this_year: { type: "integer" }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
+      Tenant: { type: "object", properties: { id: { type: "string", format: "uuid" }, name: { type: "string" }, status: { type: "string", enum: ["active", "suspended"] }, is_active: { type: "boolean" }, logo_url: { type: "string", nullable: true }, username: { type: "string", nullable: true }, password: { type: "string", nullable: true }, admin_id: { type: "string", format: "uuid", nullable: true, description: "Foreign key to admins table — scopes admin data visibility" }, max_skus: { type: "integer", default: 50 }, max_images_per_month: { type: "integer", default: 1000 }, max_images_per_week: { type: "integer", default: 300 }, max_images_per_year: { type: "integer", default: 10000 }, processed_images_this_month: { type: "integer" }, processed_images_this_week: { type: "integer" }, processed_images_this_year: { type: "integer" }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
       Store: { type: "object", properties: { id: { type: "string", format: "uuid" }, tenant_id: { type: "string", format: "uuid" }, name: { type: "string" }, address: { type: "string", nullable: true }, city: { type: "string", nullable: true }, country: { type: "string", nullable: true }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
-      SKU: { type: "object", properties: { id: { type: "string", format: "uuid" }, tenant_id: { type: "string", format: "uuid" }, category_id: { type: "string", format: "uuid", nullable: true }, name: { type: "string" }, description: { type: "string", nullable: true }, barcode: { type: "string", nullable: true }, is_active: { type: "boolean" }, training_status: { type: "string", enum: ["pending", "training", "completed", "failed"] }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
+      SKU: { type: "object", properties: { id: { type: "string", format: "uuid" }, tenant_id: { type: "string", format: "uuid" }, category_id: { type: "string", format: "uuid", nullable: true }, name: { type: "string" }, description: { type: "string", nullable: true }, barcode: { type: "string", nullable: true }, width_cm: { type: "number", nullable: true }, is_active: { type: "boolean" }, training_status: { type: "string", enum: ["pending", "training", "completed", "failed"] }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
       SKUImage: { type: "object", properties: { id: { type: "string", format: "uuid" }, sku_id: { type: "string", format: "uuid" }, image_url: { type: "string" }, created_at: { type: "string", format: "date-time" } } },
       ProductCategory: { type: "object", properties: { id: { type: "string", format: "uuid" }, tenant_id: { type: "string", format: "uuid" }, name: { type: "string" }, description: { type: "string", nullable: true }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
       PlanogramTemplate: { type: "object", properties: { id: { type: "string", format: "uuid" }, tenant_id: { type: "string", format: "uuid" }, store_id: { type: "string", format: "uuid", nullable: true }, shelf_id: { type: "string", format: "uuid", nullable: true }, name: { type: "string" }, description: { type: "string", nullable: true }, status: { type: "string", enum: ["draft", "active", "archived"] }, layout: { type: "array", items: { type: "object" } }, created_by: { type: "string", format: "uuid", nullable: true }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
@@ -458,8 +443,8 @@ const openApiSpec = {
       ShelfImage: { type: "object", properties: { id: { type: "string", format: "uuid" }, shelf_id: { type: "string", format: "uuid" }, image_url: { type: "string" }, detection_result: { type: "object", nullable: true }, processed_at: { type: "string", format: "date-time", nullable: true }, created_at: { type: "string", format: "date-time" } } },
       Detection: { type: "object", properties: { id: { type: "string", format: "uuid" }, tenant_id: { type: "string", format: "uuid" }, store_id: { type: "string", format: "uuid", nullable: true }, original_image_url: { type: "string" }, annotated_image_url: { type: "string", nullable: true }, detection_result: { type: "object", nullable: true }, share_of_shelf_percentage: { type: "number", nullable: true }, total_facings: { type: "integer", nullable: true }, detected_skus: { type: "integer", nullable: true }, missing_skus: { type: "integer", nullable: true }, processed_at: { type: "string", format: "date-time" } } },
       ComplianceScan: { type: "object", properties: { id: { type: "string", format: "uuid" }, template_id: { type: "string", format: "uuid" }, shelf_image_id: { type: "string", format: "uuid", nullable: true }, image_url: { type: "string" }, compliance_score: { type: "number" }, total_expected: { type: "integer" }, total_found: { type: "integer" }, total_missing: { type: "integer" }, total_extra: { type: "integer" }, details: { type: "object", nullable: true }, scanned_by: { type: "string", format: "uuid", nullable: true }, created_at: { type: "string", format: "date-time" } } },
-      Profile: { type: "object", properties: { id: { type: "string", format: "uuid" }, user_id: { type: "string", format: "uuid" }, tenant_id: { type: "string", format: "uuid", nullable: true }, full_name: { type: "string", nullable: true }, username: { type: "string", nullable: true }, avatar_url: { type: "string", nullable: true }, last_login: { type: "string", format: "date-time", nullable: true }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
-      UserRole: { type: "object", properties: { id: { type: "string", format: "uuid" }, user_id: { type: "string", format: "uuid" }, role: { type: "string", enum: ["admin", "tenant_admin", "tenant_user"] } } },
+      Profile: { type: "object", properties: { id: { type: "string", format: "uuid" }, user_id: { type: "string", format: "uuid" }, tenant_id: { type: "string", format: "uuid", nullable: true }, admin_id: { type: "string", format: "uuid", nullable: true, description: "Links user to admin scope" }, full_name: { type: "string", nullable: true }, username: { type: "string", nullable: true }, avatar_url: { type: "string", nullable: true }, last_login: { type: "string", format: "date-time", nullable: true }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
+      UserRole: { type: "object", description: "Roles stored separately — never on profile table. Supports: owner, admin, tenant_admin, tenant_user.", properties: { id: { type: "string", format: "uuid" }, user_id: { type: "string", format: "uuid" }, role: { type: "string", enum: ["owner", "admin", "tenant_admin", "tenant_user"] } } },
       UserStoreAccess: { type: "object", properties: { id: { type: "string", format: "uuid" }, user_id: { type: "string", format: "uuid" }, store_id: { type: "string", format: "uuid" }, created_at: { type: "string", format: "date-time" } } },
       UserShelfAccess: { type: "object", properties: { id: { type: "string", format: "uuid" }, user_id: { type: "string", format: "uuid" }, shelf_id: { type: "string", format: "uuid" }, created_at: { type: "string", format: "date-time" } } },
       Admin: { type: "object", properties: { id: { type: "string", format: "uuid" }, email: { type: "string" }, phone: { type: "string", nullable: true }, password: { type: "string" }, full_name: { type: "string" }, monthly_limit: { type: "integer", default: 10000 }, is_active: { type: "boolean" }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
@@ -468,8 +453,19 @@ const openApiSpec = {
       Model: { type: "object", properties: { id: { type: "string", format: "uuid" }, tenant_id: { type: "string", format: "uuid" }, version: { type: "string" }, status: { type: "string" }, accuracy: { type: "number", nullable: true }, model_path: { type: "string", nullable: true }, trained_date: { type: "string", format: "date-time", nullable: true }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
       ProcessingJob: { type: "object", properties: { id: { type: "string", format: "uuid" }, tenant_id: { type: "string", format: "uuid" }, store_id: { type: "string", format: "uuid", nullable: true }, model_id: { type: "string", format: "uuid", nullable: true }, original_image_url: { type: "string" }, annotated_image_url: { type: "string", nullable: true }, status: { type: "string", enum: ["pending", "processing", "completed", "failed"] }, start_time: { type: "string", format: "date-time", nullable: true }, end_time: { type: "string", format: "date-time", nullable: true }, error_message: { type: "string", nullable: true }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
       DetectionResult: { type: "object", properties: { id: { type: "string", format: "uuid" }, job_id: { type: "string", format: "uuid" }, sku_id: { type: "string", format: "uuid", nullable: true }, is_available: { type: "boolean" }, facings_count: { type: "integer" }, confidence: { type: "number", nullable: true }, share_of_shelf: { type: "number", nullable: true }, bounding_boxes: { type: "array", nullable: true, items: { type: "object" } }, created_at: { type: "string", format: "date-time" } } },
+      Dataset: { type: "object", properties: { id: { type: "string", format: "uuid" }, name: { type: "string" }, description: { type: "string", nullable: true }, tenant_id: { type: "string", format: "uuid", nullable: true }, status: { type: "string", enum: ["draft", "annotating", "training", "ready"] }, image_count: { type: "integer" }, class_count: { type: "integer" }, created_by: { type: "string", format: "uuid", nullable: true }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
+      DatasetImageSet: { type: "object", properties: { id: { type: "string", format: "uuid" }, dataset_id: { type: "string", format: "uuid" }, name: { type: "string" }, image_count: { type: "integer" }, is_trained: { type: "boolean" }, created_at: { type: "string", format: "date-time" } } },
+      DatasetImage: { type: "object", properties: { id: { type: "string", format: "uuid" }, dataset_id: { type: "string", format: "uuid" }, image_set_id: { type: "string", format: "uuid", nullable: true }, image_url: { type: "string" }, file_name: { type: "string", nullable: true }, is_annotated: { type: "boolean" }, annotations: { type: "array", description: "Array of annotation objects with class, x, y, width, height (relative coordinates 0-1)", items: { type: "object", properties: { class: { type: "string" }, x: { type: "number" }, y: { type: "number" }, width: { type: "number" }, height: { type: "number" } } } }, created_at: { type: "string", format: "date-time" } } },
+      DatasetClass: { type: "object", properties: { id: { type: "string", format: "uuid" }, dataset_id: { type: "string", format: "uuid" }, name: { type: "string" }, color: { type: "string", description: "Hex color code for visualization" }, created_at: { type: "string", format: "date-time" } } },
+      TrainingJob: { type: "object", properties: { id: { type: "string", format: "uuid" }, dataset_id: { type: "string", format: "uuid" }, status: { type: "string", enum: ["pending", "training", "completed", "failed"] }, epochs: { type: "integer", default: 100 }, batch_size: { type: "integer", default: 16 }, model_type: { type: "string", default: "yolov8" }, progress: { type: "number", nullable: true }, started_at: { type: "string", format: "date-time", nullable: true }, completed_at: { type: "string", format: "date-time", nullable: true }, result_url: { type: "string", nullable: true }, error_message: { type: "string", nullable: true }, created_by: { type: "string", format: "uuid", nullable: true }, created_at: { type: "string", format: "date-time" }, updated_at: { type: "string", format: "date-time" } } },
       DetectSKUsRequest: { type: "object", required: ["imageBase64", "tenantId"], properties: { imageBase64: { type: "string", description: "Base64-encoded image or data URI" }, tenantId: { type: "string", format: "uuid" }, storeId: { type: "string", format: "uuid" }, skusToDetect: { type: "array", items: { type: "object", properties: { id: { type: "string", format: "uuid" }, name: { type: "string" }, imageUrls: { type: "array", items: { type: "string" } } } } } } },
       DetectSKUsResponse: { type: "object", properties: { success: { type: "boolean" }, detectionId: { type: "string", format: "uuid" }, result: { type: "object", properties: { detections: { type: "array", items: { type: "object", properties: { skuId: { type: "string" }, skuName: { type: "string" }, isAvailable: { type: "boolean" }, facings: { type: "integer" }, confidence: { type: "number" }, boundingBox: { type: "object", properties: { x: { type: "number" }, y: { type: "number" }, width: { type: "number" }, height: { type: "number" } } } } } }, missingSkus: { type: "array", items: { type: "object", properties: { skuId: { type: "string" }, skuName: { type: "string" } } } }, shareOfShelf: { type: "object", properties: { totalShelfArea: { type: "number" }, trainedProductsArea: { type: "number" }, percentage: { type: "number" } } }, totalFacings: { type: "integer" }, summary: { type: "string" } } } } },
+      StartTrainingRequest: { type: "object", required: ["dataset_id"], properties: { dataset_id: { type: "string", format: "uuid", description: "The dataset to train on" }, epochs: { type: "integer", default: 100, description: "Number of training epochs" }, batch_size: { type: "integer", default: 16, description: "Batch size for training" } } },
+      StartTrainingResponse: { type: "object", properties: { success: { type: "boolean" }, job_id: { type: "string", format: "uuid" }, message: { type: "string" } } },
+      ExportDatasetRequest: { type: "object", required: ["dataset_id"], properties: { dataset_id: { type: "string", format: "uuid" }, format: { type: "string", enum: ["yolov8", "coco", "pascal_voc"], default: "yolov8" } } },
+      ExportDatasetResponse: { type: "object", properties: { success: { type: "boolean" }, download_url: { type: "string" }, image_count: { type: "integer" }, class_count: { type: "integer" } } },
+      AutoAnnotateRequest: { type: "object", required: ["image_urls"], description: "Submit images for auto-annotation using the inferencing endpoint", properties: { image_urls: { type: "array", items: { type: "string" }, description: "Array of image URLs to annotate" }, model_id: { type: "string", format: "uuid", description: "Specific model version to use (optional)" }, confidence_threshold: { type: "number", default: 0.5, description: "Minimum confidence for annotations (0-1)" } } },
+      AutoAnnotateResponse: { type: "object", properties: { job_id: { type: "string" }, status: { type: "string", enum: ["completed", "processing", "failed"] }, results: { type: "array", items: { type: "object", properties: { image_id: { type: "string" }, predictions: { type: "array", items: { type: "object", properties: { class: { type: "string" }, confidence: { type: "number" }, x: { type: "number", description: "Center X in pixels" }, y: { type: "number", description: "Center Y in pixels" }, width: { type: "number", description: "Width in pixels" }, height: { type: "number", description: "Height in pixels" }, image: { type: "object", properties: { width: { type: "integer" }, height: { type: "integer" } } } } } } } } } } },
       RoboflowDetectRequest: { type: "object", required: ["imageUrl"], properties: { imageUrl: { type: "string", format: "uri" }, shelfId: { type: "string", format: "uuid" }, tenantId: { type: "string", format: "uuid" } } },
       RoboflowDetectResponse: { type: "object", properties: { success: { type: "boolean" }, result: { type: "object" } } }
     }
@@ -485,12 +481,12 @@ const openApiSpec = {
       delete: { summary: "Delete admin", tags: ["Admins"], responses: { "204": { description: "Deleted" } } }
     },
     "/rest/v1/tenants": {
-      get: { summary: "List tenants", tags: ["Tenants"], parameters: [{ name: "select", in: "query", schema: { type: "string" }, description: "Columns to return (e.g. *)" }, { name: "status", in: "query", schema: { type: "string" }, description: "Filter: eq.active or eq.suspended" }, { name: "is_active", in: "query", schema: { type: "string" }, description: "Filter: eq.true" }], responses: { "200": { description: "Array of Tenant objects" } } },
+      get: { summary: "List tenants", tags: ["Tenants"], parameters: [{ name: "select", in: "query", schema: { type: "string" }, description: "Columns to return (e.g. *)" }, { name: "status", in: "query", schema: { type: "string" }, description: "Filter: eq.active or eq.suspended" }, { name: "is_active", in: "query", schema: { type: "string" }, description: "Filter: eq.true" }, { name: "admin_id", in: "query", schema: { type: "string" }, description: "Filter by admin scope: eq.{uuid}" }], responses: { "200": { description: "Array of Tenant objects" } } },
       post: { summary: "Create tenant", tags: ["Tenants"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/Tenant" } } } }, responses: { "201": { description: "Created Tenant object" }, "409": { description: "Conflict – duplicate name" } } }
     },
     "/rest/v1/tenants?id=eq.{id}": {
-      patch: { summary: "Update tenant", tags: ["Tenants"], parameters: [{ name: "id", in: "query", required: true, schema: { type: "string", format: "uuid" }, description: "Tenant UUID (eq.{id})" }], requestBody: { content: { "application/json": { schema: { "$ref": "#/components/schemas/Tenant" } } } }, responses: { "200": { description: "Updated Tenant" }, "404": { description: "Not found" } } },
-      delete: { summary: "Delete tenant", tags: ["Tenants"], parameters: [{ name: "id", in: "query", required: true, schema: { type: "string", format: "uuid" } }], responses: { "204": { description: "Deleted (no content)" } } }
+      patch: { summary: "Update tenant", tags: ["Tenants"], requestBody: { content: { "application/json": { schema: { "$ref": "#/components/schemas/Tenant" } } } }, responses: { "200": { description: "Updated Tenant" }, "404": { description: "Not found" } } },
+      delete: { summary: "Delete tenant", tags: ["Tenants"], responses: { "204": { description: "Deleted (no content)" } } }
     },
     "/rest/v1/stores": {
       get: { summary: "List stores", tags: ["Stores"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" }, description: "Filter: eq.{uuid}" }, { name: "select", in: "query", schema: { type: "string" }, description: "Columns (e.g. *,tenants(name))" }], responses: { "200": { description: "Array of Store objects" } } },
@@ -501,7 +497,7 @@ const openApiSpec = {
       delete: { summary: "Delete store", tags: ["Stores"], responses: { "204": { description: "Deleted" } } }
     },
     "/rest/v1/skus": {
-      get: { summary: "List SKUs (Products)", tags: ["Products"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" }, description: "Filter: eq.{uuid}" }, { name: "category_id", in: "query", schema: { type: "string" }, description: "Filter: eq.{uuid}" }, { name: "is_active", in: "query", schema: { type: "string" }, description: "Filter: eq.true" }, { name: "training_status", in: "query", schema: { type: "string" }, description: "Filter: eq.completed" }, { name: "select", in: "query", schema: { type: "string" }, description: "e.g. *,sku_images(*),product_categories(name)" }], responses: { "200": { description: "Array of SKU objects with optional joins" } } },
+      get: { summary: "List SKUs (Products)", tags: ["Products"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" } }, { name: "category_id", in: "query", schema: { type: "string" } }, { name: "is_active", in: "query", schema: { type: "string" } }, { name: "training_status", in: "query", schema: { type: "string" } }, { name: "select", in: "query", schema: { type: "string" }, description: "e.g. *,sku_images(*),product_categories(name)" }], responses: { "200": { description: "Array of SKU objects with optional joins" } } },
       post: { summary: "Create SKU", tags: ["Products"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/SKU" } } } }, responses: { "201": { description: "Created SKU" } } }
     },
     "/rest/v1/skus?id=eq.{id}": {
@@ -509,14 +505,14 @@ const openApiSpec = {
       delete: { summary: "Delete SKU", tags: ["Products"], responses: { "204": { description: "Deleted" } } }
     },
     "/rest/v1/sku_images": {
-      get: { summary: "List SKU images", tags: ["Products"], parameters: [{ name: "sku_id", in: "query", schema: { type: "string" }, description: "Filter: eq.{uuid}" }], responses: { "200": { description: "Array of SKUImage objects" } } },
+      get: { summary: "List SKU images", tags: ["Products"], parameters: [{ name: "sku_id", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of SKUImage objects" } } },
       post: { summary: "Add SKU image", tags: ["Products"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/SKUImage" } } } }, responses: { "201": { description: "Created SKUImage" } } }
     },
     "/rest/v1/sku_images?id=eq.{id}": {
       delete: { summary: "Delete SKU image", tags: ["Products"], responses: { "204": { description: "Deleted" } } }
     },
     "/rest/v1/product_categories": {
-      get: { summary: "List categories", tags: ["Categories"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" }, description: "Filter: eq.{uuid}" }], responses: { "200": { description: "Array of ProductCategory objects" } } },
+      get: { summary: "List categories", tags: ["Categories"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of ProductCategory objects" } } },
       post: { summary: "Create category", tags: ["Categories"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/ProductCategory" } } } }, responses: { "201": { description: "Created" } } }
     },
     "/rest/v1/product_categories?id=eq.{id}": {
@@ -524,23 +520,23 @@ const openApiSpec = {
       delete: { summary: "Delete category", tags: ["Categories"], responses: { "204": { description: "Deleted" } } }
     },
     "/rest/v1/planogram_templates": {
-      get: { summary: "List planogram templates", tags: ["Planograms"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" } }, { name: "status", in: "query", schema: { type: "string" }, description: "Filter: eq.active" }, { name: "select", in: "query", schema: { type: "string" }, description: "e.g. *,stores(name),shelves(name)" }], responses: { "200": { description: "Array of PlanogramTemplate objects" } } },
+      get: { summary: "List planogram templates", tags: ["Planograms"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" } }, { name: "status", in: "query", schema: { type: "string" } }, { name: "select", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of PlanogramTemplate objects" } } },
       post: { summary: "Create planogram", tags: ["Planograms"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/PlanogramTemplate" } } } }, responses: { "201": { description: "Created" } } }
     },
     "/rest/v1/planogram_templates?id=eq.{id}": {
-      patch: { summary: "Update planogram", tags: ["Planograms"], requestBody: { content: { "application/json": { schema: { "$ref": "#/components/schemas/PlanogramTemplate" } } } }, responses: { "200": { description: "Updated" } } },
+      patch: { summary: "Update planogram", tags: ["Planograms"], responses: { "200": { description: "Updated" } } },
       delete: { summary: "Delete planogram", tags: ["Planograms"], responses: { "204": { description: "Deleted" } } }
     },
     "/rest/v1/planogram_versions": {
-      get: { summary: "List planogram versions", tags: ["Planograms"], parameters: [{ name: "template_id", in: "query", schema: { type: "string" }, description: "Filter: eq.{uuid}" }, { name: "order", in: "query", schema: { type: "string" }, description: "e.g. version_number.desc" }], responses: { "200": { description: "Array of PlanogramVersion objects" } } },
+      get: { summary: "List planogram versions", tags: ["Planograms"], parameters: [{ name: "template_id", in: "query", schema: { type: "string" } }, { name: "order", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of PlanogramVersion objects" } } },
       post: { summary: "Create version snapshot", tags: ["Planograms"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/PlanogramVersion" } } } }, responses: { "201": { description: "Created" } } }
     },
     "/rest/v1/shelves": {
-      get: { summary: "List shelves", tags: ["Shelves"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" } }, { name: "store_id", in: "query", schema: { type: "string" } }, { name: "select", in: "query", schema: { type: "string" }, description: "e.g. *,stores(name)" }], responses: { "200": { description: "Array of Shelf objects" } } },
+      get: { summary: "List shelves", tags: ["Shelves"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" } }, { name: "store_id", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of Shelf objects" } } },
       post: { summary: "Create shelf", tags: ["Shelves"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/Shelf" } } } }, responses: { "201": { description: "Created" } } }
     },
     "/rest/v1/shelves?id=eq.{id}": {
-      patch: { summary: "Update shelf", tags: ["Shelves"], requestBody: { content: { "application/json": { schema: { "$ref": "#/components/schemas/Shelf" } } } }, responses: { "200": { description: "Updated" } } },
+      patch: { summary: "Update shelf", tags: ["Shelves"], responses: { "200": { description: "Updated" } } },
       delete: { summary: "Delete shelf", tags: ["Shelves"], responses: { "204": { description: "Deleted" } } }
     },
     "/rest/v1/shelf_products": {
@@ -555,10 +551,16 @@ const openApiSpec = {
       post: { summary: "Upload shelf image record", tags: ["Shelves"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/ShelfImage" } } } }, responses: { "201": { description: "Created" } } }
     },
     "/rest/v1/detections": {
-      get: { summary: "List detections", tags: ["Detection"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" } }, { name: "store_id", in: "query", schema: { type: "string" } }, { name: "order", in: "query", schema: { type: "string" }, description: "e.g. processed_at.desc" }], responses: { "200": { description: "Array of Detection objects" } } }
+      get: { summary: "List detections", tags: ["Inferencing"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" } }, { name: "store_id", in: "query", schema: { type: "string" } }, { name: "order", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of Detection objects" } } }
+    },
+    "/rest/v1/detection_results": {
+      get: { summary: "List detection results", tags: ["Inferencing"], parameters: [{ name: "job_id", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of DetectionResult objects" } } }
+    },
+    "/rest/v1/processing_jobs": {
+      get: { summary: "List processing jobs", tags: ["Inferencing"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" } }, { name: "status", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of ProcessingJob objects" } } }
     },
     "/rest/v1/compliance_scans": {
-      get: { summary: "List compliance scans", tags: ["Compliance"], parameters: [{ name: "template_id", in: "query", schema: { type: "string" } }, { name: "order", in: "query", schema: { type: "string" }, description: "e.g. created_at.desc" }], responses: { "200": { description: "Array of ComplianceScan objects" } } },
+      get: { summary: "List compliance scans", tags: ["Compliance"], parameters: [{ name: "template_id", in: "query", schema: { type: "string" } }, { name: "order", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of ComplianceScan objects" } } },
       post: { summary: "Create compliance scan", tags: ["Compliance"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/ComplianceScan" } } } }, responses: { "201": { description: "Created" } } }
     },
     "/rest/v1/profiles": {
@@ -568,76 +570,106 @@ const openApiSpec = {
       patch: { summary: "Update profile", tags: ["Users & Access"], requestBody: { content: { "application/json": { schema: { "$ref": "#/components/schemas/Profile" } } } }, responses: { "200": { description: "Updated" } } }
     },
     "/rest/v1/user_roles": {
-      get: { summary: "List user roles", tags: ["Users & Access"], parameters: [{ name: "user_id", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of UserRole objects" } } },
+      get: { summary: "List user roles", tags: ["Users & Access"], responses: { "200": { description: "Array of UserRole objects" } } },
       post: { summary: "Assign role", tags: ["Users & Access"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/UserRole" } } } }, responses: { "201": { description: "Created" } } }
     },
     "/rest/v1/user_store_access": {
-      get: { summary: "List user-store access grants", tags: ["Users & Access"], parameters: [{ name: "user_id", in: "query", schema: { type: "string" } }, { name: "store_id", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of UserStoreAccess objects" } } },
+      get: { summary: "List user-store access grants", tags: ["Users & Access"], responses: { "200": { description: "Array of UserStoreAccess" } } },
       post: { summary: "Grant store access", tags: ["Users & Access"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/UserStoreAccess" } } } }, responses: { "201": { description: "Created" } } }
     },
     "/rest/v1/user_store_access?id=eq.{id}": {
       delete: { summary: "Revoke store access", tags: ["Users & Access"], responses: { "204": { description: "Deleted" } } }
     },
     "/rest/v1/user_shelf_access": {
-      get: { summary: "List user-shelf access grants", tags: ["Users & Access"], parameters: [{ name: "user_id", in: "query", schema: { type: "string" } }, { name: "shelf_id", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of UserShelfAccess objects" } } },
+      get: { summary: "List user-shelf access grants", tags: ["Users & Access"], responses: { "200": { description: "Array of UserShelfAccess" } } },
       post: { summary: "Grant shelf access", tags: ["Users & Access"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/UserShelfAccess" } } } }, responses: { "201": { description: "Created" } } }
     },
     "/rest/v1/user_shelf_access?id=eq.{id}": {
       delete: { summary: "Revoke shelf access", tags: ["Users & Access"], responses: { "204": { description: "Deleted" } } }
     },
     "/rest/v1/notifications": {
-      get: { summary: "List notifications", tags: ["Notifications"], parameters: [{ name: "user_id", in: "query", schema: { type: "string" } }, { name: "is_read", in: "query", schema: { type: "string" }, description: "Filter: eq.false" }], responses: { "200": { description: "Array of Notification objects" } } },
+      get: { summary: "List notifications", tags: ["Notifications"], parameters: [{ name: "user_id", in: "query", schema: { type: "string" } }, { name: "is_read", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of Notification objects" } } },
       post: { summary: "Create notification", tags: ["Notifications"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/Notification" } } } }, responses: { "201": { description: "Created" } } }
     },
     "/rest/v1/notifications?id=eq.{id}": {
-      patch: { summary: "Mark notification read/unread", tags: ["Notifications"], requestBody: { content: { "application/json": { schema: { type: "object", properties: { is_read: { type: "boolean" } } } } } }, responses: { "200": { description: "Updated" } } }
+      patch: { summary: "Mark notification read/unread", tags: ["Notifications"], responses: { "200": { description: "Updated" } } }
     },
     "/rest/v1/usage_metrics": {
-      get: { summary: "List usage metrics", tags: ["Usage & Analytics"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" } }, { name: "period_type", in: "query", schema: { type: "string" }, description: "Filter: eq.monthly" }], responses: { "200": { description: "Array of UsageMetric objects" } } }
+      get: { summary: "List usage metrics", tags: ["Usage & Analytics"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" } }, { name: "period_type", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of UsageMetric objects" } } }
     },
     "/rest/v1/models": {
-      get: { summary: "List models", tags: ["Usage & Analytics"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of Model objects" } } }
+      get: { summary: "List models", tags: ["Usage & Analytics"], responses: { "200": { description: "Array of Model objects" } } }
     },
-    "/rest/v1/processing_jobs": {
-      get: { summary: "List processing jobs", tags: ["Usage & Analytics"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" } }, { name: "status", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of ProcessingJob objects" } } }
+    "/rest/v1/datasets": {
+      get: { summary: "List datasets", tags: ["Training"], parameters: [{ name: "tenant_id", in: "query", schema: { type: "string" } }, { name: "status", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of Dataset objects" } } },
+      post: { summary: "Create dataset", tags: ["Training"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/Dataset" } } } }, responses: { "201": { description: "Created" } } }
     },
-    "/rest/v1/detection_results": {
-      get: { summary: "List detection results", tags: ["Detection"], parameters: [{ name: "job_id", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of DetectionResult objects" } } }
+    "/rest/v1/datasets?id=eq.{id}": {
+      patch: { summary: "Update dataset", tags: ["Training"], responses: { "200": { description: "Updated" } } },
+      delete: { summary: "Delete dataset", tags: ["Training"], responses: { "204": { description: "Deleted" } } }
+    },
+    "/rest/v1/dataset_image_sets": {
+      get: { summary: "List image sets", tags: ["Training"], parameters: [{ name: "dataset_id", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of DatasetImageSet objects" } } },
+      post: { summary: "Create image set", tags: ["Training"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/DatasetImageSet" } } } }, responses: { "201": { description: "Created" } } }
+    },
+    "/rest/v1/dataset_images": {
+      get: { summary: "List dataset images", tags: ["Training"], parameters: [{ name: "dataset_id", in: "query", schema: { type: "string" } }, { name: "image_set_id", in: "query", schema: { type: "string" } }, { name: "is_annotated", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of DatasetImage objects" } } },
+      post: { summary: "Add image to dataset", tags: ["Training"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/DatasetImage" } } } }, responses: { "201": { description: "Created" } } }
+    },
+    "/rest/v1/dataset_images?id=eq.{id}": {
+      patch: { summary: "Update image annotations", tags: ["Training"], description: "Update annotations on a dataset image. Set is_annotated to true when annotations are complete.", responses: { "200": { description: "Updated" } } }
+    },
+    "/rest/v1/dataset_classes": {
+      get: { summary: "List dataset classes", tags: ["Training"], parameters: [{ name: "dataset_id", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of DatasetClass objects" } } },
+      post: { summary: "Create dataset class", tags: ["Training"], requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/DatasetClass" } } } }, responses: { "201": { description: "Created" } } }
+    },
+    "/rest/v1/training_jobs": {
+      get: { summary: "List training jobs", tags: ["Training"], parameters: [{ name: "dataset_id", in: "query", schema: { type: "string" } }, { name: "status", in: "query", schema: { type: "string" } }], responses: { "200": { description: "Array of TrainingJob objects" } } }
     },
     "/rest/v1/rpc/check_tenant_quota": {
-      post: { summary: "Check tenant quota", tags: ["RPC Functions"], description: "Returns quota status including monthly/weekly/yearly usage vs limits and whether more images can be processed.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["_tenant_id"], properties: { _tenant_id: { type: "string", format: "uuid", description: "Target tenant UUID" } } } } } }, responses: { "200": { description: "Quota status JSON with canProcess, monthlyUsage, monthlyLimit, etc." } } }
+      post: { summary: "Check tenant quota", tags: ["RPC Functions"], description: "Returns quota status including monthly/weekly/yearly usage vs limits.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["_tenant_id"], properties: { _tenant_id: { type: "string", format: "uuid" } } } } } }, responses: { "200": { description: "Quota status JSON" } } }
     },
     "/rest/v1/rpc/increment_usage_metric": {
-      post: { summary: "Increment usage metric", tags: ["RPC Functions"], description: "Atomically increments the images_processed counter for the specified tenant and period type.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["_tenant_id", "_period_type"], properties: { _tenant_id: { type: "string", format: "uuid" }, _period_type: { type: "string", enum: ["daily", "weekly", "monthly", "yearly"] }, _images_count: { type: "integer", default: 1 } } } } } }, responses: { "200": { description: "Success (no return value)" } } }
+      post: { summary: "Increment usage metric", tags: ["RPC Functions"], description: "Atomically increments images_processed counter.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["_tenant_id", "_period_type"], properties: { _tenant_id: { type: "string", format: "uuid" }, _period_type: { type: "string", enum: ["daily", "weekly", "monthly", "yearly"] }, _images_count: { type: "integer", default: 1 } } } } } }, responses: { "200": { description: "Success" } } }
     },
     "/rest/v1/rpc/get_user_tenant_id": {
-      post: { summary: "Get user's tenant ID", tags: ["RPC Functions"], description: "Looks up the tenant_id from the profiles table for a given user_id.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["_user_id"], properties: { _user_id: { type: "string", format: "uuid" } } } } } }, responses: { "200": { description: "Tenant UUID string" } } }
+      post: { summary: "Get user's tenant ID", tags: ["RPC Functions"], requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["_user_id"], properties: { _user_id: { type: "string", format: "uuid" } } } } } }, responses: { "200": { description: "Tenant UUID string" } } }
     },
     "/rest/v1/rpc/has_role": {
-      post: { summary: "Check if user has role", tags: ["RPC Functions"], description: "Returns true/false whether the user has the specified role in user_roles.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["_user_id", "_role"], properties: { _user_id: { type: "string", format: "uuid" }, _role: { type: "string", enum: ["admin", "tenant_admin", "tenant_user"] } } } } } }, responses: { "200": { description: "Boolean true/false" } } }
+      post: { summary: "Check if user has role", tags: ["RPC Functions"], requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["_user_id", "_role"], properties: { _user_id: { type: "string", format: "uuid" }, _role: { type: "string", enum: ["owner", "admin", "tenant_admin", "tenant_user"] } } } } } }, responses: { "200": { description: "Boolean" } } }
     },
     "/functions/v1/detect-skus": {
-      post: { summary: "AI SKU Detection", tags: ["Edge Functions"], description: "Sends a shelf image (base64) to the AI model for product detection. Checks tenant quota, runs detection, stores results in the detections table, and increments usage metrics for all period types.", requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/DetectSKUsRequest" } } } }, responses: { "200": { description: "Detection result", content: { "application/json": { schema: { "$ref": "#/components/schemas/DetectSKUsResponse" } } } }, "400": { description: "Missing required fields" }, "402": { description: "AI credits exhausted" }, "429": { description: "Quota exceeded or rate limited" }, "500": { description: "Server error" } } }
+      post: { summary: "AI SKU Detection (Inferencing)", tags: ["Inferencing"], description: "Sends a shelf image (base64) to the AI model for product detection. Checks tenant quota, runs vision AI detection, stores results in the detections table, and increments usage metrics for all period types. Rate limited per tenant quota configuration.", requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/DetectSKUsRequest" } } } }, responses: { "200": { description: "Detection result", content: { "application/json": { schema: { "$ref": "#/components/schemas/DetectSKUsResponse" } } } }, "400": { description: "Missing required fields" }, "402": { description: "AI credits exhausted" }, "429": { description: "Quota exceeded or rate limited" }, "500": { description: "Server error" } } }
     },
     "/functions/v1/roboflow-detect": {
-      post: { summary: "Roboflow Detection", tags: ["Edge Functions"], description: "Sends an image URL to the Roboflow workflow API. Optionally saves detection results to shelf_images and increments usage metrics.", requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/RoboflowDetectRequest" } } } }, responses: { "200": { description: "Detection result from Roboflow", content: { "application/json": { schema: { "$ref": "#/components/schemas/RoboflowDetectResponse" } } } }, "500": { description: "Error" } } }
+      post: { summary: "Roboflow Detection (Inferencing)", tags: ["Inferencing"], description: "Sends an image URL to the Roboflow workflow API for external model inferencing. Optionally saves detection results to shelf_images.", requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/RoboflowDetectRequest" } } } }, responses: { "200": { description: "Detection result from Roboflow" }, "500": { description: "Error" } } }
+    },
+    "/functions/v1/start-training": {
+      post: { summary: "Start Training Job", tags: ["Training"], description: "Initiates a model training job for a given dataset. Creates a training_jobs record, transitions status from pending → training → completed. Requires a valid Bearer token. The endpoint is designed to be extended with a custom training API endpoint.", requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/StartTrainingRequest" } } } }, responses: { "200": { description: "Training job started", content: { "application/json": { schema: { "$ref": "#/components/schemas/StartTrainingResponse" } } } }, "400": { description: "Missing dataset_id" }, "401": { description: "Unauthorized" }, "500": { description: "Server error" } } }
+    },
+    "/functions/v1/export-dataset": {
+      post: { summary: "Export Dataset", tags: ["Training"], description: "Exports a dataset with its images and annotations in the specified format (YOLOv8, COCO, Pascal VOC). Returns a download URL for the exported ZIP archive.", requestBody: { required: true, content: { "application/json": { schema: { "$ref": "#/components/schemas/ExportDatasetRequest" } } } }, responses: { "200": { description: "Export result with download URL", content: { "application/json": { schema: { "$ref": "#/components/schemas/ExportDatasetResponse" } } } }, "400": { description: "Missing dataset_id" }, "500": { description: "Server error" } } }
     },
     "/auth/v1/signup": {
-      post: { summary: "Sign up new user", tags: ["Authentication"], description: "Creates a new user account. A profile row is automatically created via database trigger.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["email", "password"], properties: { email: { type: "string", format: "email" }, password: { type: "string", minLength: 6 }, data: { type: "object", properties: { full_name: { type: "string" } } } } } } } }, responses: { "200": { description: "User object + session with access_token" }, "422": { description: "Validation error" } } }
+      post: { summary: "Sign up new user", tags: ["Authentication"], description: "Creates a new user account. A profile row is automatically created via database trigger. Email verification is required before login.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["email", "password"], properties: { email: { type: "string", format: "email" }, password: { type: "string", minLength: 8, description: "Min 8 chars, uppercase, lowercase, number" }, data: { type: "object", properties: { full_name: { type: "string" } } } } } } } }, responses: { "200": { description: "User object + session" }, "422": { description: "Validation error" } } }
     },
     "/auth/v1/token?grant_type=password": {
-      post: { summary: "Sign in with password", tags: ["Authentication"], description: "Authenticates a user with email/password and returns a JWT session.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["email", "password"], properties: { email: { type: "string", format: "email" }, password: { type: "string" } } } } } }, responses: { "200": { description: "Session with access_token, refresh_token, expires_in, and user object" }, "400": { description: "Invalid credentials" } } }
+      post: { summary: "Sign in with password", tags: ["Authentication"], description: "Authenticates user and returns JWT session. Token expires in 3600s. Use refresh_token for renewal.", requestBody: { required: true, content: { "application/json": { schema: { type: "object", required: ["email", "password"], properties: { email: { type: "string", format: "email" }, password: { type: "string" } } } } } }, responses: { "200": { description: "Session with tokens" }, "400": { description: "Invalid credentials" } } }
     },
     "/auth/v1/logout": {
-      post: { summary: "Sign out", tags: ["Authentication"], description: "Invalidates the current session.", responses: { "204": { description: "Signed out (no content)" } } }
+      post: { summary: "Sign out", tags: ["Authentication"], responses: { "204": { description: "Signed out" } } }
     },
     "/storage/v1/object/shelf-images/{path}": {
-      post: { summary: "Upload shelf image file", tags: ["Storage"], description: "Upload a binary image file. Path format: {tenant_id}/{date}/{filename}.", responses: { "200": { description: "Upload result with Key" } } },
-      get: { summary: "Download shelf image file", tags: ["Storage"], description: "Returns the binary image data.", responses: { "200": { description: "Image binary (Content-Type: image/*)" } } }
+      post: { summary: "Upload shelf image", tags: ["Storage"], description: "Path: {tenant_id}/{date}/{filename}", responses: { "200": { description: "Upload key" } } },
+      get: { summary: "Download shelf image", tags: ["Storage"], responses: { "200": { description: "Binary image" } } }
     },
     "/storage/v1/object/sku-training-images/{path}": {
-      post: { summary: "Upload SKU training image", tags: ["Storage"], description: "Upload a training image. Path format: {tenant_id}/{sku_id}/{filename}.", responses: { "200": { description: "Upload result with Key" } } },
-      get: { summary: "Download SKU training image", tags: ["Storage"], description: "Returns the binary image data.", responses: { "200": { description: "Image binary" } } }
+      post: { summary: "Upload SKU training image", tags: ["Storage"], description: "Path: {tenant_id}/{sku_id}/{filename}", responses: { "200": { description: "Upload key" } } },
+      get: { summary: "Download SKU training image", tags: ["Storage"], responses: { "200": { description: "Binary image" } } }
+    },
+    "/storage/v1/object/dataset-images/{path}": {
+      post: { summary: "Upload dataset image", tags: ["Storage"], description: "Path: {dataset_id}/{set_id}/{filename}", responses: { "200": { description: "Upload key" } } },
+      get: { summary: "Download dataset image", tags: ["Storage"], responses: { "200": { description: "Binary image" } } }
     }
   }
 };
@@ -645,30 +677,18 @@ const openApiSpec = {
 // ─── HELPERS ─────────────────────────────────────────────────────────────────
 
 const methodColors: Record<string, string> = {
-  GET: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
-  POST: "bg-blue-500/20 text-blue-400 border-blue-500/30",
-  PATCH: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  PUT: "bg-amber-500/20 text-amber-400 border-amber-500/30",
-  DELETE: "bg-red-500/20 text-red-400 border-red-500/30",
+  GET: "bg-emerald-500/20 text-emerald-600 border-emerald-500/30",
+  POST: "bg-blue-500/20 text-blue-600 border-blue-500/30",
+  PATCH: "bg-amber-500/20 text-amber-600 border-amber-500/30",
+  PUT: "bg-amber-500/20 text-amber-600 border-amber-500/30",
+  DELETE: "bg-red-500/20 text-red-600 border-red-500/30",
 };
 
 const tagIcons: Record<string, string> = {
-  "Admins": "👑",
-  "Tenants": "🏢",
-  "Stores": "🏪",
-  "Products": "📦",
-  "Categories": "🏷️",
-  "Planograms": "📐",
-  "Shelves": "🗄️",
-  "Detection": "🔍",
-  "Compliance": "✅",
-  "Users & Access": "👤",
-  "Notifications": "🔔",
-  "Usage & Analytics": "📊",
-  "RPC Functions": "⚡",
-  "Edge Functions": "🤖",
-  "Authentication": "🔐",
-  "Storage": "📁",
+  "Admins": "👑", "Tenants": "🏢", "Stores": "🏪", "Products": "📦", "Categories": "🏷️",
+  "Planograms": "📐", "Shelves": "🗄️", "Inferencing": "🔍", "Compliance": "✅",
+  "Users & Access": "👤", "Notifications": "🔔", "Usage & Analytics": "📊",
+  "RPC Functions": "⚡", "Training": "🧠", "Authentication": "🔐", "Storage": "📁",
 };
 
 function groupByTags(paths: any) {
@@ -687,36 +707,32 @@ function generateMarkdown(): string {
   const spec = openApiSpec;
   let md = `# ${spec.info.title} — v${spec.info.version}\n\n`;
   md += `${spec.info.description}\n\n---\n\n`;
-  md += `## Authentication\n\nAll requests require:\n- \`apikey\` header: Project anon or service_role key\n- \`Authorization: Bearer <jwt>\` header: User's access_token\n\n---\n\n`;
+  md += `## Authentication\n\nAll requests require:\n\`\`\`\napikey: <your-project-anon-key>\nAuthorization: Bearer <user-access-token>\n\`\`\`\n\n`;
+  md += `## RBAC Roles\n\n| Role | Description | Scope |\n|------|-------------|-------|\n`;
+  md += `| owner | Superuser | Full system access |\n| admin | Administrator | Scoped to assigned tenants via admin_id |\n| tenant_admin | Tenant manager | Full access within own tenant |\n| tenant_user | Standard user | Read + limited write within tenant |\n\n`;
+  md += `## Rate Limits & Quotas\n\nEach tenant has configurable limits:\n- **Monthly**: max_images_per_month (default: 1000)\n- **Weekly**: max_images_per_week (default: 300)\n- **Yearly**: max_images_per_year (default: 10000)\n- **SKU cap**: max_skus (default: 50)\n\nQuota is checked before each inference. Returns 429 when exceeded.\n\n---\n\n`;
 
-  const groups = groupByTags(spec.paths);
-  for (const [tag, endpoints] of Object.entries(groups)) {
-    md += `## ${tagIcons[tag] || '📌'} ${tag}\n\n`;
-    for (const { method, path, op } of endpoints) {
-      md += `### \`${method} ${path}\`\n\n`;
-      md += `${op.summary || ''}${op.description ? '\n\n' + op.description : ''}\n\n`;
-      if (op.parameters?.length) {
-        md += `**Parameters:**\n\n| Name | In | Type | Required | Description |\n|------|-----|------|----------|-------------|\n`;
-        for (const p of op.parameters) {
+  for (const [path, methods] of Object.entries(spec.paths)) {
+    for (const [method, op] of Object.entries(methods as any)) {
+      const o = op as any;
+      md += `### ${method.toUpperCase()} \`${path}\`\n\n`;
+      md += `**${o.summary}**`;
+      if (o.tags) md += ` — _${o.tags.join(', ')}_`;
+      md += `\n\n`;
+      if (o.description) md += `${o.description}\n\n`;
+      if (o.parameters?.length) {
+        md += `| Parameter | In | Type | Required | Description |\n|-----------|-----|------|----------|-------------|\n`;
+        for (const p of o.parameters) {
           md += `| \`${p.name}\` | ${p.in} | ${p.schema?.type || 'string'} | ${p.required ? 'Yes' : 'No'} | ${p.description || ''} |\n`;
         }
         md += `\n`;
       }
-      if (op.requestBody) {
-        const schema = op.requestBody.content?.['application/json']?.schema;
-        if (schema) {
-          const ref = schema['$ref'];
-          md += ref ? `**Request Body:** \`${ref.split('/').pop()}\`\n\n` : `**Request Body:** Inline schema\n\n`;
-        }
-      }
-      const exKey = `${method} ${path}`;
+      const exKey = `${method.toUpperCase()} ${path}`;
       if (examples[exKey]) {
         if (examples[exKey].request) md += `**Example Request:**\n\`\`\`json\n${JSON.stringify(examples[exKey].request, null, 2)}\n\`\`\`\n\n`;
         if (examples[exKey].response !== undefined) md += `**Example Response:**\n\`\`\`json\n${JSON.stringify(examples[exKey].response, null, 2)}\n\`\`\`\n\n`;
       }
-      md += `**Responses:**\n`;
-      for (const [code, res] of Object.entries(op.responses as any)) md += `- \`${code}\`: ${(res as any).description}\n`;
-      md += `\n---\n\n`;
+      md += `---\n\n`;
     }
   }
 
@@ -769,13 +785,11 @@ function EndpointCard({ method, path, op }: { method: string; path: string; op: 
       </CollapsibleTrigger>
       <CollapsibleContent>
         <div className="ml-4 mr-2 mb-4 mt-1 p-4 rounded-lg bg-card border border-border space-y-4">
-          {/* Description */}
           <div>
             <h4 className="text-sm font-semibold text-foreground">{op.summary}</h4>
             {op.description && <p className="text-xs text-muted-foreground mt-1">{op.description}</p>}
           </div>
 
-          {/* Parameters */}
           {op.parameters?.length > 0 && (
             <div>
               <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Parameters</h5>
@@ -806,7 +820,6 @@ function EndpointCard({ method, path, op }: { method: string; path: string; op: 
             </div>
           )}
 
-          {/* Request Body Schema */}
           {op.requestBody && (
             <div>
               <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Request Body</h5>
@@ -841,7 +854,6 @@ function EndpointCard({ method, path, op }: { method: string; path: string; op: 
             </div>
           )}
 
-          {/* Example Request */}
           {example?.request && (
             <div>
               <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Example Request Body</h5>
@@ -851,16 +863,15 @@ function EndpointCard({ method, path, op }: { method: string; path: string; op: 
             </div>
           )}
 
-          {/* Responses */}
           <div>
             <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Responses</h5>
             <div className="space-y-1">
               {Object.entries(op.responses as Record<string, any>).map(([code, res]) => (
                 <div key={code} className="flex items-center gap-2 text-xs">
                   <Badge variant="outline" className={cn("font-mono text-[10px] px-1.5 py-0 border",
-                    code.startsWith('2') ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/30" :
-                    code.startsWith('4') ? "bg-amber-500/10 text-amber-400 border-amber-500/30" :
-                    "bg-red-500/10 text-red-400 border-red-500/30"
+                    code.startsWith('2') ? "bg-emerald-500/10 text-emerald-600 border-emerald-500/30" :
+                    code.startsWith('4') ? "bg-amber-500/10 text-amber-600 border-amber-500/30" :
+                    "bg-red-500/10 text-red-600 border-red-500/30"
                   )}>{code}</Badge>
                   <span className="text-muted-foreground">{res.description}</span>
                 </div>
@@ -868,7 +879,6 @@ function EndpointCard({ method, path, op }: { method: string; path: string; op: 
             </div>
           </div>
 
-          {/* Example Response */}
           {example?.response !== undefined && (
             <div>
               <h5 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Example Response</h5>
@@ -908,6 +918,222 @@ function TagGroup({ tag, endpoints }: { tag: string; endpoints: { method: string
   );
 }
 
+// ─── RBAC INFO PANEL ─────────────────────────────────────────────────────────
+
+function RBACPanel() {
+  return (
+    <div className="space-y-4">
+      <div className="p-5 rounded-xl bg-card border border-border">
+        <h3 className="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Shield className="w-5 h-5 text-primary" /> Role-Based Access Control (RBAC)</h3>
+        <p className="text-sm text-muted-foreground mb-4">ALPHA IR implements a 4-tier RBAC hierarchy. Roles are stored in a dedicated <code className="bg-muted px-1.5 py-0.5 rounded text-xs">user_roles</code> table (never on profiles) with SECURITY DEFINER functions to prevent privilege escalation.</p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead><tr className="border-b border-border"><th className="text-left py-2 pr-4 text-muted-foreground font-medium">Role</th><th className="text-left py-2 pr-4 text-muted-foreground font-medium">Access Level</th><th className="text-left py-2 text-muted-foreground font-medium">Capabilities</th></tr></thead>
+            <tbody className="text-foreground">
+              <tr className="border-b border-border/50"><td className="py-2 pr-4 font-mono text-xs"><Badge className="bg-primary/20 text-primary border-primary/30" variant="outline">owner</Badge></td><td className="py-2 pr-4">Full system</td><td className="py-2 text-xs text-muted-foreground">All resources, settings, training, data, API docs. Cannot be assigned via UI.</td></tr>
+              <tr className="border-b border-border/50"><td className="py-2 pr-4 font-mono text-xs"><Badge className="bg-amber-500/20 text-amber-600 border-amber-500/30" variant="outline">admin</Badge></td><td className="py-2 pr-4">Multi-tenant admin</td><td className="py-2 text-xs text-muted-foreground">CRUD on tenants, stores, users scoped by admin_id link. User management. No training/settings access.</td></tr>
+              <tr className="border-b border-border/50"><td className="py-2 pr-4 font-mono text-xs"><Badge className="bg-blue-500/20 text-blue-600 border-blue-500/30" variant="outline">tenant_admin</Badge></td><td className="py-2 pr-4">Single tenant</td><td className="py-2 text-xs text-muted-foreground">Full CRUD within own tenant. Manage stores, shelves, products, planograms.</td></tr>
+              <tr><td className="py-2 pr-4 font-mono text-xs"><Badge className="bg-muted text-muted-foreground border-border" variant="outline">tenant_user</Badge></td><td className="py-2 pr-4">Limited tenant</td><td className="py-2 text-xs text-muted-foreground">Read access + detection submissions. Scoped by user_store_access and user_shelf_access.</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div className="p-5 rounded-xl bg-card border border-border">
+        <h3 className="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Zap className="w-5 h-5 text-warning" /> Quota & Rate Limiting</h3>
+        <p className="text-sm text-muted-foreground mb-3">Each tenant has configurable quotas enforced before every inferencing request:</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {[
+            { label: "Monthly", field: "max_images_per_month", default: "1,000" },
+            { label: "Weekly", field: "max_images_per_week", default: "300" },
+            { label: "Yearly", field: "max_images_per_year", default: "10,000" },
+            { label: "SKU Cap", field: "max_skus", default: "50" },
+          ].map(q => (
+            <div key={q.field} className="p-3 rounded-lg bg-muted/30 border border-border/50">
+              <p className="text-xs font-medium text-foreground">{q.label}</p>
+              <p className="text-[10px] text-muted-foreground mt-0.5"><code>{q.field}</code> — Default: {q.default}</p>
+            </div>
+          ))}
+        </div>
+        <p className="text-xs text-muted-foreground mt-3">Use <code className="bg-muted px-1 py-0.5 rounded">rpc/check_tenant_quota</code> to verify before submission. Returns 429 when exceeded.</p>
+      </div>
+
+      <div className="p-5 rounded-xl bg-card border border-border">
+        <h3 className="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Server className="w-5 h-5 text-accent" /> Row-Level Security (RLS)</h3>
+        <p className="text-sm text-muted-foreground mb-3">All tables have RLS enabled with PERMISSIVE (OR logic) policies:</p>
+        <ul className="space-y-2 text-xs text-muted-foreground">
+          <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span> <strong className="text-foreground">Owner/Admin</strong>: Full access via <code className="bg-muted px-1 rounded">has_role(auth.uid(), 'admin')</code> — owner is included automatically.</li>
+          <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span> <strong className="text-foreground">Tenant users</strong>: Scoped via <code className="bg-muted px-1 rounded">get_user_tenant_id(auth.uid())</code> matching the row's tenant_id.</li>
+          <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span> <strong className="text-foreground">Nested resources</strong>: shelf_images, shelf_products, compliance_scans use EXISTS subqueries to resolve tenant ownership through parent tables.</li>
+          <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span> <strong className="text-foreground">Notifications</strong>: Users can only view/update their own (user_id = auth.uid()). Only admins can insert.</li>
+        </ul>
+      </div>
+    </div>
+  );
+}
+
+// ─── INFERENCING DOCS ────────────────────────────────────────────────────────
+
+function InferencingDocs() {
+  return (
+    <div className="space-y-4">
+      <div className="p-5 rounded-xl bg-card border border-border">
+        <h3 className="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Zap className="w-5 h-5 text-primary" /> Inferencing Pipeline</h3>
+        <p className="text-sm text-muted-foreground mb-4">ALPHA IR supports two inferencing modes for shelf image analysis:</p>
+
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg bg-muted/20 border border-border/50">
+            <h4 className="text-sm font-semibold text-foreground mb-2">1. AI Vision Detection — <code className="text-xs bg-muted px-1.5 py-0.5 rounded">POST /functions/v1/detect-skus</code></h4>
+            <p className="text-xs text-muted-foreground mb-2">Primary detection endpoint using multimodal AI (Gemini Pro Vision). Sends a base64-encoded shelf image with a list of SKUs to detect.</p>
+            <h5 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-3 mb-1">Pipeline Flow</h5>
+            <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+              <li>Validate request (imageBase64, tenantId required)</li>
+              <li>Check tenant quota via <code className="bg-muted px-1 rounded">check_tenant_quota</code> RPC</li>
+              <li>Build vision prompt with SKU catalog for the tenant</li>
+              <li>Submit to AI gateway with system + user prompt</li>
+              <li>Parse structured JSON response (detections, missing, share of shelf)</li>
+              <li>Store result in <code className="bg-muted px-1 rounded">detections</code> table</li>
+              <li>Increment usage metrics for all periods (daily, weekly, monthly, yearly)</li>
+              <li>Update tenant counters for backward compatibility</li>
+            </ol>
+            <h5 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-3 mb-1">Error Codes</h5>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="outline" className="text-[10px] bg-red-500/10 text-red-600 border-red-500/30">400 — Missing fields</Badge>
+              <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/30">402 — Credits exhausted</Badge>
+              <Badge variant="outline" className="text-[10px] bg-amber-500/10 text-amber-600 border-amber-500/30">429 — Quota exceeded</Badge>
+              <Badge variant="outline" className="text-[10px] bg-red-500/10 text-red-600 border-red-500/30">500 — Server error</Badge>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-lg bg-muted/20 border border-border/50">
+            <h4 className="text-sm font-semibold text-foreground mb-2">2. Roboflow Detection — <code className="text-xs bg-muted px-1.5 py-0.5 rounded">POST /functions/v1/roboflow-detect</code></h4>
+            <p className="text-xs text-muted-foreground mb-2">External model detection using Roboflow's workflow API. Uses a pre-configured workflow ID and API key stored as secrets.</p>
+            <h5 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-3 mb-1">Response Format</h5>
+            <pre className="text-[10px] font-mono bg-muted/50 rounded p-2 overflow-x-auto text-foreground/80 border border-border/50">
+{`{
+  "predictions": [{
+    "class": "product_name",
+    "confidence": 0.89,
+    "x": 120,        // center X in pixels
+    "y": 80,         // center Y in pixels
+    "width": 60,     // box width in pixels
+    "height": 100    // box height in pixels
+  }]
+}`}
+            </pre>
+          </div>
+
+          <div className="p-4 rounded-lg bg-muted/20 border border-border/50">
+            <h4 className="text-sm font-semibold text-foreground mb-2">3. Auto-Annotation (Batch)</h4>
+            <p className="text-xs text-muted-foreground mb-2">Bulk annotation of dataset images using the inferencing endpoint. Available from the Training → Images tab.</p>
+            <h5 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-3 mb-1">Workflow</h5>
+            <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+              <li>Select image sets in the Training Images grid</li>
+              <li>Click "Auto Annotate Selected" — submits batch to inferencing endpoint</li>
+              <li>System polls for job completion (states: submitting → queued → polling → saving)</li>
+              <li>Predictions are converted from pixel coordinates to relative coordinates (0-1)</li>
+              <li>Annotations saved to <code className="bg-muted px-1 rounded">dataset_images.annotations</code> as JSON array</li>
+              <li>Each image marked <code className="bg-muted px-1 rounded">is_annotated = true</code></li>
+            </ol>
+            <h5 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-3 mb-1">Annotation Format</h5>
+            <pre className="text-[10px] font-mono bg-muted/50 rounded p-2 overflow-x-auto text-foreground/80 border border-border/50">
+{`// Saved in dataset_images.annotations
+[{
+  "class": "cola_330ml",
+  "x": 0.15,          // relative center X (0-1)
+  "y": 0.20,          // relative center Y (0-1)  
+  "width": 0.10,      // relative width (0-1)
+  "height": 0.25      // relative height (0-1)
+}]`}
+            </pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── TRAINING DOCS ───────────────────────────────────────────────────────────
+
+function TrainingDocs() {
+  return (
+    <div className="space-y-4">
+      <div className="p-5 rounded-xl bg-card border border-border">
+        <h3 className="text-base font-semibold text-foreground flex items-center gap-2 mb-4"><Brain className="w-5 h-5 text-primary" /> Training Pipeline</h3>
+        <p className="text-sm text-muted-foreground mb-4">The training system supports end-to-end model development from dataset creation to model deployment.</p>
+
+        <div className="space-y-4">
+          <div className="p-4 rounded-lg bg-muted/20 border border-border/50">
+            <h4 className="text-sm font-semibold text-foreground mb-2">Dataset Management</h4>
+            <p className="text-xs text-muted-foreground mb-2">Datasets organize training images with classes derived from the tenant's SKU catalog.</p>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead><tr className="border-b border-border"><th className="text-left py-1.5 pr-3 text-muted-foreground font-medium">Resource</th><th className="text-left py-1.5 pr-3 text-muted-foreground font-medium">Endpoint</th><th className="text-left py-1.5 text-muted-foreground font-medium">Purpose</th></tr></thead>
+                <tbody className="text-muted-foreground">
+                  <tr className="border-b border-border/50"><td className="py-1.5 pr-3 font-mono text-foreground">datasets</td><td className="py-1.5 pr-3"><code>/rest/v1/datasets</code></td><td className="py-1.5">Container for training projects. Status: draft → annotating → training → ready</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-1.5 pr-3 font-mono text-foreground">dataset_image_sets</td><td className="py-1.5 pr-3"><code>/rest/v1/dataset_image_sets</code></td><td className="py-1.5">Named batches within a dataset (e.g., "Store A Batch 1"). Up to 500 images per set.</td></tr>
+                  <tr className="border-b border-border/50"><td className="py-1.5 pr-3 font-mono text-foreground">dataset_images</td><td className="py-1.5 pr-3"><code>/rest/v1/dataset_images</code></td><td className="py-1.5">Individual images with annotations. Each annotation is a bounding box with class label.</td></tr>
+                  <tr><td className="py-1.5 pr-3 font-mono text-foreground">dataset_classes</td><td className="py-1.5 pr-3"><code>/rest/v1/dataset_classes</code></td><td className="py-1.5">Class labels derived from SKUs. Each gets a unique color for visualization.</td></tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-lg bg-muted/20 border border-border/50">
+            <h4 className="text-sm font-semibold text-foreground mb-2">Start Training — <code className="text-xs bg-muted px-1.5 py-0.5 rounded">POST /functions/v1/start-training</code></h4>
+            <p className="text-xs text-muted-foreground mb-2">Initiates a YOLOv8 training job. Requires a valid Bearer token (authenticated user).</p>
+            <h5 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-3 mb-1">Pipeline Flow</h5>
+            <ol className="text-xs text-muted-foreground space-y-1 list-decimal list-inside">
+              <li>Validate JWT and extract user_id from claims</li>
+              <li>Create <code className="bg-muted px-1 rounded">training_jobs</code> record (status: pending)</li>
+              <li>Transition to status: training (progress: 0)</li>
+              <li>Update dataset status to "training"</li>
+              <li>Submit to external training endpoint (or simulated 10s completion)</li>
+              <li>On completion: status → completed, progress → 100, set completed_at</li>
+              <li>Reset dataset status to "ready"</li>
+            </ol>
+            <h5 className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-3 mb-1">Training Parameters</h5>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mt-2">
+              <div className="p-2 rounded bg-muted/30 border border-border/50">
+                <p className="text-[10px] font-medium text-foreground">epochs</p>
+                <p className="text-[10px] text-muted-foreground">Default: 100 | Range: 10-500</p>
+              </div>
+              <div className="p-2 rounded bg-muted/30 border border-border/50">
+                <p className="text-[10px] font-medium text-foreground">batch_size</p>
+                <p className="text-[10px] text-muted-foreground">Default: 16 | Options: 8, 16, 32</p>
+              </div>
+              <div className="p-2 rounded bg-muted/30 border border-border/50">
+                <p className="text-[10px] font-medium text-foreground">model_type</p>
+                <p className="text-[10px] text-muted-foreground">Default: yolov8</p>
+              </div>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-lg bg-muted/20 border border-border/50">
+            <h4 className="text-sm font-semibold text-foreground mb-2">Export Dataset — <code className="text-xs bg-muted px-1.5 py-0.5 rounded">POST /functions/v1/export-dataset</code></h4>
+            <p className="text-xs text-muted-foreground mb-2">Exports a dataset with images and annotations in industry-standard formats.</p>
+            <div className="flex gap-2 mt-2">
+              <Badge variant="secondary" className="text-xs">YOLOv8</Badge>
+              <Badge variant="secondary" className="text-xs">COCO</Badge>
+              <Badge variant="secondary" className="text-xs">Pascal VOC</Badge>
+            </div>
+          </div>
+
+          <div className="p-4 rounded-lg bg-muted/20 border border-border/50">
+            <h4 className="text-sm font-semibold text-foreground mb-2">Model Versioning</h4>
+            <p className="text-xs text-muted-foreground mb-2">Trained models are versioned and managed through the <code className="bg-muted px-1 rounded">models</code> table and the Train tab in the UI.</p>
+            <ul className="text-xs text-muted-foreground space-y-1">
+              <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span> <strong className="text-foreground">Activate</strong>: Set model status to "active" for production use</li>
+              <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span> <strong className="text-foreground">Suspend</strong>: Temporarily disable a model version</li>
+              <li className="flex items-start gap-2"><span className="text-primary mt-0.5">•</span> <strong className="text-foreground">Remove</strong>: Permanently delete a model version and its artifacts</li>
+            </ul>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── MAIN PAGE ───────────────────────────────────────────────────────────────
 
 export default function ApiDocs() {
@@ -921,20 +1147,19 @@ export default function ApiDocs() {
   };
 
   const handleDownloadJson = () => {
-    downloadFile(JSON.stringify(openApiSpec, null, 2), 'shelfvision-openapi-v2.json', 'application/json');
+    downloadFile(JSON.stringify(openApiSpec, null, 2), 'alpha-ir-openapi-v3.json', 'application/json');
   };
 
   const handleDownloadMarkdown = () => {
-    downloadFile(generateMarkdown(), 'shelfvision-api-docs-v2.md', 'text/markdown');
+    downloadFile(generateMarkdown(), 'alpha-ir-api-docs-v3.md', 'text/markdown');
   };
 
   const totalEndpoints = Object.values(groups).reduce((sum, eps) => sum + eps.length, 0);
   const totalSchemas = Object.keys(openApiSpec.components.schemas).length;
 
   return (
-    <MainLayout title="API Documentation" subtitle="Interactive OpenAPI 3.0 specification — ShelfVision v2.0">
+    <MainLayout title="API Documentation" subtitle="ALPHA IR API v3.0 — Complete reference with inferencing & training guides">
       <div className="max-w-5xl space-y-6">
-        {/* Stats bar */}
         <div className="flex flex-wrap items-center gap-4">
           <Badge variant="outline" className="text-xs gap-1"><BookOpen className="w-3 h-3" /> v{openApiSpec.info.version}</Badge>
           <Badge variant="secondary" className="text-xs">{totalEndpoints} endpoints</Badge>
@@ -942,7 +1167,6 @@ export default function ApiDocs() {
           <Badge variant="secondary" className="text-xs">{Object.keys(groups).length} groups</Badge>
         </div>
 
-        {/* Action buttons */}
         <div className="flex flex-wrap gap-3">
           <Button onClick={handleDownloadJson} className="gap-2">
             <Download className="w-4 h-4" /> Download OpenAPI JSON
@@ -957,19 +1181,17 @@ export default function ApiDocs() {
         </div>
 
         <Tabs defaultValue="swagger" className="w-full">
-          <TabsList>
-            <TabsTrigger value="swagger" className="gap-2">
-              <BookOpen className="w-4 h-4" /> Swagger UI
-            </TabsTrigger>
-            <TabsTrigger value="json" className="gap-2">
-              <Code className="w-4 h-4" /> Raw JSON
-            </TabsTrigger>
+          <TabsList className="flex-wrap">
+            <TabsTrigger value="swagger" className="gap-2"><BookOpen className="w-4 h-4" /> Swagger UI</TabsTrigger>
+            <TabsTrigger value="inferencing" className="gap-2"><Zap className="w-4 h-4" /> Inferencing</TabsTrigger>
+            <TabsTrigger value="training" className="gap-2"><Brain className="w-4 h-4" /> Training</TabsTrigger>
+            <TabsTrigger value="rbac" className="gap-2"><Shield className="w-4 h-4" /> RBAC & Security</TabsTrigger>
+            <TabsTrigger value="json" className="gap-2"><Code className="w-4 h-4" /> Raw JSON</TabsTrigger>
           </TabsList>
 
           <TabsContent value="swagger" className="mt-4">
             <ScrollArea className="h-[75vh]">
               <div className="space-y-2 pr-4">
-                {/* Auth info */}
                 <div className="p-4 rounded-xl bg-muted/30 border border-border mb-4">
                   <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">🔐 Authentication</h3>
                   <p className="text-xs text-muted-foreground mt-1">All requests require two headers:</p>
@@ -979,10 +1201,33 @@ export default function ApiDocs() {
                   </div>
                   <p className="text-xs text-muted-foreground mt-2">Edge functions also accept the <code className="bg-muted px-1 rounded">apikey</code> header for authentication.</p>
                 </div>
-
                 {Object.entries(groups).map(([tag, endpoints]) => (
                   <TagGroup key={tag} tag={tag} endpoints={endpoints} />
                 ))}
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="inferencing" className="mt-4">
+            <ScrollArea className="h-[75vh]">
+              <div className="pr-4">
+                <InferencingDocs />
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="training" className="mt-4">
+            <ScrollArea className="h-[75vh]">
+              <div className="pr-4">
+                <TrainingDocs />
+              </div>
+            </ScrollArea>
+          </TabsContent>
+
+          <TabsContent value="rbac" className="mt-4">
+            <ScrollArea className="h-[75vh]">
+              <div className="pr-4">
+                <RBACPanel />
               </div>
             </ScrollArea>
           </TabsContent>

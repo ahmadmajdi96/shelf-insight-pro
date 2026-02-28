@@ -61,7 +61,7 @@ export default function Login() {
           <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
             <ScanLine className="w-6 h-6 text-primary-foreground" />
           </div>
-          <span className="text-xl font-bold text-foreground">ShelfVision</span>
+          <span className="text-xl font-bold text-foreground">ALPHA IR</span>
         </div>
         
         <div className="space-y-6">
@@ -88,7 +88,7 @@ export default function Login() {
         </div>
         
         <p className="text-sm text-muted-foreground">
-          © 2024 ShelfVision. All rights reserved.
+          © {new Date().getFullYear()} ALPHA IR. All rights reserved.
         </p>
       </div>
 
@@ -100,7 +100,7 @@ export default function Login() {
             <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
               <ScanLine className="w-6 h-6 text-primary-foreground" />
             </div>
-            <span className="text-xl font-bold text-foreground">ShelfVision</span>
+            <span className="text-xl font-bold text-foreground">ALPHA IR</span>
           </div>
 
           <div className="text-center lg:text-left">
