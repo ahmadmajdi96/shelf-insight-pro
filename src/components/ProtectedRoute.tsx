@@ -15,7 +15,8 @@ export function ProtectedRoute({
   const { user, role, isLoading } = useAuth();
   const location = useLocation();
 
-  if (isLoading) {
+  // Show loading while auth state or role is still being determined
+  if (isLoading || (user && !role)) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="text-center">
@@ -30,11 +31,9 @@ export function ProtectedRoute({
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // If route requires specific roles and user has a role, check it
-  if (requiredRoles && requiredRoles.length > 0) {
-    if (!role || !requiredRoles.includes(role)) {
-      return <Navigate to="/login" replace />;
-    }
+  // If route requires specific roles, check it
+  if (requiredRoles && requiredRoles.length > 0 && !requiredRoles.includes(role!)) {
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;
