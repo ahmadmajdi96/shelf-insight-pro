@@ -48,7 +48,7 @@ async function apiFetch(path: string, opts: RequestInit = {}) {
   if (apiKey) headers['apikey'] = apiKey;
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${base}${path}`, { ...opts, headers });
+  const res = await fetch(`${base}${path}`, { ...opts, headers, mode: 'cors', credentials: 'omit' });
   return res;
 }
 
