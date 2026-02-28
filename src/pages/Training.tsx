@@ -1007,9 +1007,13 @@ export default function Training() {
   // ─── Model versioning ─────────────────────────────────
   const handleActivateModel = async (jobId: string) => {
     try {
-      await supabase.from('training_jobs').update({ status: 'completed' }).eq('id', jobId);
+      await rest.update('training_jobs', { id: `eq.${jobId}` }, { status: 'completed' });
       if (selectedDatasetId) {
-        await supabase.from('training_jobs').update({ status: 'pending' }).eq('dataset_id', selectedDatasetId).neq('id', jobId).eq('status', 'completed');
+        // Deactivate other completed jobs for this dataset
+        const otherJobs = jobs.filter(j => j.id !== jobId && j.status === 'completed');
+        for (const j of otherJobs) {
+          await rest.update('training_jobs', { id: `eq.${j.id}` }, { status: 'pending' });
+        }
       }
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
       toast({ title: 'Model activated', description: 'This model version is now active.' });
