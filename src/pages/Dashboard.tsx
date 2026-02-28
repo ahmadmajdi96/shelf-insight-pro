@@ -13,7 +13,7 @@ import { useMemo } from 'react';
 
 export default function Dashboard() {
   const navigate = useNavigate();
-  const { profile, isOwner, adminId } = useAuth();
+  const { profile, isOwner, isAdmin, isTenantAdmin, adminId, tenantId, role } = useAuth();
   const { stores, isLoading: storesLoading } = useStores();
   const { quota, monthlyPercentage, isLoading: quotaLoading } = useQuota();
   const { tenants } = useTenants();
@@ -21,12 +21,15 @@ export default function Dashboard() {
 
   const isLoading = storesLoading || quotaLoading || adminsLoading;
 
+  const isTenantOnly = role === 'tenant_admin' || role === 'tenant_user';
+
   // For admin role users, filter data to their admin_id
   const filteredTenants = useMemo(() => {
     if (isOwner) return tenants;
+    if (isTenantOnly && tenantId) return tenants.filter(t => t.id === tenantId);
     if (adminId) return tenants.filter((t: any) => t.admin_id === adminId);
     return tenants;
-  }, [tenants, isOwner, adminId]);
+  }, [tenants, isOwner, adminId, isTenantOnly, tenantId]);
 
   const filteredStores = useMemo(() => {
     if (isOwner) return stores;
@@ -41,6 +44,10 @@ export default function Dashboard() {
     ? [
         { label: 'Admins', value: admins.length, sub: `${activeAdmins} active`, icon: Shield, href: '/management?tab=admins' },
         { label: 'Tenants', value: filteredTenants.length, sub: `${activeTenants} active`, icon: Building2, href: '/management?tab=tenants' },
+        { label: 'Stores', value: filteredStores.length, sub: 'Monitored', icon: Store, href: '/management?tab=stores' },
+      ]
+    : isTenantOnly
+    ? [
         { label: 'Stores', value: filteredStores.length, sub: 'Monitored', icon: Store, href: '/management?tab=stores' },
       ]
     : [
