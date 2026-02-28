@@ -988,11 +988,8 @@ export default function Training() {
     if (!selectedDatasetId) return;
     setExporting(true);
     try {
-      const res = await supabase.functions.invoke('export-dataset', {
-        body: { dataset_id: selectedDatasetId },
-      });
-      if (res.error) throw res.error;
-      const blob = new Blob([res.data], { type: 'application/zip' });
+      const res = await invoke('export-dataset', { dataset_id: selectedDatasetId });
+      const blob = new Blob([res], { type: 'application/zip' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
