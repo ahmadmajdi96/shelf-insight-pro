@@ -299,9 +299,9 @@ export default function Activity() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(allScans.scans || []).length === 0 ? (
+                  {filteredComplianceScans.length === 0 ? (
                     <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No compliance scans recorded</TableCell></TableRow>
-                  ) : (allScans.scans || []).slice(0, viewLimit).map((scan: any) => (
+                  ) : filteredComplianceScans.slice(0, viewLimit).map((scan: any) => (
                     <TableRow key={scan.id}>
                       <TableCell><Badge variant={scan.compliance_score >= 80 ? 'default' : 'destructive'}>{scan.compliance_score}%</Badge></TableCell>
                       <TableCell className="font-medium">{scan.template?.name || scan.template_id?.slice(0, 8) || '-'}</TableCell>

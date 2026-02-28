@@ -87,7 +87,7 @@ export default function Data() {
     queryKey: ['data-compliance-scans'],
     queryFn: async () => {
       const { data } = await rest.list('compliance_scans', {
-        select: '*,template:planogram_templates(name,tenant_id,tenant:tenants(name))',
+        select: '*,template:planogram_templates(name,tenant_id,store_id,tenant:tenants(name,admin_id),store:stores(name))',
         order: 'created_at.desc',
         limit: 500,
       });
