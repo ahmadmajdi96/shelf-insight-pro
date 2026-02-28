@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
 const BACKEND_URL = "https://iralpha.backend.cortanexai.com";
+const NO_BODY_STATUSES = new Set([101, 103, 204, 205, 304]);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -11,12 +12,12 @@ const corsHeaders = {
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response(null, { headers: corsHeaders });
+    return new Response("ok", { headers: corsHeaders });
   }
 
   try {
     const targetPath = req.headers.get("x-target-path");
-    const targetMethod = req.headers.get("x-target-method") || "POST";
+    const targetMethod = (req.headers.get("x-target-method") || "POST").toUpperCase();
 
     if (!targetPath) {
       return new Response(JSON.stringify({ error: "Missing x-target-path header" }), {
@@ -25,52 +26,46 @@ serve(async (req) => {
       });
     }
 
-    const url = `${BACKEND_URL}${targetPath}`;
-
-    // Forward relevant headers to the backend
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-    };
-
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
     const apikey = req.headers.get("apikey");
     const authorization = req.headers.get("authorization");
+
     if (apikey) headers["apikey"] = apikey;
     if (authorization) headers["Authorization"] = authorization;
 
     let body: string | undefined;
-    if (targetMethod !== "DELETE" && targetMethod !== "GET" && targetMethod !== "HEAD") {
-      try {
-        body = await req.text();
-        if (!body || body === '{}') body = undefined;
-      } catch { /* no body */ }
+    if (!["DELETE", "GET", "HEAD"].includes(targetMethod)) {
+      const raw = await req.text();
+      if (raw && raw !== "{}") body = raw;
     }
 
-    const response = await fetch(url, {
+    const upstream = await fetch(`${BACKEND_URL}${targetPath}`, {
       method: targetMethod,
       headers,
-      body: body || undefined,
+      body,
     });
 
-    const responseText = await response.text();
-    const responseStatus = response.status;
+    const status = upstream.status;
+    const responseText = NO_BODY_STATUSES.has(status) ? "" : await upstream.text();
 
-    // For 204 No Content, return empty response
-    if (responseStatus === 204) {
+    if (NO_BODY_STATUSES.has(status)) {
       return new Response(null, {
-        status: 204,
+        status,
         headers: corsHeaders,
       });
     }
 
     return new Response(responseText || null, {
-      status: responseStatus,
+      status,
       headers: {
         ...corsHeaders,
-        "Content-Type": response.headers.get("Content-Type") || "application/json",
+        "Content-Type": upstream.headers.get("Content-Type") || "application/json",
       },
     });
   } catch (error) {
-    return new Response(JSON.stringify({ error: error.message }), {
+    const message = error instanceof Error ? error.message : String(error ?? "Unknown error");
+    console.error("api-proxy runtime error", message);
+    return new Response(JSON.stringify({ error: message }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
