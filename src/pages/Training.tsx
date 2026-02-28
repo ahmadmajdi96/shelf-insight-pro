@@ -70,6 +70,22 @@ interface BBox {
   x: number; y: number; w: number; h: number;
 }
 
+type AutoAnnotateStage = 'idle' | 'submitting' | 'queued' | 'polling' | 'saving';
+
+const SELECTED_SETS_AUTO_ANNOTATE_INITIAL = {
+  running: false,
+  stage: 'idle' as AutoAnnotateStage,
+  jobId: null as string | null,
+  total: 0,
+  processed: 0,
+  saved: 0,
+  failed: 0,
+};
+
+const INFERENCING_ENDPOINT_STORAGE_KEY = 'shelfvision_inferencing_endpoint';
+const AUTO_ANNOTATE_POLL_INTERVAL_MS = 2000;
+const AUTO_ANNOTATE_MAX_POLL_ATTEMPTS = 120;
+
 const DEFAULT_TRAINING_CONFIG = {
   seed: 42,
   data: {
@@ -308,6 +324,7 @@ export default function Training() {
   const [uploadSetFiles, setUploadSetFiles] = useState<File[]>([]);
   const [uploadingSet, setUploadingSet] = useState(false);
   const [selectedSetIds, setSelectedSetIds] = useState<Set<string>>(new Set());
+  const [selectedSetsAutoAnnotate, setSelectedSetsAutoAnnotate] = useState(SELECTED_SETS_AUTO_ANNOTATE_INITIAL);
   const [autoAnnotatingSetId, setAutoAnnotatingSetId] = useState<string | null>(null);
   const [deleteSetId, setDeleteSetId] = useState<string | null>(null);
   const [annotatingSetId, setAnnotatingSetId] = useState<string | null>(null);
@@ -594,6 +611,153 @@ export default function Training() {
       toast({ title: 'Auto-annotate failed', description: err.message, variant: 'destructive' });
     } finally {
       setAutoAnnotatingSetId(null);
+    }
+  };
+
+  const toAnnotationBoxes = (predictions: any[]): BBox[] => predictions.map((pred: any) => {
+    const predLabel = pred.class || pred.label || 'unknown';
+    const matchedClass = annotationClasses.find(c => c.name.toLowerCase() === String(predLabel).toLowerCase());
+    const imgWidth = pred.image?.width || pred.image_width || 640;
+    const imgHeight = pred.image?.height || pred.image_height || 640;
+    const bx = ((pred.x || 0) - (pred.width || 0) / 2) / imgWidth;
+    const by = ((pred.y || 0) - (pred.height || 0) / 2) / imgHeight;
+    const bw = (pred.width || 0) / imgWidth;
+    const bh = (pred.height || 0) / imgHeight;
+
+    return {
+      id: crypto.randomUUID(),
+      classId: matchedClass?.id || '',
+      className: matchedClass?.name || String(predLabel),
+      color: matchedClass?.color || '#3B82F6',
+      x: Math.max(0, bx),
+      y: Math.max(0, by),
+      w: Math.min(1 - Math.max(0, bx), bw),
+      h: Math.min(1 - Math.max(0, by), bh),
+    };
+  });
+
+  const autoAnnotateSelectedSets = async () => {
+    if (!selectedDatasetId) return;
+
+    const selectedImages = images.filter(img => selectedSetIds.has((img as any).image_set_id));
+    if (selectedImages.length === 0) {
+      toast({ title: 'No images', description: 'Selected sets have no images.', variant: 'destructive' });
+      return;
+    }
+
+    const endpoint = localStorage.getItem(INFERENCING_ENDPOINT_STORAGE_KEY)?.replace(/\/+$/, '');
+    if (!endpoint) {
+      toast({
+        title: 'Inferencing endpoint missing',
+        description: 'Open Training Settings and set an inferencing endpoint first.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setSelectedSetsAutoAnnotate({
+      running: true,
+      stage: 'submitting',
+      jobId: null,
+      total: selectedImages.length,
+      processed: 0,
+      saved: 0,
+      failed: 0,
+    });
+
+    try {
+      const submitResponse = await fetch(`${endpoint}/jobs/auto-annotate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          dataset_id: selectedDatasetId,
+          image_set_ids: Array.from(selectedSetIds),
+          images: selectedImages.map(img => ({
+            image_id: img.id,
+            image_url: img.image_url,
+            file_name: img.file_name,
+          })),
+          classes: annotationClasses.map(c => ({ id: c.id, name: c.name })),
+        }),
+      });
+
+      const submitData = await submitResponse.json();
+      if (!submitResponse.ok) {
+        throw new Error(submitData?.error || 'Failed to submit auto-annotation job');
+      }
+
+      const jobId = submitData.job_id || submitData.jobId;
+      if (!jobId) throw new Error('Inference job response did not include job_id');
+
+      setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'queued', jobId }));
+
+      let statusData: any = null;
+      let attempts = 0;
+
+      while (attempts < AUTO_ANNOTATE_MAX_POLL_ATTEMPTS) {
+        attempts += 1;
+        setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'polling' }));
+
+        await new Promise(resolve => setTimeout(resolve, AUTO_ANNOTATE_POLL_INTERVAL_MS));
+
+        const statusResponse = await fetch(`${endpoint}/jobs/${jobId}`);
+        statusData = await statusResponse.json();
+        if (!statusResponse.ok) {
+          throw new Error(statusData?.error || 'Failed to poll auto-annotation job');
+        }
+
+        const processed = Number(statusData.processed ?? statusData.progress?.processed ?? 0);
+        setSelectedSetsAutoAnnotate(prev => ({ ...prev, processed: Math.min(prev.total, processed) }));
+
+        const jobStatus = String(statusData.status || '').toLowerCase();
+        if (['completed', 'done', 'success'].includes(jobStatus)) break;
+        if (['failed', 'error', 'cancelled'].includes(jobStatus)) {
+          throw new Error(statusData?.error || 'Auto-annotation job failed');
+        }
+      }
+
+      if (!statusData || !['completed', 'done', 'success'].includes(String(statusData.status || '').toLowerCase())) {
+        throw new Error('Auto-annotation job timed out');
+      }
+
+      const results = (statusData.results || statusData.images || []) as any[];
+      setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'saving' }));
+
+      const imagesById = new Map(selectedImages.map(img => [img.id, img]));
+      const imagesByUrl = new Map(selectedImages.map(img => [img.image_url, img]));
+
+      let saved = 0;
+      let failed = 0;
+
+      for (const result of results) {
+        const resolvedImage = imagesById.get(result.image_id || result.imageId) || imagesByUrl.get(result.image_url || result.imageUrl);
+        if (!resolvedImage) {
+          failed += 1;
+          continue;
+        }
+
+        const predictions = result.predictions || result.annotations || [];
+        const boxes = toAnnotationBoxes(predictions);
+
+        try {
+          await updateAnnotations.mutateAsync({ imageId: resolvedImage.id, annotations: boxes });
+          saved += 1;
+        } catch {
+          failed += 1;
+        }
+
+        setSelectedSetsAutoAnnotate(prev => ({ ...prev, saved, failed }));
+      }
+
+      qc.invalidateQueries({ queryKey: ['dataset-images', selectedDatasetId] });
+      toast({
+        title: 'Auto-annotation complete',
+        description: `Saved annotations for ${saved}/${selectedImages.length} images${failed ? ` (${failed} failed)` : ''}.`,
+      });
+    } catch (err: any) {
+      toast({ title: 'Auto-annotate failed', description: err.message || 'Request failed', variant: 'destructive' });
+    } finally {
+      setSelectedSetsAutoAnnotate(SELECTED_SETS_AUTO_ANNOTATE_INITIAL);
     }
   };
 
@@ -1370,11 +1534,29 @@ export default function Training() {
                     <span className="text-xs text-muted-foreground ml-2">
                       ({images.filter(img => selectedSetIds.has((img as any).image_set_id)).length} total images)
                     </span>
+                    {selectedSetsAutoAnnotate.running && (
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        <Badge variant="outline" className="text-[10px] gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" /> {selectedSetsAutoAnnotate.stage}
+                        </Badge>
+                        {selectedSetsAutoAnnotate.jobId && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            Job: {selectedSetsAutoAnnotate.jobId.slice(0, 8)}…
+                          </Badge>
+                        )}
+                        <Badge variant="secondary" className="text-[10px]">Processed: {selectedSetsAutoAnnotate.processed}/{selectedSetsAutoAnnotate.total}</Badge>
+                        <Badge variant="default" className="text-[10px]">Saved: {selectedSetsAutoAnnotate.saved}</Badge>
+                        {selectedSetsAutoAnnotate.failed > 0 && (
+                          <Badge variant="destructive" className="text-[10px]">Failed: {selectedSetsAutoAnnotate.failed}</Badge>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button
                       size="sm"
                       variant="default"
+                      disabled={selectedSetsAutoAnnotate.running}
                       onClick={() => {
                         // Start manual annotation for selected sets combined
                         const selectedImages = images.filter(img => selectedSetIds.has((img as any).image_set_id));
@@ -1382,7 +1564,6 @@ export default function Training() {
                           toast({ title: 'No images', description: 'Selected sets have no images.', variant: 'destructive' });
                           return;
                         }
-                        // Set annotatingSetId to a special marker, use selected sets
                         const firstUnannotated = selectedImages.find(img => !img.is_annotated) || selectedImages[0];
                         setAnnotatingSetId('__selected__');
                         setAnnotatingImage(firstUnannotated);
@@ -1393,7 +1574,20 @@ export default function Training() {
                       <Square className="w-3.5 h-3.5 mr-1.5" />
                       Manual Annotate Selected
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setSelectedSetIds(new Set())}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={autoAnnotateSelectedSets}
+                      disabled={selectedSetsAutoAnnotate.running}
+                    >
+                      {selectedSetsAutoAnnotate.running ? (
+                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      ) : (
+                        <Wand2 className="w-3.5 h-3.5 mr-1.5" />
+                      )}
+                      Auto Annotate Selected
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setSelectedSetIds(new Set())} disabled={selectedSetsAutoAnnotate.running}>
                       <X className="w-3 h-3 mr-1" /> Clear
                     </Button>
                   </div>

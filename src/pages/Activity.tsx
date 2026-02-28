@@ -86,6 +86,23 @@ export default function Activity() {
     return result;
   }, [detections, selectedTenantId, selectedAdminId, filteredTenants, selectedStoreId]);
 
+  const filteredComplianceScans = useMemo(() => {
+    let result = (allScans.scans || []) as any[];
+
+    if (selectedTenantId !== 'all') {
+      result = result.filter((scan: any) => scan.template?.tenant_id === selectedTenantId);
+    } else if (selectedAdminId !== 'all') {
+      const tenantIds = new Set(filteredTenants.map((t: any) => t.id));
+      result = result.filter((scan: any) => tenantIds.has(scan.template?.tenant_id));
+    }
+
+    if (selectedStoreId !== 'all') {
+      result = result.filter((scan: any) => scan.template?.store_id === selectedStoreId);
+    }
+
+    return result;
+  }, [allScans.scans, selectedTenantId, selectedAdminId, selectedStoreId, filteredTenants]);
+
   const tenantPieData = useMemo(() => {
     return filteredTenants.slice(0, 6).map((t: any) => ({
       name: t.name,
@@ -265,7 +282,7 @@ export default function Activity() {
         <TabsContent value="compliance" className="space-y-4 animate-fade-in">
           <div className="rounded-xl bg-card border border-border overflow-hidden">
             <div className="p-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold text-foreground">Compliance Scans ({(allScans.scans || []).length})</h3>
+              <h3 className="font-semibold text-foreground">Compliance Scans ({filteredComplianceScans.length})</h3>
             </div>
             <ScrollArea className="h-[calc(100vh-400px)] min-h-[400px]">
               <Table>
@@ -282,9 +299,9 @@ export default function Activity() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {(allScans.scans || []).length === 0 ? (
+                  {filteredComplianceScans.length === 0 ? (
                     <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No compliance scans recorded</TableCell></TableRow>
-                  ) : (allScans.scans || []).slice(0, viewLimit).map((scan: any) => (
+                  ) : filteredComplianceScans.slice(0, viewLimit).map((scan: any) => (
                     <TableRow key={scan.id}>
                       <TableCell><Badge variant={scan.compliance_score >= 80 ? 'default' : 'destructive'}>{scan.compliance_score}%</Badge></TableCell>
                       <TableCell className="font-medium">{scan.template?.name || scan.template_id?.slice(0, 8) || '-'}</TableCell>

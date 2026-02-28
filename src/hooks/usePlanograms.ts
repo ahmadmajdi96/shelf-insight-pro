@@ -55,7 +55,13 @@ export interface ComplianceScan {
   details: any[];
   scanned_by: string | null;
   created_at: string;
-  template?: { name: string } | null;
+  template?: {
+    name: string;
+    tenant_id?: string;
+    store_id?: string | null;
+    tenant?: { name: string; admin_id?: string | null } | null;
+    store?: { name: string } | null;
+  } | null;
 }
 
 export function usePlanogramTemplates() {
@@ -275,7 +281,7 @@ export function useComplianceScans(templateId?: string | null) {
       if (templateId) filters.template_id = `eq.${templateId}`;
 
       const { data } = await rest.list('compliance_scans', {
-        select: '*,template:planogram_templates(name)',
+        select: '*,template:planogram_templates(name,tenant_id,store_id,tenant:tenants(name,admin_id),store:stores(name))',
         order: 'created_at.desc',
         filters,
       });
