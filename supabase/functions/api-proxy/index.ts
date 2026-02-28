@@ -52,9 +52,18 @@ serve(async (req) => {
     });
 
     const responseText = await response.text();
+    const responseStatus = response.status;
 
-    return new Response(responseText, {
-      status: response.status,
+    // For 204 No Content, return empty response
+    if (responseStatus === 204) {
+      return new Response(null, {
+        status: 204,
+        headers: corsHeaders,
+      });
+    }
+
+    return new Response(responseText || null, {
+      status: responseStatus,
       headers: {
         ...corsHeaders,
         "Content-Type": response.headers.get("Content-Type") || "application/json",
