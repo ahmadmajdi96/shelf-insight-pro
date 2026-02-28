@@ -282,7 +282,7 @@ export default function Activity() {
         <TabsContent value="compliance" className="space-y-4 animate-fade-in">
           <div className="rounded-xl bg-card border border-border overflow-hidden">
             <div className="p-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold text-foreground">Compliance Scans ({(allScans.scans || []).length})</h3>
+              <h3 className="font-semibold text-foreground">Compliance Scans ({filteredComplianceScans.length})</h3>
             </div>
             <ScrollArea className="h-[calc(100vh-400px)] min-h-[400px]">
               <Table>
