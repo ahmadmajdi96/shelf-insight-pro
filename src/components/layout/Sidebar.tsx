@@ -24,17 +24,19 @@ import { useIsMobile } from '@/hooks/use-mobile';
 import { useAuth } from '@/contexts/AuthContext';
 import { useNotifications } from '@/hooks/useNotifications';
 
-const allNavItems = [
-  { icon: LayoutDashboard, label: 'Dashboard', path: '/', ownerOnly: false },
-  { icon: Grid3X3, label: 'Management', path: '/management', ownerOnly: false },
-  { icon: Brain, label: 'Training', path: '/training', ownerOnly: true },
-  { icon: Activity, label: 'Activity', path: '/activity', ownerOnly: false },
-  { icon: Database, label: 'Data', path: '/data', ownerOnly: true },
-  { icon: Users, label: 'Users', path: '/users', ownerOnly: false },
-  { icon: KeyRound, label: 'Access Control', path: '/access-control', ownerOnly: false },
-  { icon: Bell, label: 'Notifications', path: '/notifications', ownerOnly: false },
-  { icon: Settings, label: 'Settings', path: '/settings', ownerOnly: true },
-  { icon: FileCode, label: 'API Docs', path: '/api-docs', ownerOnly: true },
+type NavItemVisibility = 'all' | 'ownerOnly' | 'adminUp';
+
+const allNavItems: { icon: any; label: string; path: string; visibility: NavItemVisibility }[] = [
+  { icon: LayoutDashboard, label: 'Dashboard', path: '/', visibility: 'all' },
+  { icon: Grid3X3, label: 'Management', path: '/management', visibility: 'all' },
+  { icon: Brain, label: 'Training', path: '/training', visibility: 'ownerOnly' },
+  { icon: Activity, label: 'Activity', path: '/activity', visibility: 'all' },
+  { icon: Database, label: 'Data', path: '/data', visibility: 'ownerOnly' },
+  { icon: Users, label: 'Users', path: '/users', visibility: 'adminUp' },
+  { icon: KeyRound, label: 'Access Control', path: '/access-control', visibility: 'adminUp' },
+  { icon: Bell, label: 'Notifications', path: '/notifications', visibility: 'all' },
+  { icon: Settings, label: 'Settings', path: '/settings', visibility: 'ownerOnly' },
+  { icon: FileCode, label: 'API Docs', path: '/api-docs', visibility: 'ownerOnly' },
 ];
 
 export function Sidebar() {
