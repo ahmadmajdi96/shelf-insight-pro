@@ -35,18 +35,18 @@ const App = () => (
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             
-            {/* Shared routes - accessible by owner and admin */}
-            <Route path="/" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Dashboard /></ProtectedRoute>} />
-            <Route path="/tenants" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Planogram /></ProtectedRoute>} />
-            <Route path="/categories" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Planogram /></ProtectedRoute>} />
-            <Route path="/products" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Planogram /></ProtectedRoute>} />
-            <Route path="/management" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Planogram /></ProtectedRoute>} />
+            {/* Shared routes - accessible by owner, admin, and tenant_admin */}
+            <Route path="/" element={<ProtectedRoute requiredRoles={['owner', 'admin', 'tenant_admin']}><Dashboard /></ProtectedRoute>} />
+            <Route path="/tenants" element={<ProtectedRoute requiredRoles={['owner', 'admin', 'tenant_admin']}><Planogram /></ProtectedRoute>} />
+            <Route path="/categories" element={<ProtectedRoute requiredRoles={['owner', 'admin', 'tenant_admin']}><Planogram /></ProtectedRoute>} />
+            <Route path="/products" element={<ProtectedRoute requiredRoles={['owner', 'admin', 'tenant_admin']}><Planogram /></ProtectedRoute>} />
+            <Route path="/management" element={<ProtectedRoute requiredRoles={['owner', 'admin', 'tenant_admin']}><Planogram /></ProtectedRoute>} />
             <Route path="/users" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Users /></ProtectedRoute>} />
             <Route path="/access-control" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><AccessControl /></ProtectedRoute>} />
-            <Route path="/shelves/:id" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><ShelfDetail /></ProtectedRoute>} />
-            <Route path="/activity" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Activity /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Profile /></ProtectedRoute>} />
-            <Route path="/notifications" element={<ProtectedRoute requiredRoles={['owner', 'admin']}><Notifications /></ProtectedRoute>} />
+            <Route path="/shelves/:id" element={<ProtectedRoute requiredRoles={['owner', 'admin', 'tenant_admin']}><ShelfDetail /></ProtectedRoute>} />
+            <Route path="/activity" element={<ProtectedRoute requiredRoles={['owner', 'admin', 'tenant_admin']}><Activity /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute requiredRoles={['owner', 'admin', 'tenant_admin']}><Profile /></ProtectedRoute>} />
+            <Route path="/notifications" element={<ProtectedRoute requiredRoles={['owner', 'admin', 'tenant_admin']}><Notifications /></ProtectedRoute>} />
             
             {/* Owner-only routes */}
             <Route path="/training" element={<ProtectedRoute requiredRoles={['owner']}><Training /></ProtectedRoute>} />

@@ -63,7 +63,7 @@ const statusConfig = {
 export default function Planogram() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAdmin, isOwner, tenantId, adminId } = useAuth();
+  const { isAdmin, isOwner, tenantId, adminId, role } = useAuth();
   const { stores, createStore, updateStore, deleteStore } = useStores();
   const { tenants, isLoading: tenantsLoading, createTenant, updateTenant, suspendTenant, deleteTenant } = useTenants();
   const { products, isLoading: productsLoading, deleteProduct, updateProduct } = useProducts();
@@ -76,21 +76,27 @@ export default function Planogram() {
   const { detectWithRoboflow, isDetecting } = useRoboflowDetection();
   const [complianceImageUrl, setComplianceImageUrl] = useState('');
 
+  const isTenantOnly = role === 'tenant_admin' || role === 'tenant_user';
+
   // Support ?tab= query param
   const tabFromUrl = searchParams.get('tab');
-  const defaultTab = isOwner ? 'admins' : 'tenants';
+  const defaultTab = isOwner ? 'admins' : isTenantOnly ? 'stores' : 'tenants';
   const [activeTab, setActiveTab] = useState(tabFromUrl || defaultTab);
 
   useEffect(() => {
     const validTabs = isOwner 
       ? ['admins', 'tenants', 'stores', 'planograms', 'categories', 'products']
+      : isTenantOnly
+      ? ['stores', 'planograms', 'categories', 'products']
       : ['tenants', 'stores', 'planograms', 'categories', 'products'];
     if (tabFromUrl && validTabs.includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     } else if (tabFromUrl === 'admins' && !isOwner) {
-      setActiveTab('tenants');
+      setActiveTab(isTenantOnly ? 'stores' : 'tenants');
+    } else if (tabFromUrl === 'tenants' && isTenantOnly) {
+      setActiveTab('stores');
     }
-  }, [tabFromUrl, isOwner]);
+  }, [tabFromUrl, isOwner, isTenantOnly]);
 
   // Search states for each tab
   const [tenantSearch, setTenantSearch] = useState('');
@@ -187,9 +193,10 @@ export default function Planogram() {
   // For admin role users, filter data to their admin_id
   const scopedTenants = useMemo(() => {
     if (isOwner) return tenants;
+    if (isTenantOnly && tenantId) return tenants.filter(t => t.id === tenantId);
     if (adminId) return tenants.filter((t: any) => t.admin_id === adminId);
     return tenants;
-  }, [tenants, isOwner, adminId]);
+  }, [tenants, isOwner, adminId, isTenantOnly, tenantId]);
 
   const scopedTenantIds = useMemo(() => new Set(scopedTenants.map(t => t.id)), [scopedTenants]);
 
@@ -451,15 +458,20 @@ export default function Planogram() {
   };
   const handleAdminDelete = async () => { if (deleteAdminId) { await deleteAdmin.mutateAsync(deleteAdminId); setDeleteAdminId(null); } };
 
-  const allTabItems = [
-    { value: 'admins', label: 'Admins', icon: Shield, ownerOnly: true },
-    { value: 'tenants', label: 'Tenants', icon: Building2, ownerOnly: false },
-    { value: 'stores', label: 'Stores', icon: Store, ownerOnly: false },
-    { value: 'planograms', label: 'Planograms', icon: LayoutGrid, ownerOnly: false },
-    { value: 'categories', label: 'Categories', icon: FolderOpen, ownerOnly: false },
-    { value: 'products', label: 'Products', icon: Package, ownerOnly: false },
+  type TabVisibility = 'all' | 'ownerOnly' | 'adminUp';
+  const allTabItems: { value: string; label: string; icon: any; visibility: TabVisibility }[] = [
+    { value: 'admins', label: 'Admins', icon: Shield, visibility: 'ownerOnly' },
+    { value: 'tenants', label: 'Tenants', icon: Building2, visibility: 'adminUp' },
+    { value: 'stores', label: 'Stores', icon: Store, visibility: 'all' },
+    { value: 'planograms', label: 'Planograms', icon: LayoutGrid, visibility: 'all' },
+    { value: 'categories', label: 'Categories', icon: FolderOpen, visibility: 'all' },
+    { value: 'products', label: 'Products', icon: Package, visibility: 'all' },
   ];
-  const tabItems = isOwner ? allTabItems : allTabItems.filter(t => !t.ownerOnly);
+  const tabItems = isOwner 
+    ? allTabItems 
+    : isTenantOnly 
+    ? allTabItems.filter(t => t.visibility === 'all')
+    : allTabItems.filter(t => t.visibility !== 'ownerOnly');
 
 
   return (
