@@ -579,11 +579,8 @@ export default function Training() {
       let annotatedCount = 0;
       for (const img of setImages) {
         try {
-          const res = await supabase.functions.invoke('roboflow-detect', {
-            body: { image_url: img.image_url },
-          });
-          if (res.error) continue;
-          const predictions = res.data?.predictions || res.data?.outputs?.flatMap((o: any) => o?.predictions || []) || [];
+          const res = await invoke('roboflow-detect', { image_url: img.image_url });
+          const predictions = res?.predictions || res?.outputs?.flatMap((o: any) => o?.predictions || []) || [];
           const newBboxes = predictions.map((pred: any) => {
             const predLabel = pred.class || pred.label || 'unknown';
             const matchedClass = annotationClasses.find(c => c.name.toLowerCase() === predLabel.toLowerCase());
