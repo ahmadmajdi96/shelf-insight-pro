@@ -4,13 +4,14 @@ const BACKEND_URL = "https://iralpha.backend.cortanexai.com";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-target-path, x-target-method",
+  "Access-Control-Allow-Headers":
+    "authorization, x-client-info, apikey, content-type, x-target-path, x-target-method, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
-    return new Response("ok", { headers: corsHeaders });
+    return new Response(null, { headers: corsHeaders });
   }
 
   try {
@@ -25,18 +26,21 @@ serve(async (req) => {
     }
 
     const url = `${BACKEND_URL}${targetPath}`;
-    
-    // Forward relevant headers
+
+    // Forward relevant headers to the backend
     const headers: Record<string, string> = {
       "Content-Type": "application/json",
     };
-    
+
     const apikey = req.headers.get("apikey");
     const authorization = req.headers.get("authorization");
     if (apikey) headers["apikey"] = apikey;
     if (authorization) headers["Authorization"] = authorization;
 
-    const body = targetMethod !== "DELETE" ? await req.text() : undefined;
+    let body: string | undefined;
+    if (targetMethod !== "DELETE" && targetMethod !== "GET") {
+      body = await req.text();
+    }
 
     const response = await fetch(url, {
       method: targetMethod,
@@ -45,7 +49,7 @@ serve(async (req) => {
     });
 
     const responseText = await response.text();
-    
+
     return new Response(responseText, {
       status: response.status,
       headers: {
