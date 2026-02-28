@@ -1,18 +1,22 @@
 import { getApiBaseUrl, getApiKey } from './api-config';
 
-// Direct mutation helper – sends only apikey (no Authorization) to avoid CORS preflight
+// Direct mutation helper – sends apikey + Authorization, no extra headers like Prefer
 async function apiMutate(path: string, method: string, body?: any) {
   const base = getApiBaseUrl().replace(/\/+$/, '');
   const apiKey = getApiKey();
+  const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
   };
   if (apiKey) headers['apikey'] = apiKey;
+  if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`${base}${path}`, {
     method,
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
+    mode: 'cors',
+    credentials: 'omit',
   });
   return res;
 }
