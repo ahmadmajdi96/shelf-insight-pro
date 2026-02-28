@@ -193,9 +193,10 @@ export default function Planogram() {
   // For admin role users, filter data to their admin_id
   const scopedTenants = useMemo(() => {
     if (isOwner) return tenants;
+    if (isTenantOnly && tenantId) return tenants.filter(t => t.id === tenantId);
     if (adminId) return tenants.filter((t: any) => t.admin_id === adminId);
     return tenants;
-  }, [tenants, isOwner, adminId]);
+  }, [tenants, isOwner, adminId, isTenantOnly, tenantId]);
 
   const scopedTenantIds = useMemo(() => new Set(scopedTenants.map(t => t.id)), [scopedTenants]);
 
