@@ -1,7 +1,21 @@
 import { getApiBaseUrl, getApiKey } from './api-config';
 
-// Supabase edge function proxy URL for mutation requests (bypasses CORS)
-const PROXY_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID || 'jcmtiompmpafqwqlichh'}.supabase.co/functions/v1/api-proxy`;
+// Direct mutation helper – sends only apikey (no Authorization) to avoid CORS preflight
+async function apiMutate(path: string, method: string, body?: any) {
+  const base = getApiBaseUrl().replace(/\/+$/, '');
+  const apiKey = getApiKey();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (apiKey) headers['apikey'] = apiKey;
+
+  const res = await fetch(`${base}${path}`, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  return res;
+}
 
 const TOKEN_KEY = 'shelfvision_access_token';
 const USER_KEY = 'shelfvision_user';
