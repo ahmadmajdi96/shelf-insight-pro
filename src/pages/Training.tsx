@@ -41,7 +41,7 @@ import { format } from 'date-fns';
 import { useAuth } from '@/contexts/AuthContext';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { rest } from '@/lib/api-client';
-import { supabase } from '@/integrations/supabase/client';
+import { invoke } from '@/lib/api-client';
 import {
   useDatasets, useDatasetImages, useDatasetClasses, useTrainingJobs,
   type Dataset, type DatasetImage, type DatasetClass,
@@ -535,7 +535,7 @@ export default function Training() {
       await updateImageSet.mutateAsync({ id: set.id, image_count: uploadSetFiles.length });
       // Update dataset image_count
       const totalImages = (images?.length || 0) + uploadSetFiles.length;
-      await supabase.from('datasets').update({ image_count: totalImages }).eq('id', selectedDatasetId);
+      await rest.update('datasets', { id: `eq.${selectedDatasetId}` }, { image_count: totalImages });
       qc.invalidateQueries({ queryKey: ['datasets'] });
       qc.invalidateQueries({ queryKey: ['dataset-images', selectedDatasetId] });
       setShowUploadModal(false);
@@ -579,11 +579,8 @@ export default function Training() {
       let annotatedCount = 0;
       for (const img of setImages) {
         try {
-          const res = await supabase.functions.invoke('roboflow-detect', {
-            body: { image_url: img.image_url },
-          });
-          if (res.error) continue;
-          const predictions = res.data?.predictions || res.data?.outputs?.flatMap((o: any) => o?.predictions || []) || [];
+          const res = await invoke('roboflow-detect', { image_url: img.image_url });
+          const predictions = res?.predictions || res?.outputs?.flatMap((o: any) => o?.predictions || []) || [];
           const newBboxes = predictions.map((pred: any) => {
             const predLabel = pred.class || pred.label || 'unknown';
             const matchedClass = annotationClasses.find(c => c.name.toLowerCase() === predLabel.toLowerCase());
@@ -906,12 +903,9 @@ export default function Training() {
   const autoAnnotate = async (img: DatasetImage) => {
     setAutoAnnotating(true);
     try {
-      const res = await supabase.functions.invoke('roboflow-detect', {
-        body: { image_url: img.image_url },
-      });
-      if (res.error) throw res.error;
+      const res = await invoke('roboflow-detect', { image_url: img.image_url });
       
-      const predictions = res.data?.predictions || res.data?.outputs?.flatMap((o: any) => o?.predictions || []) || [];
+      const predictions = res?.predictions || res?.outputs?.flatMap((o: any) => o?.predictions || []) || [];
       
       const newBboxes: BBox[] = predictions.map((pred: any) => {
         const predLabel = pred.class || pred.label || 'unknown';
@@ -994,11 +988,8 @@ export default function Training() {
     if (!selectedDatasetId) return;
     setExporting(true);
     try {
-      const res = await supabase.functions.invoke('export-dataset', {
-        body: { dataset_id: selectedDatasetId },
-      });
-      if (res.error) throw res.error;
-      const blob = new Blob([res.data], { type: 'application/zip' });
+      const res = await invoke('export-dataset', { dataset_id: selectedDatasetId });
+      const blob = new Blob([res], { type: 'application/zip' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1016,9 +1007,13 @@ export default function Training() {
   // ─── Model versioning ─────────────────────────────────
   const handleActivateModel = async (jobId: string) => {
     try {
-      await supabase.from('training_jobs').update({ status: 'completed' }).eq('id', jobId);
+      await rest.update('training_jobs', { id: `eq.${jobId}` }, { status: 'completed' });
       if (selectedDatasetId) {
-        await supabase.from('training_jobs').update({ status: 'pending' }).eq('dataset_id', selectedDatasetId).neq('id', jobId).eq('status', 'completed');
+        // Deactivate other completed jobs for this dataset
+        const otherJobs = jobs.filter(j => j.id !== jobId && j.status === 'completed');
+        for (const j of otherJobs) {
+          await rest.update('training_jobs', { id: `eq.${j.id}` }, { status: 'pending' });
+        }
       }
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
       toast({ title: 'Model activated', description: 'This model version is now active.' });
@@ -1029,7 +1024,7 @@ export default function Training() {
 
   const handleSuspendModel = async (jobId: string) => {
     try {
-      await supabase.from('training_jobs').update({ status: 'pending' }).eq('id', jobId);
+      await rest.update('training_jobs', { id: `eq.${jobId}` }, { status: 'pending' });
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
       toast({ title: 'Model suspended' });
     } catch (e: any) {
@@ -1039,7 +1034,7 @@ export default function Training() {
 
   const handleDeleteTraining = async (jobId: string) => {
     try {
-      await supabase.from('training_jobs').delete().eq('id', jobId);
+      await rest.remove('training_jobs', jobId);
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
       toast({ title: 'Training removed' });
     } catch (e: any) {
@@ -1052,15 +1047,12 @@ export default function Training() {
     if (!selectedDatasetId) return;
     setTrainingStarting(true);
     try {
-      const { data, error } = await supabase.functions.invoke('start-training', {
-        body: {
-          dataset_id: selectedDatasetId,
-          epochs: trainForm.epochs,
-          batch_size: trainForm.batch_size,
-          config: trainingConfig,
-        },
+      const data = await invoke('start-training', {
+        dataset_id: selectedDatasetId,
+        epochs: trainForm.epochs,
+        batch_size: trainForm.batch_size,
+        config: trainingConfig,
       });
-      if (error) throw error;
       setShowTrainModal(false);
       toast({ title: 'Training job started', description: data?.message || 'The model is being trained.' });
       qc.invalidateQueries({ queryKey: ['training-jobs'] });

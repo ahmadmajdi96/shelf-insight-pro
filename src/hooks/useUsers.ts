@@ -159,14 +159,14 @@ export function useUsers() {
     queryKey: ['user-store-access', userId],
     queryFn: async () => {
       const { data } = await rest.list('user_store_access', {
-        select: '*,stores(name)',
+        select: '*,store:stores(name)',
         filters: { user_id: `eq.${userId}` },
       });
       return (data || []).map((d: any) => ({
         id: d.id,
         userId: d.user_id,
         storeId: d.store_id,
-        storeName: d.stores?.name || 'Unknown',
+        storeName: d.store?.name || d.stores?.name || 'Unknown',
       })) as UserStoreAccess[];
     },
     enabled: !!userId,
@@ -199,14 +199,14 @@ export function useUsers() {
     queryKey: ['user-shelf-access', userId],
     queryFn: async () => {
       const { data } = await rest.list('user_shelf_access', {
-        select: '*,shelves(name)',
+        select: '*,shelf:shelves(name)',
         filters: { user_id: `eq.${userId}` },
       });
       return (data || []).map((d: any) => ({
         id: d.id,
         userId: d.user_id,
         shelfId: d.shelf_id,
-        shelfName: d.shelves?.name || 'Unknown',
+        shelfName: d.shelf?.name || d.shelves?.name || 'Unknown',
       })) as UserShelfAccess[];
     },
     enabled: !!userId,
