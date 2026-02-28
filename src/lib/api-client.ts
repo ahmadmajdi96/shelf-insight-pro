@@ -278,10 +278,28 @@ export const rest = {
 
 // ─── RPC ─────────────────────────────────────────────────
 export async function rpc(fn: string, params: any) {
-  return apiFetchJSON(`/rest/v1/rpc/${fn}`, {
+  const targetPath = `/rest/v1/rpc/${fn}`;
+  const token = getToken();
+  const apiKey = getApiKey();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-target-path': targetPath,
+    'x-target-method': 'POST',
+  };
+  if (apiKey) headers['apikey'] = apiKey;
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(PROXY_URL, {
     method: 'POST',
+    headers,
     body: JSON.stringify(params),
   });
+  if (res.status === 204) return null;
+  const text = await res.text();
+  if (!text) return null;
+  const body = JSON.parse(text);
+  if (!res.ok) throw new Error(body?.detail || body?.error || body?.message || `API error ${res.status}`);
+  return body;
 }
 
 // ─── Edge Functions ──────────────────────────────────────
