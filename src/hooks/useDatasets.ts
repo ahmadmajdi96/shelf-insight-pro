@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { supabase } from '@/integrations/supabase/client';
+import { rest, storage } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 
 export interface Dataset {
@@ -58,24 +58,14 @@ export function useDatasets() {
   const { data: datasets = [], isLoading } = useQuery({
     queryKey: ['datasets'],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from('datasets')
-        .select('*')
-        .order('created_at', { ascending: false });
-      if (error) throw error;
-      return data as Dataset[];
+      const { data } = await rest.list('datasets', { select: '*', order: 'created_at.desc' });
+      return (data || []) as Dataset[];
     },
   });
 
   const createDataset = useMutation({
     mutationFn: async (payload: { name: string; description?: string; tenant_id?: string }) => {
-      const { data, error } = await supabase
-        .from('datasets')
-        .insert(payload)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      return await rest.create('datasets', payload);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['datasets'] });
@@ -86,8 +76,7 @@ export function useDatasets() {
 
   const updateDataset = useMutation({
     mutationFn: async ({ id, ...payload }: { id: string; name?: string; description?: string; status?: string; image_count?: number; class_count?: number }) => {
-      const { error } = await supabase.from('datasets').update(payload).eq('id', id);
-      if (error) throw error;
+      await rest.update('datasets', { id: `eq.${id}` }, payload);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['datasets'] }),
     onError: (e: any) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
@@ -95,8 +84,7 @@ export function useDatasets() {
 
   const deleteDataset = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('datasets').delete().eq('id', id);
-      if (error) throw error;
+      await rest.remove('datasets', id);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['datasets'] });
@@ -117,13 +105,12 @@ export function useDatasetImages(datasetId: string | null) {
     queryKey: ['dataset-images', datasetId],
     queryFn: async () => {
       if (!datasetId) return [];
-      const { data, error } = await supabase
-        .from('dataset_images')
-        .select('*')
-        .eq('dataset_id', datasetId)
-        .order('created_at', { ascending: true });
-      if (error) throw error;
-      return data as DatasetImage[];
+      const { data } = await rest.list('dataset_images', {
+        select: '*',
+        filters: { dataset_id: `eq.${datasetId}` },
+        order: 'created_at.asc',
+      });
+      return (data || []) as DatasetImage[];
     },
     enabled: !!datasetId,
   });
@@ -133,25 +120,20 @@ export function useDatasetImages(datasetId: string | null) {
       const uploaded: DatasetImage[] = [];
       for (const file of files) {
         const path = `${datasetId}/${crypto.randomUUID()}-${file.name}`;
-        const { error: uploadError } = await supabase.storage
-          .from('dataset-images')
-          .upload(path, file);
-        if (uploadError) throw uploadError;
+        await storage.upload('dataset-images', path, file);
+        const publicUrl = storage.getPublicUrl('dataset-images', path);
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('dataset-images')
-          .getPublicUrl(path);
-
-        const { data, error } = await supabase
-          .from('dataset_images')
-          .insert({ dataset_id: datasetId, image_url: publicUrl, file_name: file.name })
-          .select()
-          .single();
-        if (error) throw error;
+        const data = await rest.create('dataset_images', {
+          dataset_id: datasetId,
+          image_url: publicUrl,
+          file_name: file.name,
+        });
         uploaded.push(data as DatasetImage);
       }
       // Update image count
-      await supabase.from('datasets').update({ image_count: (images.length || 0) + files.length }).eq('id', datasetId);
+      await rest.update('datasets', { id: `eq.${datasetId}` }, {
+        image_count: (images.length || 0) + files.length,
+      });
       return uploaded;
     },
     onSuccess: (_, vars) => {
@@ -164,11 +146,10 @@ export function useDatasetImages(datasetId: string | null) {
 
   const updateAnnotations = useMutation({
     mutationFn: async ({ imageId, annotations }: { imageId: string; annotations: any[] }) => {
-      const { error } = await supabase
-        .from('dataset_images')
-        .update({ annotations: annotations as any, is_annotated: annotations.length > 0 })
-        .eq('id', imageId);
-      if (error) throw error;
+      await rest.update('dataset_images', { id: `eq.${imageId}` }, {
+        annotations: annotations as any,
+        is_annotated: annotations.length > 0,
+      });
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['dataset-images', datasetId] }),
     onError: (e: any) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
@@ -176,8 +157,7 @@ export function useDatasetImages(datasetId: string | null) {
 
   const deleteImage = useMutation({
     mutationFn: async (imageId: string) => {
-      const { error } = await supabase.from('dataset_images').delete().eq('id', imageId);
-      if (error) throw error;
+      await rest.remove('dataset_images', imageId);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['dataset-images', datasetId] });
@@ -198,26 +178,19 @@ export function useDatasetClasses(datasetId: string | null) {
     queryKey: ['dataset-classes', datasetId],
     queryFn: async () => {
       if (!datasetId) return [];
-      const { data, error } = await supabase
-        .from('dataset_classes')
-        .select('*')
-        .eq('dataset_id', datasetId)
-        .order('created_at', { ascending: true });
-      if (error) throw error;
-      return data as DatasetClass[];
+      const { data } = await rest.list('dataset_classes', {
+        select: '*',
+        filters: { dataset_id: `eq.${datasetId}` },
+        order: 'created_at.asc',
+      });
+      return (data || []) as DatasetClass[];
     },
     enabled: !!datasetId,
   });
 
   const createClass = useMutation({
     mutationFn: async (payload: { dataset_id: string; name: string; color?: string }) => {
-      const { data, error } = await supabase
-        .from('dataset_classes')
-        .insert(payload)
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      return await rest.create('dataset_classes', payload);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['dataset-classes', datasetId] });
@@ -228,8 +201,7 @@ export function useDatasetClasses(datasetId: string | null) {
 
   const updateClass = useMutation({
     mutationFn: async ({ id, ...payload }: { id: string; name?: string; color?: string }) => {
-      const { error } = await supabase.from('dataset_classes').update(payload).eq('id', id);
-      if (error) throw error;
+      await rest.update('dataset_classes', { id: `eq.${id}` }, payload);
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ['dataset-classes', datasetId] }),
     onError: (e: any) => toast({ title: 'Error', description: e.message, variant: 'destructive' }),
@@ -237,8 +209,7 @@ export function useDatasetClasses(datasetId: string | null) {
 
   const deleteClass = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from('dataset_classes').delete().eq('id', id);
-      if (error) throw error;
+      await rest.remove('dataset_classes', id);
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['dataset-classes', datasetId] });
@@ -258,23 +229,16 @@ export function useTrainingJobs(datasetId?: string | null) {
   const { data: jobs = [], isLoading } = useQuery({
     queryKey: ['training-jobs', datasetId],
     queryFn: async () => {
-      let query = supabase.from('training_jobs').select('*').order('created_at', { ascending: false });
-      if (datasetId) query = query.eq('dataset_id', datasetId);
-      const { data, error } = await query;
-      if (error) throw error;
-      return data as TrainingJob[];
+      const opts: any = { select: '*', order: 'created_at.desc' };
+      if (datasetId) opts.filters = { dataset_id: `eq.${datasetId}` };
+      const { data } = await rest.list('training_jobs', opts);
+      return (data || []) as TrainingJob[];
     },
   });
 
   const createJob = useMutation({
     mutationFn: async (payload: { dataset_id: string; epochs?: number; batch_size?: number }) => {
-      const { data, error } = await supabase
-        .from('training_jobs')
-        .insert({ ...payload, status: 'pending' })
-        .select()
-        .single();
-      if (error) throw error;
-      return data;
+      return await rest.create('training_jobs', { ...payload, status: 'pending' });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
