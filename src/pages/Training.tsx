@@ -535,7 +535,7 @@ export default function Training() {
       await updateImageSet.mutateAsync({ id: set.id, image_count: uploadSetFiles.length });
       // Update dataset image_count
       const totalImages = (images?.length || 0) + uploadSetFiles.length;
-      await supabase.from('datasets').update({ image_count: totalImages }).eq('id', selectedDatasetId);
+      await rest.update('datasets', { id: `eq.${selectedDatasetId}` }, { image_count: totalImages });
       qc.invalidateQueries({ queryKey: ['datasets'] });
       qc.invalidateQueries({ queryKey: ['dataset-images', selectedDatasetId] });
       setShowUploadModal(false);
