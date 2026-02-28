@@ -30,14 +30,13 @@ export default function Activity() {
   const { isAdmin } = useAuth();
 
   const [activeTab, setActiveTab] = useState('overview');
-  const [filterLevel, setFilterLevel] = useState<'all' | 'admin' | 'tenant' | 'store'>('all');
   const [selectedAdminId, setSelectedAdminId] = useState('all');
   const [selectedTenantId, setSelectedTenantId] = useState('all');
   const [selectedStoreId, setSelectedStoreId] = useState('all');
   const [searchQuery, setSearchQuery] = useState('');
-  const [viewLimit, setViewLimit] = useState(10);
+  const [viewLimit, setViewLimit] = useState(25);
 
-  // Fetch tenants, stores
+  // Fetch tenants, stores, detections
   const { data: tenants = [] } = useQuery({
     queryKey: ['activity-all-tenants'],
     queryFn: async () => { const { data } = await rest.list('tenants', { select: '*', order: 'name.asc' }); return data || []; },
@@ -55,49 +54,31 @@ export default function Activity() {
   const { templates } = usePlanogramTemplates();
   const allScans = useComplianceScans();
 
-  // Filter logic - cascading admin → tenant
+  // Cascading filters
   const filteredTenants = useMemo(() => {
     let result = tenants;
-    if (selectedAdminId !== 'all') {
-      result = tenants.filter((t: any) => t.admin_id === selectedAdminId);
-    }
+    if (selectedAdminId !== 'all') result = tenants.filter((t: any) => t.admin_id === selectedAdminId);
     if (searchQuery) result = result.filter((t: any) => t.name.toLowerCase().includes(searchQuery.toLowerCase()));
     return result;
   }, [tenants, selectedAdminId, searchQuery]);
 
-  // Reset tenant/store when admin changes
-  const handleAdminChange = (v: string) => {
-    setSelectedAdminId(v);
-    setSelectedTenantId('all');
-    setSelectedStoreId('all');
-    setFilterLevel(v !== 'all' ? 'admin' : 'all');
-  };
-
-  // Reset store when tenant changes
-  const handleTenantChange = (v: string) => {
-    setSelectedTenantId(v);
-    setSelectedStoreId('all');
-    if (v !== 'all') setFilterLevel('tenant');
-  };
+  const handleAdminChange = (v: string) => { setSelectedAdminId(v); setSelectedTenantId('all'); setSelectedStoreId('all'); };
+  const handleTenantChange = (v: string) => { setSelectedTenantId(v); setSelectedStoreId('all'); };
 
   const filteredStores = useMemo(() => {
     let result = stores;
-    // Filter stores by selected tenant or by tenants under selected admin
-    if (selectedTenantId !== 'all') {
-      result = result.filter((s: any) => s.tenant_id === selectedTenantId);
-    } else if (selectedAdminId !== 'all') {
+    if (selectedTenantId !== 'all') result = result.filter((s: any) => s.tenant_id === selectedTenantId);
+    else if (selectedAdminId !== 'all') {
       const tenantIds = new Set(filteredTenants.map((t: any) => t.id));
       result = result.filter((s: any) => tenantIds.has(s.tenant_id));
     }
-    if (searchQuery) result = result.filter((s: any) => s.name.toLowerCase().includes(searchQuery.toLowerCase()));
     return result;
-  }, [stores, selectedTenantId, selectedAdminId, filteredTenants, searchQuery]);
+  }, [stores, selectedTenantId, selectedAdminId, filteredTenants]);
 
   const filteredDetections = useMemo(() => {
     let result = detections;
-    if (selectedTenantId !== 'all') {
-      result = result.filter((d: any) => d.tenant_id === selectedTenantId);
-    } else if (selectedAdminId !== 'all') {
+    if (selectedTenantId !== 'all') result = result.filter((d: any) => d.tenant_id === selectedTenantId);
+    else if (selectedAdminId !== 'all') {
       const tenantIds = new Set(filteredTenants.map((t: any) => t.id));
       result = result.filter((d: any) => tenantIds.has(d.tenant_id));
     }
@@ -105,29 +86,16 @@ export default function Activity() {
     return result;
   }, [detections, selectedTenantId, selectedAdminId, filteredTenants, selectedStoreId]);
 
-  // Pie chart data
   const tenantPieData = useMemo(() => {
-    return filteredTenants.slice(0, 6).map((t: any, i: number) => ({
+    return filteredTenants.slice(0, 6).map((t: any) => ({
       name: t.name,
       value: t.processed_images_this_month || 1,
     }));
   }, [filteredTenants]);
 
-  const clearFilters = () => {
-    setSearchQuery('');
-    setSelectedAdminId('all');
-    setSelectedTenantId('all');
-    setSelectedStoreId('all');
-    setFilterLevel('all');
-  };
-
+  const clearFilters = () => { setSearchQuery(''); setSelectedAdminId('all'); setSelectedTenantId('all'); setSelectedStoreId('all'); };
   const hasActiveFilters = searchQuery || selectedAdminId !== 'all' || selectedTenantId !== 'all' || selectedStoreId !== 'all';
-
-  // Export PDF (basic print)
-  const exportPDF = () => {
-    document.title = `ShelfVision Activity Report - ${new Date().toLocaleDateString()}`;
-    window.print();
-  };
+  const exportPDF = () => { document.title = `ShelfVision Activity Report - ${new Date().toLocaleDateString()}`; window.print(); };
 
   const tabItems = [
     { value: 'overview', label: 'Overview', icon: BarChart3 },
@@ -139,9 +107,7 @@ export default function Activity() {
   if (isLoading) {
     return (
       <MainLayout title="Activity" subtitle="Monitor usage and activity across all tenants.">
-        <div className="flex items-center justify-center py-20">
-          <Loader2 className="w-8 h-8 animate-spin text-primary" />
-        </div>
+        <div className="flex items-center justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
       </MainLayout>
     );
   }
@@ -171,35 +137,38 @@ export default function Activity() {
               {filteredTenants.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          <Select value={selectedStoreId} onValueChange={v => { setSelectedStoreId(v); if (v !== 'all') setFilterLevel('store'); }}>
+          <Select value={selectedStoreId} onValueChange={v => setSelectedStoreId(v)}>
             <SelectTrigger className="w-[160px] bg-secondary border-border"><SelectValue placeholder="All Stores" /></SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Stores</SelectItem>
               {filteredStores.map((s: any) => <SelectItem key={s.id} value={s.id}>{s.name}</SelectItem>)}
             </SelectContent>
           </Select>
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" onClick={clearFilters}><X className="w-4 h-4 mr-1" />Clear</Button>
-          )}
-          <Button variant="outline" size="sm" className="ml-auto" onClick={exportPDF}><Download className="w-4 h-4 mr-2" />Export PDF</Button>
+          {hasActiveFilters && <Button variant="ghost" size="sm" onClick={clearFilters}><X className="w-4 h-4 mr-1" />Clear</Button>}
+          <div className="flex items-center gap-2 ml-auto">
+            <Select value={String(viewLimit)} onValueChange={v => setViewLimit(Number(v))}>
+              <SelectTrigger className="w-[80px] h-8 text-xs bg-secondary border-border"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="10">10</SelectItem>
+                <SelectItem value="25">25</SelectItem>
+                <SelectItem value="50">50</SelectItem>
+                <SelectItem value="100">100</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" size="sm" onClick={exportPDF}><Download className="w-4 h-4 mr-2" />Export PDF</Button>
+          </div>
         </div>
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
-        {/* Management-style tab bar */}
         <div className="flex justify-center">
           <TabsList className="inline-flex h-12 items-center gap-1 rounded-2xl bg-card/80 backdrop-blur-xl border border-border/50 p-1.5 shadow-lg shadow-primary/5">
             {tabItems.map(tab => (
-              <TabsTrigger
-                key={tab.value}
-                value={tab.value}
-                className={cn(
-                  "relative inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-300",
-                  "data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground data-[state=inactive]:hover:bg-secondary/50",
-                  "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:shadow-primary/25",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-                )}
-              >
+              <TabsTrigger key={tab.value} value={tab.value} className={cn(
+                "relative inline-flex items-center gap-2 rounded-xl px-4 py-2 text-sm font-medium transition-all duration-300",
+                "data-[state=inactive]:text-muted-foreground data-[state=inactive]:hover:text-foreground data-[state=inactive]:hover:bg-secondary/50",
+                "data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-md data-[state=active]:shadow-primary/25",
+              )}>
                 <tab.icon className="w-4 h-4" />
                 <span className="hidden sm:inline">{tab.label}</span>
               </TabsTrigger>
@@ -209,7 +178,6 @@ export default function Activity() {
 
         {/* ─── Overview Tab ─── */}
         <TabsContent value="overview" className="space-y-6 animate-fade-in">
-          {/* KPI cards */}
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div className="p-4 rounded-lg bg-card border border-border"><p className="text-3xl font-bold text-primary">{totalImages.toLocaleString()}</p><p className="text-sm text-muted-foreground">Images Processed</p></div>
             <div className="p-4 rounded-lg bg-card border border-border"><p className="text-3xl font-bold text-foreground">{totalSkus}</p><p className="text-sm text-muted-foreground">SKUs Trained</p></div>
@@ -217,7 +185,6 @@ export default function Activity() {
             <div className="p-4 rounded-lg bg-card border border-border"><p className="text-3xl font-bold text-foreground">{filteredStores.length}</p><p className="text-sm text-muted-foreground">Active Stores</p></div>
           </div>
 
-          {/* Charts row */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 rounded-xl bg-card border border-border p-6">
               <h3 className="font-semibold text-foreground mb-4">Weekly Image Processing</h3>
@@ -256,111 +223,12 @@ export default function Activity() {
             </div>
           </div>
 
-          {/* Tenant & Recent Activity tables */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-            <div className="rounded-xl bg-card border border-border overflow-hidden">
-              <div className="p-4 border-b border-border flex items-center justify-between">
-                <h3 className="font-semibold text-foreground">Tenant Usage</h3>
-                <Select value={String(viewLimit)} onValueChange={v => setViewLimit(Number(v))}>
-                  <SelectTrigger className="w-[80px] h-7 text-xs bg-secondary border-border"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {activityData.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground">No tenant data available</div>
-              ) : (
-                <ScrollArea className="max-h-[400px]">
-                  <div className="divide-y divide-border">
-                    {activityData.slice(0, viewLimit).map((tenant, index) => (
-                      <div key={tenant.tenantId} className={cn("p-4 hover:bg-secondary/50 transition-colors animate-fade-in")} style={{ animationDelay: `${index * 50}ms` }}>
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-3">
-                            <span className="w-6 h-6 rounded-full bg-primary/10 flex items-center justify-center text-xs font-bold text-primary">{index + 1}</span>
-                            <div>
-                              <p className="font-medium text-foreground">{tenant.tenant}</p>
-                              <p className="text-sm text-muted-foreground">{tenant.skus} SKUs</p>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <p className="font-semibold text-foreground">{tenant.images.toLocaleString()}</p>
-                            <p className="text-xs text-muted-foreground flex items-center justify-end gap-1">
-                              {tenant.trend === 'up' ? <TrendingUp className="w-3 h-3 text-success" /> : <TrendingDown className="w-3 h-3 text-destructive" />} images
-                            </p>
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              )}
-            </div>
-
-            <div className="rounded-xl bg-card border border-border overflow-hidden">
-              <div className="p-4 border-b border-border flex items-center justify-between">
-                <h3 className="font-semibold text-foreground">Recent Activity</h3>
-                <Select value={String(viewLimit)} onValueChange={v => setViewLimit(Number(v))}>
-                  <SelectTrigger className="w-[80px] h-7 text-xs bg-secondary border-border"><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="5">5</SelectItem>
-                    <SelectItem value="10">10</SelectItem>
-                    <SelectItem value="25">25</SelectItem>
-                    <SelectItem value="50">50</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              {recentActivity.length === 0 ? (
-                <div className="p-8 text-center text-muted-foreground">No recent activity</div>
-              ) : (
-                <ScrollArea className="max-h-[400px]">
-                  <div className="divide-y divide-border">
-                    {recentActivity.slice(0, viewLimit).map((activity, index) => (
-                      <div key={activity.id} className={cn("p-4 hover:bg-secondary/50 transition-colors animate-fade-in")} style={{ animationDelay: `${index * 50}ms` }}>
-                        <div className="flex items-start gap-3">
-                          <div className={cn("w-8 h-8 rounded-full flex items-center justify-center shrink-0",
-                            activity.type === 'detection' && "bg-primary/10 text-primary",
-                            activity.type === 'product' && "bg-success/10 text-success",
-                            activity.type === 'training' && "bg-warning/10 text-warning",
-                            activity.type === 'store' && "bg-secondary text-muted-foreground",
-                          )}>
-                            {activity.type === 'detection' && <ScanLine className="w-4 h-4" />}
-                            {activity.type === 'product' && <Package className="w-4 h-4" />}
-                            {activity.type === 'training' && <ActivityIcon className="w-4 h-4" />}
-                            {activity.type === 'store' && <Clock className="w-4 h-4" />}
-                          </div>
-                          <div className="flex-1 min-w-0">
-                            <p className="font-medium text-foreground text-sm">{activity.tenant}</p>
-                            <p className="text-sm text-muted-foreground">{activity.action}</p>
-                          </div>
-                          <span className="text-xs text-muted-foreground whitespace-nowrap">{activity.time}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              )}
-            </div>
-          </div>
-
-          {/* Detections table */}
+          {/* Detection History Table */}
           <div className="rounded-xl bg-card border border-border overflow-hidden">
             <div className="p-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold text-foreground">Detection History</h3>
-              <Select value={String(viewLimit)} onValueChange={v => setViewLimit(Number(v))}>
-                <SelectTrigger className="w-[80px] h-7 text-xs bg-secondary border-border"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="5">5</SelectItem>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                </SelectContent>
-              </Select>
+              <h3 className="font-semibold text-foreground">Detection History ({filteredDetections.length})</h3>
             </div>
-            <div className="overflow-x-auto">
+            <ScrollArea className="h-[calc(100vh-600px)] min-h-[400px]">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-secondary/50">
@@ -369,12 +237,13 @@ export default function Activity() {
                     <TableHead>SKUs Detected</TableHead>
                     <TableHead>Total Facings</TableHead>
                     <TableHead>Share of Shelf</TableHead>
+                    <TableHead>Missing SKUs</TableHead>
                     <TableHead>Processed</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredDetections.length === 0 ? (
-                    <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No detections yet</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No detections yet</TableCell></TableRow>
                   ) : filteredDetections.slice(0, viewLimit).map((d: any) => (
                     <TableRow key={d.id}>
                       <TableCell className="font-medium">{d.tenant?.name || '-'}</TableCell>
@@ -382,12 +251,13 @@ export default function Activity() {
                       <TableCell>{d.detected_skus || 0}</TableCell>
                       <TableCell>{d.total_facings || 0}</TableCell>
                       <TableCell>{d.share_of_shelf_percentage ? `${d.share_of_shelf_percentage}%` : '-'}</TableCell>
+                      <TableCell>{d.missing_skus || 0}</TableCell>
                       <TableCell>{format(new Date(d.processed_at), 'PP p')}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </ScrollArea>
           </div>
         </TabsContent>
 
@@ -395,21 +265,14 @@ export default function Activity() {
         <TabsContent value="compliance" className="space-y-4 animate-fade-in">
           <div className="rounded-xl bg-card border border-border overflow-hidden">
             <div className="p-4 border-b border-border flex items-center justify-between">
-              <h3 className="font-semibold text-foreground">Compliance Scans</h3>
-              <Select value={String(viewLimit)} onValueChange={v => setViewLimit(Number(v))}>
-                <SelectTrigger className="w-[80px] h-7 text-xs bg-secondary border-border"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="10">10</SelectItem>
-                  <SelectItem value="25">25</SelectItem>
-                  <SelectItem value="50">50</SelectItem>
-                </SelectContent>
-              </Select>
+              <h3 className="font-semibold text-foreground">Compliance Scans ({(allScans.scans || []).length})</h3>
             </div>
-            <div className="overflow-x-auto">
+            <ScrollArea className="h-[calc(100vh-400px)] min-h-[400px]">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-secondary/50">
                     <TableHead>Score</TableHead>
+                    <TableHead>Template</TableHead>
                     <TableHead>Expected</TableHead>
                     <TableHead>Found</TableHead>
                     <TableHead>Missing</TableHead>
@@ -420,10 +283,11 @@ export default function Activity() {
                 </TableHeader>
                 <TableBody>
                   {(allScans.scans || []).length === 0 ? (
-                    <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No compliance scans recorded</TableCell></TableRow>
+                    <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No compliance scans recorded</TableCell></TableRow>
                   ) : (allScans.scans || []).slice(0, viewLimit).map((scan: any) => (
                     <TableRow key={scan.id}>
                       <TableCell><Badge variant={scan.compliance_score >= 80 ? 'default' : 'destructive'}>{scan.compliance_score}%</Badge></TableCell>
+                      <TableCell className="font-medium">{scan.template?.name || scan.template_id?.slice(0, 8) || '-'}</TableCell>
                       <TableCell>{scan.total_expected}</TableCell>
                       <TableCell>{scan.total_found}</TableCell>
                       <TableCell>{scan.total_missing}</TableCell>
@@ -436,30 +300,30 @@ export default function Activity() {
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </ScrollArea>
           </div>
         </TabsContent>
 
         {/* ─── Scan History Tab ─── */}
         <TabsContent value="scan-history" className="space-y-4 animate-fade-in">
-          <ScanHistoryTable viewLimit={viewLimit} setViewLimit={setViewLimit} selectedTenantId={selectedTenantId} />
+          <ScanHistoryTable viewLimit={viewLimit} selectedTenantId={selectedTenantId} selectedStoreId={selectedStoreId} selectedAdminId={selectedAdminId} tenants={tenants} />
         </TabsContent>
 
         {/* ─── Version History Tab ─── */}
         <TabsContent value="versions" className="space-y-4 animate-fade-in">
-          <VersionHistoryTable templates={templates} viewLimit={viewLimit} setViewLimit={setViewLimit} />
+          <VersionHistoryTable templates={templates} viewLimit={viewLimit} />
         </TabsContent>
       </Tabs>
     </MainLayout>
   );
 }
 
-function ScanHistoryTable({ viewLimit, setViewLimit, selectedTenantId }: { viewLimit: number; setViewLimit: (v: number) => void; selectedTenantId: string }) {
+function ScanHistoryTable({ viewLimit, selectedTenantId, selectedStoreId, selectedAdminId, tenants }: { viewLimit: number; selectedTenantId: string; selectedStoreId: string; selectedAdminId: string; tenants: any[] }) {
   const { data: scans = [], isLoading } = useQuery({
     queryKey: ['activity-scan-history'],
     queryFn: async () => {
       const { data } = await rest.list('shelf_images', {
-        select: '*,shelf:shelves(name,tenant_id,tenant:tenants(name),store:stores(name))',
+        select: '*,shelf:shelves(name,tenant_id,store_id,tenant:tenants(name),store:stores(name))',
         order: 'created_at.desc',
         limit: 500,
       });
@@ -468,30 +332,32 @@ function ScanHistoryTable({ viewLimit, setViewLimit, selectedTenantId }: { viewL
   });
 
   const filtered = useMemo(() => {
-    if (selectedTenantId === 'all') return scans;
-    return scans.filter((s: any) => s.shelf?.tenant_id === selectedTenantId);
-  }, [scans, selectedTenantId]);
+    let result = scans;
+    if (selectedTenantId !== 'all') {
+      result = result.filter((s: any) => s.shelf?.tenant_id === selectedTenantId);
+    } else if (selectedAdminId !== 'all') {
+      const adminTenantIds = new Set(tenants.filter((t: any) => t.admin_id === selectedAdminId).map((t: any) => t.id));
+      result = result.filter((s: any) => adminTenantIds.has(s.shelf?.tenant_id));
+    }
+    if (selectedStoreId !== 'all') {
+      result = result.filter((s: any) => s.shelf?.store_id === selectedStoreId);
+    }
+    return result;
+  }, [scans, selectedTenantId, selectedStoreId, selectedAdminId, tenants]);
 
   return (
     <div className="rounded-xl bg-card border border-border overflow-hidden">
       <div className="p-4 border-b border-border flex items-center justify-between">
-        <h3 className="font-semibold text-foreground">Scan History</h3>
-        <Select value={String(viewLimit)} onValueChange={v => setViewLimit(Number(v))}>
-          <SelectTrigger className="w-[80px] h-7 text-xs bg-secondary border-border"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            <SelectItem value="10">10</SelectItem>
-            <SelectItem value="25">25</SelectItem>
-            <SelectItem value="50">50</SelectItem>
-          </SelectContent>
-        </Select>
+        <h3 className="font-semibold text-foreground">Scan History ({filtered.length})</h3>
       </div>
-      <div className="overflow-x-auto">
+      <ScrollArea className="h-[calc(100vh-400px)] min-h-[400px]">
         <Table>
           <TableHeader>
             <TableRow className="bg-secondary/50">
               <TableHead>Shelf</TableHead>
               <TableHead>Tenant</TableHead>
               <TableHead>Store</TableHead>
+              <TableHead>Detection Result</TableHead>
               <TableHead>Processed</TableHead>
               <TableHead>Created</TableHead>
               <TableHead>Image</TableHead>
@@ -499,15 +365,22 @@ function ScanHistoryTable({ viewLimit, setViewLimit, selectedTenantId }: { viewL
           </TableHeader>
           <TableBody>
             {isLoading ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" /></TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-12"><Loader2 className="w-6 h-6 animate-spin text-primary mx-auto" /></TableCell></TableRow>
             ) : filtered.length === 0 ? (
-              <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No scan history</TableCell></TableRow>
+              <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No scan history</TableCell></TableRow>
             ) : filtered.slice(0, viewLimit).map((scan: any) => (
               <TableRow key={scan.id}>
                 <TableCell className="font-medium">{scan.shelf?.name || '-'}</TableCell>
                 <TableCell>{scan.shelf?.tenant?.name || '-'}</TableCell>
                 <TableCell>{scan.shelf?.store?.name || '-'}</TableCell>
-                <TableCell><Badge variant={scan.processed_at ? 'default' : 'secondary'}>{scan.processed_at ? 'Yes' : 'Pending'}</Badge></TableCell>
+                <TableCell>
+                  {scan.detection_result ? (
+                    <Badge variant="default">Has Results</Badge>
+                  ) : (
+                    <Badge variant="secondary">No Results</Badge>
+                  )}
+                </TableCell>
+                <TableCell><Badge variant={scan.processed_at ? 'default' : 'secondary'}>{scan.processed_at ? format(new Date(scan.processed_at), 'PP p') : 'Pending'}</Badge></TableCell>
                 <TableCell>{format(new Date(scan.created_at), 'PP p')}</TableCell>
                 <TableCell>
                   <a href={scan.image_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm">View</a>
@@ -516,16 +389,15 @@ function ScanHistoryTable({ viewLimit, setViewLimit, selectedTenantId }: { viewL
             ))}
           </TableBody>
         </Table>
-      </div>
+      </ScrollArea>
     </div>
   );
 }
 
-function VersionHistoryTable({ templates, viewLimit, setViewLimit }: { templates: any[]; viewLimit: number; setViewLimit: (v: number) => void }) {
+function VersionHistoryTable({ templates, viewLimit }: { templates: any[]; viewLimit: number }) {
   const [selectedTemplateId, setSelectedTemplateId] = useState('all');
   const { versions } = usePlanogramVersions(selectedTemplateId === 'all' ? null : selectedTemplateId);
 
-  // If 'all', fetch all versions
   const { data: allVersions = [] } = useQuery({
     queryKey: ['activity-all-versions'],
     queryFn: async () => {
@@ -540,26 +412,16 @@ function VersionHistoryTable({ templates, viewLimit, setViewLimit }: { templates
   return (
     <div className="rounded-xl bg-card border border-border overflow-hidden">
       <div className="p-4 border-b border-border flex items-center justify-between flex-wrap gap-3">
-        <h3 className="font-semibold text-foreground">Version History</h3>
-        <div className="flex items-center gap-3">
-          <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
-            <SelectTrigger className="w-[180px] h-8 text-xs bg-secondary border-border"><SelectValue placeholder="All Planograms" /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Planograms</SelectItem>
-              {templates.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
-            </SelectContent>
-          </Select>
-          <Select value={String(viewLimit)} onValueChange={v => setViewLimit(Number(v))}>
-            <SelectTrigger className="w-[80px] h-7 text-xs bg-secondary border-border"><SelectValue /></SelectTrigger>
-            <SelectContent>
-              <SelectItem value="10">10</SelectItem>
-              <SelectItem value="25">25</SelectItem>
-              <SelectItem value="50">50</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
+        <h3 className="font-semibold text-foreground">Version History ({displayVersions.length})</h3>
+        <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+          <SelectTrigger className="w-[180px] h-8 text-xs bg-secondary border-border"><SelectValue placeholder="All Planograms" /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Planograms</SelectItem>
+            {templates.map((t: any) => <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>)}
+          </SelectContent>
+        </Select>
       </div>
-      <div className="overflow-x-auto">
+      <ScrollArea className="h-[calc(100vh-400px)] min-h-[400px]">
         <Table>
           <TableHeader>
             <TableRow className="bg-secondary/50">
@@ -582,7 +444,7 @@ function VersionHistoryTable({ templates, viewLimit, setViewLimit }: { templates
             ))}
           </TableBody>
         </Table>
-      </div>
+      </ScrollArea>
     </div>
   );
 }

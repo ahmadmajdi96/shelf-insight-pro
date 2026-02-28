@@ -201,7 +201,7 @@ export default function Users() {
           <div className="flex items-center justify-center py-12"><Loader2 className="w-8 h-8 animate-spin text-primary" /></div>
         ) : (
           <div className="rounded-xl bg-card border border-border overflow-hidden">
-            <ScrollArea className="h-[600px]">
+            <ScrollArea className="h-[calc(100vh-380px)] min-h-[500px]">
               <Table>
                 <TableHeader>
                   <TableRow className="bg-secondary/50">
