@@ -1388,6 +1388,42 @@ export default function Planogram() {
           <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Store</AlertDialogTitle><AlertDialogDescription>This will remove the store and all associated data.</AlertDialogDescription></AlertDialogHeader>
           <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleStoreDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
         </AlertDialog>
+
+        {/* Tenant Modal (outside TabsContent so it works from any tab) */}
+        <Dialog open={isTenantModalOpen} onOpenChange={(open) => { setIsTenantModalOpen(open); if (!open) resetTenantForm(); }}>
+          <DialogContent className="bg-card border-border max-w-lg">
+            <DialogHeader><DialogTitle className="flex items-center gap-2"><Building2 className="w-5 h-5 text-primary" />{editingTenantObj ? 'Edit Tenant' : 'Add New Tenant'}</DialogTitle></DialogHeader>
+            <form onSubmit={handleTenantSubmit} className="space-y-4">
+              <div className="space-y-2"><Label>Tenant Name</Label><Input placeholder="e.g., Acme Corporation" className="bg-secondary border-border" value={tenantFormData.name} onChange={e => setTenantFormData({ ...tenantFormData, name: e.target.value })} required /></div>
+              <div className="space-y-2">
+                <Label>Assign to Admin</Label>
+                <Select value={tenantFormData.admin_id} onValueChange={v => setTenantFormData({ ...tenantFormData, admin_id: v })}>
+                  <SelectTrigger className="bg-secondary border-border"><SelectValue placeholder="Select admin..." /></SelectTrigger>
+                  <SelectContent>
+                    {admins.map(a => <SelectItem key={a.id} value={a.id}>{a.full_name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>Username</Label><Input placeholder="tenant_username" className="bg-secondary border-border" value={tenantFormData.username} onChange={e => setTenantFormData({ ...tenantFormData, username: e.target.value })} /></div>
+                <div className="space-y-2"><Label>Password</Label><Input type="password" placeholder="••••••••" className="bg-secondary border-border" value={tenantFormData.password} onChange={e => setTenantFormData({ ...tenantFormData, password: e.target.value })} /></div>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2"><Label>Max SKUs</Label><Input type="number" className="bg-secondary border-border" value={tenantFormData.max_skus} onChange={e => setTenantFormData({ ...tenantFormData, max_skus: parseInt(e.target.value) || 0 })} /></div>
+                <div className="space-y-2"><Label>Max Images/Month</Label><Input type="number" className="bg-secondary border-border" value={tenantFormData.max_images_per_month} onChange={e => setTenantFormData({ ...tenantFormData, max_images_per_month: parseInt(e.target.value) || 0 })} /></div>
+              </div>
+              <div className="flex justify-end gap-3 pt-2">
+                <Button type="button" variant="outline" onClick={() => { setIsTenantModalOpen(false); resetTenantForm(); }}>Cancel</Button>
+                <Button type="submit" variant="glow" disabled={createTenant.isPending || updateTenant.isPending}>{(createTenant.isPending || updateTenant.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}{editingTenantObj ? 'Save Changes' : 'Create Tenant'}</Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
+        <AlertDialog open={!!deleteTenantId} onOpenChange={() => setDeleteTenantId(null)}>
+          <AlertDialogContent><AlertDialogHeader><AlertDialogTitle>Delete Tenant</AlertDialogTitle><AlertDialogDescription>This will permanently delete the tenant and all associated data.</AlertDialogDescription></AlertDialogHeader>
+          <AlertDialogFooter><AlertDialogCancel>Cancel</AlertDialogCancel><AlertDialogAction onClick={handleTenantDelete} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction></AlertDialogFooter></AlertDialogContent>
+        </AlertDialog>
+
       </Tabs>
     </MainLayout>
   );
