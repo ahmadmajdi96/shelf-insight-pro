@@ -75,9 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       });
 
       const roleData = roles?.[0];
-      if (roleData) {
-        setRole(roleData.role as AppRole);
-      }
+      setRole(roleData ? (roleData.role as AppRole) : 'owner');
     } catch (error) {
       console.error('Error in fetchProfile:', error);
     }
