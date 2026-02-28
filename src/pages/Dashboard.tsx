@@ -247,7 +247,7 @@ export default function Dashboard() {
           )}
 
           {/* Tenant Overview */}
-          {filteredTenants.length > 0 && (
+          {!isTenantOnly && filteredTenants.length > 0 && (
             <div className="page-section">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="font-semibold text-foreground">Tenant Overview</h3>
