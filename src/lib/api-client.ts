@@ -225,28 +225,11 @@ export const rest = {
   },
 
   async remove(resource: string, id: string) {
-    const targetPath = `/rest/v1/${resource}?id=eq.${id}`;
-    const token = getToken();
-    const apiKey = getApiKey();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'x-target-path': targetPath,
-      'x-target-method': 'DELETE',
-    };
-    if (apiKey) headers['apikey'] = apiKey;
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const res = await fetch(PROXY_URL, {
-      method: 'POST',
-      headers,
-    });
+    const res = await apiMutate(`/rest/v1/${resource}?id=eq.${id}`, 'DELETE');
     if (!res.ok) {
       const text = await res.text();
       let msg = `API error ${res.status}`;
-      try {
-        const body = JSON.parse(text);
-        msg = body?.detail || body?.error || body?.message || msg;
-      } catch {}
+      try { const body = JSON.parse(text); msg = body?.detail || body?.error || body?.message || msg; } catch {}
       throw new Error(msg);
     }
   },
