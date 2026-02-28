@@ -11,3 +11,6 @@ verify_jwt = false
 
 [functions.start-training]
 verify_jwt = false
+
+[functions.api-proxy]
+verify_jwt = false

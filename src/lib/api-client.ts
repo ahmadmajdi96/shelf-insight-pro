@@ -1,22 +1,24 @@
 import { getApiBaseUrl, getApiKey } from './api-config';
 
-// Direct mutation helper – sends apikey + Authorization, no extra headers like Prefer
+// Proxy URL for mutations (bypasses backend CORS issues with POST/PATCH/DELETE)
+const PROXY_URL = `https://jcmtiompmpafqwqlichh.supabase.co/functions/v1/api-proxy`;
+
+// Mutation helper – routes through edge function proxy to avoid CORS preflight failures
 async function apiMutate(path: string, method: string, body?: any) {
-  const base = getApiBaseUrl().replace(/\/+$/, '');
   const apiKey = getApiKey();
   const token = getToken();
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
+    'x-target-path': path,
+    'x-target-method': method,
   };
   if (apiKey) headers['apikey'] = apiKey;
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${base}${path}`, {
-    method,
+  const res = await fetch(PROXY_URL, {
+    method: 'POST',
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
-    mode: 'cors',
-    credentials: 'omit',
   });
   return res;
 }
