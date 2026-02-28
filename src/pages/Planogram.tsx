@@ -63,7 +63,7 @@ const statusConfig = {
 export default function Planogram() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { isAdmin, isOwner, tenantId, adminId } = useAuth();
+  const { isAdmin, isOwner, tenantId, adminId, role } = useAuth();
   const { stores, createStore, updateStore, deleteStore } = useStores();
   const { tenants, isLoading: tenantsLoading, createTenant, updateTenant, suspendTenant, deleteTenant } = useTenants();
   const { products, isLoading: productsLoading, deleteProduct, updateProduct } = useProducts();
@@ -76,21 +76,27 @@ export default function Planogram() {
   const { detectWithRoboflow, isDetecting } = useRoboflowDetection();
   const [complianceImageUrl, setComplianceImageUrl] = useState('');
 
+  const isTenantOnly = role === 'tenant_admin' || role === 'tenant_user';
+
   // Support ?tab= query param
   const tabFromUrl = searchParams.get('tab');
-  const defaultTab = isOwner ? 'admins' : 'tenants';
+  const defaultTab = isOwner ? 'admins' : isTenantOnly ? 'stores' : 'tenants';
   const [activeTab, setActiveTab] = useState(tabFromUrl || defaultTab);
 
   useEffect(() => {
     const validTabs = isOwner 
       ? ['admins', 'tenants', 'stores', 'planograms', 'categories', 'products']
+      : isTenantOnly
+      ? ['stores', 'planograms', 'categories', 'products']
       : ['tenants', 'stores', 'planograms', 'categories', 'products'];
     if (tabFromUrl && validTabs.includes(tabFromUrl)) {
       setActiveTab(tabFromUrl);
     } else if (tabFromUrl === 'admins' && !isOwner) {
-      setActiveTab('tenants');
+      setActiveTab(isTenantOnly ? 'stores' : 'tenants');
+    } else if (tabFromUrl === 'tenants' && isTenantOnly) {
+      setActiveTab('stores');
     }
-  }, [tabFromUrl, isOwner]);
+  }, [tabFromUrl, isOwner, isTenantOnly]);
 
   // Search states for each tab
   const [tenantSearch, setTenantSearch] = useState('');
