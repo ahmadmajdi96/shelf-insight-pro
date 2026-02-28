@@ -1,7 +1,21 @@
 import { getApiBaseUrl, getApiKey } from './api-config';
 
-// Supabase edge function proxy URL for mutation requests (bypasses CORS)
-const PROXY_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID || 'jcmtiompmpafqwqlichh'}.supabase.co/functions/v1/api-proxy`;
+// Direct mutation helper – sends only apikey (no Authorization) to avoid CORS preflight
+async function apiMutate(path: string, method: string, body?: any) {
+  const base = getApiBaseUrl().replace(/\/+$/, '');
+  const apiKey = getApiKey();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+  };
+  if (apiKey) headers['apikey'] = apiKey;
+
+  const res = await fetch(`${base}${path}`, {
+    method,
+    headers,
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+  });
+  return res;
+}
 
 const TOKEN_KEY = 'shelfvision_access_token';
 const USER_KEY = 'shelfvision_user';
@@ -183,94 +197,39 @@ export const rest = {
   },
 
   async create(resource: string, payload: any) {
-    const targetPath = `/rest/v1/${resource}`;
-    const token = getToken();
-    const apiKey = getApiKey();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'x-target-path': targetPath,
-      'x-target-method': 'POST',
-    };
-    if (apiKey) headers['apikey'] = apiKey;
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const res = await fetch(PROXY_URL, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    });
+    const res = await apiMutate(`/rest/v1/${resource}`, 'POST', payload);
     if (!res.ok) {
       const text = await res.text();
       let msg = `API error ${res.status}`;
-      try {
-        const body = JSON.parse(text);
-        msg = body?.detail || body?.error || body?.message || msg;
-      } catch {}
+      try { const body = JSON.parse(text); msg = body?.detail || body?.error || body?.message || msg; } catch {}
       throw new Error(msg);
     }
     const text = await res.text();
     if (!text) return payload;
-    const data = JSON.parse(text);
-    return Array.isArray(data) ? data[0] : data;
+    try { const data = JSON.parse(text); return Array.isArray(data) ? data[0] : data; } catch { return payload; }
   },
 
   async update(resource: string, filters: Record<string, string>, payload: any) {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([k, v]) => params.set(k, v));
-    const targetPath = `/rest/v1/${resource}?${params.toString()}`;
-    const token = getToken();
-    const apiKey = getApiKey();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'x-target-path': targetPath,
-      'x-target-method': 'PATCH',
-    };
-    if (apiKey) headers['apikey'] = apiKey;
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const res = await fetch(PROXY_URL, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    });
+    const res = await apiMutate(`/rest/v1/${resource}?${params.toString()}`, 'PATCH', payload);
     if (!res.ok) {
       const text = await res.text();
       let msg = `API error ${res.status}`;
-      try {
-        const body = JSON.parse(text);
-        msg = body?.detail || body?.error || body?.message || msg;
-      } catch {}
+      try { const body = JSON.parse(text); msg = body?.detail || body?.error || body?.message || msg; } catch {}
       throw new Error(msg);
     }
     const text = await res.text();
     if (!text) return null;
-    const data = JSON.parse(text);
-    return Array.isArray(data) ? data[0] : data;
+    try { const data = JSON.parse(text); return Array.isArray(data) ? data[0] : data; } catch { return null; }
   },
 
   async remove(resource: string, id: string) {
-    const targetPath = `/rest/v1/${resource}?id=eq.${id}`;
-    const token = getToken();
-    const apiKey = getApiKey();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'x-target-path': targetPath,
-      'x-target-method': 'DELETE',
-    };
-    if (apiKey) headers['apikey'] = apiKey;
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const res = await fetch(PROXY_URL, {
-      method: 'POST',
-      headers,
-    });
+    const res = await apiMutate(`/rest/v1/${resource}?id=eq.${id}`, 'DELETE');
     if (!res.ok) {
       const text = await res.text();
       let msg = `API error ${res.status}`;
-      try {
-        const body = JSON.parse(text);
-        msg = body?.detail || body?.error || body?.message || msg;
-      } catch {}
+      try { const body = JSON.parse(text); msg = body?.detail || body?.error || body?.message || msg; } catch {}
       throw new Error(msg);
     }
   },
@@ -278,22 +237,7 @@ export const rest = {
 
 // ─── RPC ─────────────────────────────────────────────────
 export async function rpc(fn: string, params: any) {
-  const targetPath = `/rest/v1/rpc/${fn}`;
-  const token = getToken();
-  const apiKey = getApiKey();
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'x-target-path': targetPath,
-    'x-target-method': 'POST',
-  };
-  if (apiKey) headers['apikey'] = apiKey;
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-  const res = await fetch(PROXY_URL, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(params),
-  });
+  const res = await apiMutate(`/rest/v1/rpc/${fn}`, 'POST', params);
   if (res.status === 204) return null;
   const text = await res.text();
   if (!text) return null;
@@ -304,22 +248,7 @@ export async function rpc(fn: string, params: any) {
 
 // ─── Edge Functions ──────────────────────────────────────
 export async function invoke(fn: string, body: any) {
-  const targetPath = `/functions/v1/${fn}`;
-  const token = getToken();
-  const apiKey = getApiKey();
-  const headers: Record<string, string> = {
-    'Content-Type': 'application/json',
-    'x-target-path': targetPath,
-    'x-target-method': 'POST',
-  };
-  if (apiKey) headers['apikey'] = apiKey;
-  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-  const res = await fetch(PROXY_URL, {
-    method: 'POST',
-    headers,
-    body: JSON.stringify(body),
-  });
+  const res = await apiMutate(`/functions/v1/${fn}`, 'POST', body);
   if (res.status === 204) return null;
   const text = await res.text();
   if (!text) return null;
