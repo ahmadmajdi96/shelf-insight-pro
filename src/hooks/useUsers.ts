@@ -158,15 +158,19 @@ export function useUsers() {
   const useUserStoreAccess = (userId: string) => useQuery({
     queryKey: ['user-store-access', userId],
     queryFn: async () => {
-      const { data } = await rest.list('user_store_access', {
-        select: '*,store:stores(name)',
-        filters: { user_id: `eq.${userId}` },
-      });
-      return (data || []).map((d: any) => ({
+      const [accessRes, storesRes] = await Promise.all([
+        rest.list('user_store_access', {
+          select: '*',
+          filters: { user_id: `eq.${userId}` },
+        }),
+        rest.list('stores', { select: 'id,name' }),
+      ]);
+      const storeMap = new Map((storesRes.data || []).map((s: any) => [s.id, s.name]));
+      return (accessRes.data || []).map((d: any) => ({
         id: d.id,
         userId: d.user_id,
         storeId: d.store_id,
-        storeName: d.store?.name || d.stores?.name || 'Unknown',
+        storeName: storeMap.get(d.store_id) || 'Unknown',
       })) as UserStoreAccess[];
     },
     enabled: !!userId,
