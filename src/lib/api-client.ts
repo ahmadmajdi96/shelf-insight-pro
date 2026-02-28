@@ -197,35 +197,16 @@ export const rest = {
   },
 
   async create(resource: string, payload: any) {
-    const targetPath = `/rest/v1/${resource}`;
-    const token = getToken();
-    const apiKey = getApiKey();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'x-target-path': targetPath,
-      'x-target-method': 'POST',
-    };
-    if (apiKey) headers['apikey'] = apiKey;
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const res = await fetch(PROXY_URL, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    });
+    const res = await apiMutate(`/rest/v1/${resource}`, 'POST', payload);
     if (!res.ok) {
       const text = await res.text();
       let msg = `API error ${res.status}`;
-      try {
-        const body = JSON.parse(text);
-        msg = body?.detail || body?.error || body?.message || msg;
-      } catch {}
+      try { const body = JSON.parse(text); msg = body?.detail || body?.error || body?.message || msg; } catch {}
       throw new Error(msg);
     }
     const text = await res.text();
     if (!text) return payload;
-    const data = JSON.parse(text);
-    return Array.isArray(data) ? data[0] : data;
+    try { const data = JSON.parse(text); return Array.isArray(data) ? data[0] : data; } catch { return payload; }
   },
 
   async update(resource: string, filters: Record<string, string>, payload: any) {
