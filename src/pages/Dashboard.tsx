@@ -149,7 +149,7 @@ export default function Dashboard() {
                   </div>
                 </div>
               </div>
-            ) : (
+            ) : !isTenantOnly ? (
               <div className="page-section">
                 <div className="flex items-center justify-between mb-4">
                   <h3 className="font-semibold text-foreground">Tenant Summary</h3>
@@ -176,6 +176,29 @@ export default function Dashboard() {
                       <span className="text-sm text-muted-foreground">Total Stores</span>
                     </div>
                     <span className="text-sm font-semibold text-foreground">{filteredStores.length}</span>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="page-section">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="font-semibold text-foreground">Store Summary</h3>
+                  <Store className="w-5 h-5 text-primary" />
+                </div>
+                <div className="space-y-3">
+                  <div className="flex justify-between items-center py-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-success" />
+                      <span className="text-sm text-muted-foreground">Total Stores</span>
+                    </div>
+                    <span className="text-sm font-semibold text-foreground">{filteredStores.length}</span>
+                  </div>
+                  <div className="flex justify-between items-center py-1.5">
+                    <div className="flex items-center gap-2">
+                      <span className="w-2 h-2 rounded-full bg-primary" />
+                      <span className="text-sm text-muted-foreground">Tenant</span>
+                    </div>
+                    <span className="text-sm font-semibold text-foreground">{filteredTenants[0]?.name || '—'}</span>
                   </div>
                 </div>
               </div>
