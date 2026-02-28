@@ -1,7 +1,5 @@
 import { createContext, useContext, useEffect, useState, ReactNode } from 'react';
-import { api, auth as apiAuth } from '@/lib/api-client';
-import { rest, rpc } from '@/lib/api-client';
-import { supabase } from '@/integrations/supabase/client';
+import { auth as apiAuth, rest, onAuthChange, getToken, getStoredUser } from '@/lib/api-client';
 import { useToast } from '@/hooks/use-toast';
 
 export type AppRole = 'owner' | 'admin' | 'tenant_admin' | 'tenant_user';
@@ -52,14 +50,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const fetchProfile = async (userId: string) => {
     try {
-      // Always use Supabase client for auth-related data (profiles, roles)
-      // since these tables live in Lovable Cloud, not the custom backend
-      const { data: profiles, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId);
-
-      if (profileError) throw profileError;
+      const { data: profiles } = await rest.list('profiles', {
+        select: '*',
+        filters: { user_id: `eq.${userId}` },
+      });
 
       const profileData = profiles?.[0];
       if (profileData) {
@@ -75,12 +69,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setAdminId(profileData.admin_id || null);
       }
 
-      const { data: roles, error: roleError } = await supabase
-        .from('user_roles')
-        .select('role')
-        .eq('user_id', userId);
-
-      if (roleError) throw roleError;
+      const { data: roles } = await rest.list('user_roles', {
+        select: 'role',
+        filters: { user_id: `eq.${userId}` },
+      });
 
       const roleData = roles?.[0];
       if (roleData) {
@@ -97,62 +89,46 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  // Restore session from localStorage on mount
   useEffect(() => {
-    let mounted = true;
+    const token = getToken();
+    const storedUser = getStoredUser();
 
-    // IMPORTANT: Set up listener BEFORE checking session
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, sess) => {
-      if (!mounted) return;
-      
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
-        if (sess?.user) {
-          const simpleUser: SimpleUser = { id: sess.user.id, email: sess.user.email || '' };
-          setSession({ access_token: sess.access_token, user: simpleUser });
-          setUser(simpleUser);
-          // Use setTimeout to avoid race conditions with Supabase internals
-          setTimeout(() => { if (mounted) fetchProfile(sess.user.id); }, 0);
-        }
-        setIsLoading(false);
+    if (token && storedUser) {
+      const simpleUser: SimpleUser = { id: storedUser.id, email: storedUser.email || '' };
+      setUser(simpleUser);
+      setSession({ access_token: token, user: simpleUser });
+      fetchProfile(simpleUser.id).finally(() => setIsLoading(false));
+    } else {
+      setIsLoading(false);
+    }
+
+    // Listen for auth changes from api-client (login/logout)
+    const unsubscribe = onAuthChange((event, sess) => {
+      if (event === 'SIGNED_IN' && sess) {
+        const simpleUser: SimpleUser = { id: sess.user.id, email: sess.user.email || '' };
+        setUser(simpleUser);
+        setSession({ access_token: sess.access_token, user: simpleUser });
+        fetchProfile(simpleUser.id);
       } else if (event === 'SIGNED_OUT') {
-        setSession(null);
         setUser(null);
+        setSession(null);
         setProfile(null);
         setRole(null);
         setTenantId(null);
         setAdminId(null);
-        setIsLoading(false);
       }
     });
 
-    // Fallback: if onAuthStateChange doesn't fire INITIAL_SESSION quickly
-    const timeout = setTimeout(() => {
-      if (mounted && isLoading) {
-        supabase.auth.getSession().then(({ data: { session: sess } }) => {
-          if (!mounted) return;
-          if (sess?.user) {
-            const simpleUser: SimpleUser = { id: sess.user.id, email: sess.user.email || '' };
-            setSession({ access_token: sess.access_token, user: simpleUser });
-            setUser(simpleUser);
-            fetchProfile(sess.user.id);
-          }
-          setIsLoading(false);
-        });
-      }
-    }, 1000);
-
-    return () => {
-      mounted = false;
-      clearTimeout(timeout);
-      subscription.unsubscribe();
-    };
+    return unsubscribe;
   }, []);
 
   const signUp = async (email: string, password: string, fullName: string, username?: string) => {
     try {
       await apiAuth.signup(email, password, { full_name: fullName, username });
       toast({
-        title: 'Check your email',
-        description: 'We sent you a verification link to complete your registration.',
+        title: 'Account created',
+        description: 'Your account has been created. You can now sign in.',
       });
       return { error: null };
     } catch (error) {
