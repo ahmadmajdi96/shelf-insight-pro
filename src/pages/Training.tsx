@@ -903,12 +903,9 @@ export default function Training() {
   const autoAnnotate = async (img: DatasetImage) => {
     setAutoAnnotating(true);
     try {
-      const res = await supabase.functions.invoke('roboflow-detect', {
-        body: { image_url: img.image_url },
-      });
-      if (res.error) throw res.error;
+      const res = await invoke('roboflow-detect', { image_url: img.image_url });
       
-      const predictions = res.data?.predictions || res.data?.outputs?.flatMap((o: any) => o?.predictions || []) || [];
+      const predictions = res?.predictions || res?.outputs?.flatMap((o: any) => o?.predictions || []) || [];
       
       const newBboxes: BBox[] = predictions.map((pred: any) => {
         const predLabel = pred.class || pred.label || 'unknown';
