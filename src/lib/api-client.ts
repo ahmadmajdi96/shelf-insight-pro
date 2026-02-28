@@ -180,11 +180,23 @@ export const rest = {
   },
 
   async create(resource: string, payload: any) {
-    const data = await apiFetchJSON(`/rest/v1/${resource}`, {
+    const res = await apiFetch(`/rest/v1/${resource}`, {
       method: 'POST',
-      headers: { 'Prefer': 'return=representation' },
       body: JSON.stringify(payload),
     });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = `API error ${res.status}`;
+      try {
+        const body = JSON.parse(text);
+        msg = body?.detail || body?.error || body?.message || msg;
+      } catch {}
+      throw new Error(msg);
+    }
+    // Some backends don't return a body on POST; return payload as fallback
+    const text = await res.text();
+    if (!text) return payload;
+    const data = JSON.parse(text);
     return Array.isArray(data) ? data[0] : data;
   },
 

@@ -202,15 +202,19 @@ export function useUsers() {
   const useUserShelfAccess = (userId: string) => useQuery({
     queryKey: ['user-shelf-access', userId],
     queryFn: async () => {
-      const { data } = await rest.list('user_shelf_access', {
-        select: '*,shelf:shelves(name)',
-        filters: { user_id: `eq.${userId}` },
-      });
-      return (data || []).map((d: any) => ({
+      const [accessRes, shelvesRes] = await Promise.all([
+        rest.list('user_shelf_access', {
+          select: '*',
+          filters: { user_id: `eq.${userId}` },
+        }),
+        rest.list('shelves', { select: 'id,name' }),
+      ]);
+      const shelfMap = new Map((shelvesRes.data || []).map((s: any) => [s.id, s.name]));
+      return (accessRes.data || []).map((d: any) => ({
         id: d.id,
         userId: d.user_id,
         shelfId: d.shelf_id,
-        shelfName: d.shelf?.name || d.shelves?.name || 'Unknown',
+        shelfName: shelfMap.get(d.shelf_id) || 'Unknown',
       })) as UserShelfAccess[];
     },
     enabled: !!userId,
