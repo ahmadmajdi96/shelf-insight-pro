@@ -1534,11 +1534,29 @@ export default function Training() {
                     <span className="text-xs text-muted-foreground ml-2">
                       ({images.filter(img => selectedSetIds.has((img as any).image_set_id)).length} total images)
                     </span>
+                    {selectedSetsAutoAnnotate.running && (
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        <Badge variant="outline" className="text-[10px] gap-1">
+                          <Loader2 className="w-3 h-3 animate-spin" /> {selectedSetsAutoAnnotate.stage}
+                        </Badge>
+                        {selectedSetsAutoAnnotate.jobId && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            Job: {selectedSetsAutoAnnotate.jobId.slice(0, 8)}…
+                          </Badge>
+                        )}
+                        <Badge variant="secondary" className="text-[10px]">Processed: {selectedSetsAutoAnnotate.processed}/{selectedSetsAutoAnnotate.total}</Badge>
+                        <Badge variant="default" className="text-[10px]">Saved: {selectedSetsAutoAnnotate.saved}</Badge>
+                        {selectedSetsAutoAnnotate.failed > 0 && (
+                          <Badge variant="destructive" className="text-[10px]">Failed: {selectedSetsAutoAnnotate.failed}</Badge>
+                        )}
+                      </div>
+                    )}
                   </div>
                   <div className="flex gap-2">
                     <Button
                       size="sm"
                       variant="default"
+                      disabled={selectedSetsAutoAnnotate.running}
                       onClick={() => {
                         // Start manual annotation for selected sets combined
                         const selectedImages = images.filter(img => selectedSetIds.has((img as any).image_set_id));
@@ -1546,7 +1564,6 @@ export default function Training() {
                           toast({ title: 'No images', description: 'Selected sets have no images.', variant: 'destructive' });
                           return;
                         }
-                        // Set annotatingSetId to a special marker, use selected sets
                         const firstUnannotated = selectedImages.find(img => !img.is_annotated) || selectedImages[0];
                         setAnnotatingSetId('__selected__');
                         setAnnotatingImage(firstUnannotated);
@@ -1557,7 +1574,20 @@ export default function Training() {
                       <Square className="w-3.5 h-3.5 mr-1.5" />
                       Manual Annotate Selected
                     </Button>
-                    <Button size="sm" variant="outline" onClick={() => setSelectedSetIds(new Set())}>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={autoAnnotateSelectedSets}
+                      disabled={selectedSetsAutoAnnotate.running}
+                    >
+                      {selectedSetsAutoAnnotate.running ? (
+                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                      ) : (
+                        <Wand2 className="w-3.5 h-3.5 mr-1.5" />
+                      )}
+                      Auto Annotate Selected
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setSelectedSetIds(new Set())} disabled={selectedSetsAutoAnnotate.running}>
                       <X className="w-3 h-3 mr-1" /> Clear
                     </Button>
                   </div>
