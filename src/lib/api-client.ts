@@ -212,35 +212,16 @@ export const rest = {
   async update(resource: string, filters: Record<string, string>, payload: any) {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([k, v]) => params.set(k, v));
-    const targetPath = `/rest/v1/${resource}?${params.toString()}`;
-    const token = getToken();
-    const apiKey = getApiKey();
-    const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
-      'x-target-path': targetPath,
-      'x-target-method': 'PATCH',
-    };
-    if (apiKey) headers['apikey'] = apiKey;
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    const res = await fetch(PROXY_URL, {
-      method: 'POST',
-      headers,
-      body: JSON.stringify(payload),
-    });
+    const res = await apiMutate(`/rest/v1/${resource}?${params.toString()}`, 'PATCH', payload);
     if (!res.ok) {
       const text = await res.text();
       let msg = `API error ${res.status}`;
-      try {
-        const body = JSON.parse(text);
-        msg = body?.detail || body?.error || body?.message || msg;
-      } catch {}
+      try { const body = JSON.parse(text); msg = body?.detail || body?.error || body?.message || msg; } catch {}
       throw new Error(msg);
     }
     const text = await res.text();
     if (!text) return null;
-    const data = JSON.parse(text);
-    return Array.isArray(data) ? data[0] : data;
+    try { const data = JSON.parse(text); return Array.isArray(data) ? data[0] : data; } catch { return null; }
   },
 
   async remove(resource: string, id: string) {
