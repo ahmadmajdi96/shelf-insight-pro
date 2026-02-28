@@ -1,23 +1,48 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Eye, EyeOff, ScanLine, ArrowRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+
+const REMEMBER_KEY = 'shelfvision_remember_email';
 
 export default function Login() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [rememberMe, setRememberMe] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const { signIn } = useAuth();
+  const { signIn, user } = useAuth();
   const navigate = useNavigate();
+
+  // Auto-fill remembered email
+  useEffect(() => {
+    const saved = localStorage.getItem(REMEMBER_KEY);
+    if (saved) {
+      setEmail(saved);
+      setRememberMe(true);
+    }
+  }, []);
+
+  // If already logged in, redirect
+  useEffect(() => {
+    if (user) navigate('/');
+  }, [user, navigate]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
+    
+    // Save or clear remembered email
+    if (rememberMe) {
+      localStorage.setItem(REMEMBER_KEY, email);
+    } else {
+      localStorage.removeItem(REMEMBER_KEY);
+    }
     
     const { error } = await signIn(email, password);
     
@@ -125,6 +150,17 @@ export default function Login() {
                   {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
                 </button>
               </div>
+            </div>
+
+            <div className="flex items-center space-x-2">
+              <Checkbox 
+                id="remember" 
+                checked={rememberMe} 
+                onCheckedChange={(checked) => setRememberMe(checked === true)} 
+              />
+              <Label htmlFor="remember" className="text-sm text-muted-foreground cursor-pointer">
+                Remember me
+              </Label>
             </div>
 
             <Button

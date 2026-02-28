@@ -92,15 +92,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    // Listen to Supabase auth state changes (handles token refresh)
+    let mounted = true;
+
+    // IMPORTANT: Set up listener BEFORE checking session
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, sess) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (!mounted) return;
+      
+      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED' || event === 'INITIAL_SESSION') {
         if (sess?.user) {
           const simpleUser: SimpleUser = { id: sess.user.id, email: sess.user.email || '' };
           setSession({ access_token: sess.access_token, user: simpleUser });
           setUser(simpleUser);
-          setTimeout(() => fetchProfile(sess.user.id), 0);
+          // Use setTimeout to avoid race conditions with Supabase internals
+          setTimeout(() => { if (mounted) fetchProfile(sess.user.id); }, 0);
         }
+        setIsLoading(false);
       } else if (event === 'SIGNED_OUT') {
         setSession(null);
         setUser(null);
@@ -108,42 +114,30 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setRole(null);
         setTenantId(null);
         setAdminId(null);
+        setIsLoading(false);
       }
-      setIsLoading(false);
     });
 
-    // Also listen to custom auth events (for backward compat)
-    const unsubscribe = onAuthChange((event, sess) => {
-      if (event === 'SIGNED_IN' && sess?.user) {
-        const simpleUser: SimpleUser = { id: sess.user.id, email: sess.user.email || '' };
-        setSession(sess);
-        setUser(simpleUser);
-        setTimeout(() => fetchProfile(sess.user.id), 0);
-      } else if (event === 'SIGNED_OUT') {
-        setSession(null);
-        setUser(null);
-        setProfile(null);
-        setRole(null);
-        setTenantId(null);
-        setAdminId(null);
+    // Fallback: if onAuthStateChange doesn't fire INITIAL_SESSION quickly
+    const timeout = setTimeout(() => {
+      if (mounted && isLoading) {
+        supabase.auth.getSession().then(({ data: { session: sess } }) => {
+          if (!mounted) return;
+          if (sess?.user) {
+            const simpleUser: SimpleUser = { id: sess.user.id, email: sess.user.email || '' };
+            setSession({ access_token: sess.access_token, user: simpleUser });
+            setUser(simpleUser);
+            fetchProfile(sess.user.id);
+          }
+          setIsLoading(false);
+        });
       }
-      setIsLoading(false);
-    });
-
-    // Check existing session from Supabase client
-    supabase.auth.getSession().then(({ data: { session: sess } }) => {
-      if (sess?.user) {
-        const simpleUser: SimpleUser = { id: sess.user.id, email: sess.user.email || '' };
-        setSession({ access_token: sess.access_token, user: simpleUser });
-        setUser(simpleUser);
-        fetchProfile(sess.user.id);
-      }
-      setIsLoading(false);
-    });
+    }, 1000);
 
     return () => {
+      mounted = false;
+      clearTimeout(timeout);
       subscription.unsubscribe();
-      unsubscribe();
     };
   }, []);
 
