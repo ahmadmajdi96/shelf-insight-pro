@@ -55,7 +55,13 @@ export interface ComplianceScan {
   details: any[];
   scanned_by: string | null;
   created_at: string;
-  template?: { name: string } | null;
+  template?: {
+    name: string;
+    tenant_id?: string;
+    store_id?: string | null;
+    tenant?: { name: string; admin_id?: string | null } | null;
+    store?: { name: string } | null;
+  } | null;
 }
 
 export function usePlanogramTemplates() {
