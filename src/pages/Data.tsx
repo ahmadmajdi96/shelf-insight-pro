@@ -147,9 +147,10 @@ export default function Data() {
 
   const filteredCompliance = useMemo(() => complianceScans.filter((c: any) => {
     const matchesTenant = filterTenant === 'all' || c.template?.tenant_id === filterTenant;
+    const matchesStore = filterStore === 'all' || c.template?.store_id === filterStore;
     const matchesAdmin = filterAdmin === 'all' || (c.template?.tenant?.admin_id === filterAdmin);
-    return matchesTenant && matchesAdmin;
-  }), [complianceScans, filterTenant, filterAdmin]);
+    return matchesTenant && matchesStore && matchesAdmin;
+  }), [complianceScans, filterTenant, filterStore, filterAdmin]);
 
   const filteredAdmins = useMemo(() => admins.filter(a =>
     a.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || a.email.toLowerCase().includes(searchQuery.toLowerCase())
