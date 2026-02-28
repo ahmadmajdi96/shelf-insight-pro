@@ -1,5 +1,8 @@
 import { getApiBaseUrl, getApiKey } from './api-config';
 
+// Supabase edge function proxy URL for mutation requests (bypasses CORS)
+const PROXY_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID || 'jcmtiompmpafqwqlichh'}.supabase.co/functions/v1/api-proxy`;
+
 const TOKEN_KEY = 'shelfvision_access_token';
 const USER_KEY = 'shelfvision_user';
 
@@ -48,7 +51,7 @@ async function apiFetch(path: string, opts: RequestInit = {}) {
   if (apiKey) headers['apikey'] = apiKey;
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${base}${path}`, { ...opts, headers });
+  const res = await fetch(`${base}${path}`, { ...opts, headers, mode: 'cors', credentials: 'omit' });
   return res;
 }
 
@@ -180,8 +183,20 @@ export const rest = {
   },
 
   async create(resource: string, payload: any) {
-    const res = await apiFetch(`/rest/v1/${resource}`, {
+    const targetPath = `/rest/v1/${resource}`;
+    const token = getToken();
+    const apiKey = getApiKey();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-target-path': targetPath,
+      'x-target-method': 'POST',
+    };
+    if (apiKey) headers['apikey'] = apiKey;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(PROXY_URL, {
       method: 'POST',
+      headers,
       body: JSON.stringify(payload),
     });
     if (!res.ok) {
@@ -193,7 +208,6 @@ export const rest = {
       } catch {}
       throw new Error(msg);
     }
-    // Some backends don't return a body on POST; return payload as fallback
     const text = await res.text();
     if (!text) return payload;
     const data = JSON.parse(text);
@@ -203,35 +217,115 @@ export const rest = {
   async update(resource: string, filters: Record<string, string>, payload: any) {
     const params = new URLSearchParams();
     Object.entries(filters).forEach(([k, v]) => params.set(k, v));
-    const data = await apiFetchJSON(`/rest/v1/${resource}?${params.toString()}`, {
-      method: 'PATCH',
-      headers: { 'Prefer': 'return=representation' },
+    const targetPath = `/rest/v1/${resource}?${params.toString()}`;
+    const token = getToken();
+    const apiKey = getApiKey();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-target-path': targetPath,
+      'x-target-method': 'PATCH',
+    };
+    if (apiKey) headers['apikey'] = apiKey;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers,
       body: JSON.stringify(payload),
     });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = `API error ${res.status}`;
+      try {
+        const body = JSON.parse(text);
+        msg = body?.detail || body?.error || body?.message || msg;
+      } catch {}
+      throw new Error(msg);
+    }
+    const text = await res.text();
+    if (!text) return null;
+    const data = JSON.parse(text);
     return Array.isArray(data) ? data[0] : data;
   },
 
   async remove(resource: string, id: string) {
-    await apiFetch(`/rest/v1/${resource}?id=eq.${id}`, {
-      method: 'DELETE',
+    const targetPath = `/rest/v1/${resource}?id=eq.${id}`;
+    const token = getToken();
+    const apiKey = getApiKey();
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-target-path': targetPath,
+      'x-target-method': 'DELETE',
+    };
+    if (apiKey) headers['apikey'] = apiKey;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    const res = await fetch(PROXY_URL, {
+      method: 'POST',
+      headers,
     });
+    if (!res.ok) {
+      const text = await res.text();
+      let msg = `API error ${res.status}`;
+      try {
+        const body = JSON.parse(text);
+        msg = body?.detail || body?.error || body?.message || msg;
+      } catch {}
+      throw new Error(msg);
+    }
   },
 };
 
 // ─── RPC ─────────────────────────────────────────────────
 export async function rpc(fn: string, params: any) {
-  return apiFetchJSON(`/rest/v1/rpc/${fn}`, {
+  const targetPath = `/rest/v1/rpc/${fn}`;
+  const token = getToken();
+  const apiKey = getApiKey();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-target-path': targetPath,
+    'x-target-method': 'POST',
+  };
+  if (apiKey) headers['apikey'] = apiKey;
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(PROXY_URL, {
     method: 'POST',
+    headers,
     body: JSON.stringify(params),
   });
+  if (res.status === 204) return null;
+  const text = await res.text();
+  if (!text) return null;
+  const body = JSON.parse(text);
+  if (!res.ok) throw new Error(body?.detail || body?.error || body?.message || `API error ${res.status}`);
+  return body;
 }
 
 // ─── Edge Functions ──────────────────────────────────────
 export async function invoke(fn: string, body: any) {
-  return apiFetchJSON(`/functions/v1/${fn}`, {
+  const targetPath = `/functions/v1/${fn}`;
+  const token = getToken();
+  const apiKey = getApiKey();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-target-path': targetPath,
+    'x-target-method': 'POST',
+  };
+  if (apiKey) headers['apikey'] = apiKey;
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(PROXY_URL, {
     method: 'POST',
+    headers,
     body: JSON.stringify(body),
   });
+  if (res.status === 204) return null;
+  const text = await res.text();
+  if (!text) return null;
+  const parsed = JSON.parse(text);
+  if (!res.ok) throw new Error(parsed?.detail || parsed?.error || parsed?.message || `API error ${res.status}`);
+  return parsed;
 }
 
 // ─── Storage ─────────────────────────────────────────────
