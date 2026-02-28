@@ -304,10 +304,28 @@ export async function rpc(fn: string, params: any) {
 
 // ─── Edge Functions ──────────────────────────────────────
 export async function invoke(fn: string, body: any) {
-  return apiFetchJSON(`/functions/v1/${fn}`, {
+  const targetPath = `/functions/v1/${fn}`;
+  const token = getToken();
+  const apiKey = getApiKey();
+  const headers: Record<string, string> = {
+    'Content-Type': 'application/json',
+    'x-target-path': targetPath,
+    'x-target-method': 'POST',
+  };
+  if (apiKey) headers['apikey'] = apiKey;
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+  const res = await fetch(PROXY_URL, {
     method: 'POST',
+    headers,
     body: JSON.stringify(body),
   });
+  if (res.status === 204) return null;
+  const text = await res.text();
+  if (!text) return null;
+  const parsed = JSON.parse(text);
+  if (!res.ok) throw new Error(parsed?.detail || parsed?.error || parsed?.message || `API error ${res.status}`);
+  return parsed;
 }
 
 // ─── Storage ─────────────────────────────────────────────
