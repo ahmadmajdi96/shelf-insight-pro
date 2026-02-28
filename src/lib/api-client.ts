@@ -73,7 +73,11 @@ export const auth = {
     });
 
     const data = await res.json();
-    if (!res.ok) throw new Error(data?.detail || data?.error || data?.message || 'Login failed');
+    if (!res.ok) {
+      const detail = data?.detail;
+      const msg = Array.isArray(detail) ? detail.map((d: any) => d.msg).join(', ') : detail || data?.error || data?.message || 'Login failed';
+      throw new Error(msg);
+    }
 
     const token = data.access_token || data.token;
     const user = data.user || { id: data.user_id || data.sub, email };
