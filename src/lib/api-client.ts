@@ -1,5 +1,8 @@
 import { getApiBaseUrl, getApiKey } from './api-config';
 
+// Supabase edge function proxy URL for mutation requests (bypasses CORS)
+const PROXY_URL = `https://${import.meta.env.VITE_SUPABASE_PROJECT_ID || 'jcmtiompmpafqwqlichh'}.supabase.co/functions/v1/api-proxy`;
+
 const TOKEN_KEY = 'shelfvision_access_token';
 const USER_KEY = 'shelfvision_user';
 
