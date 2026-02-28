@@ -228,7 +228,7 @@ export default function Data() {
               </SelectContent>
             </Select>
           )}
-          {(['shelves', 'scans'] as DataTab[]).includes(activeTab) && (
+          {(['shelves', 'scans', 'compliance'] as DataTab[]).includes(activeTab) && (
             <Select value={filterStore} onValueChange={setFilterStore}>
               <SelectTrigger className="w-[160px] bg-secondary border-border"><SelectValue placeholder="All Stores" /></SelectTrigger>
               <SelectContent>
