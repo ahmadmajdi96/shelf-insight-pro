@@ -38,8 +38,11 @@ serve(async (req) => {
     if (authorization) headers["Authorization"] = authorization;
 
     let body: string | undefined;
-    if (targetMethod !== "DELETE" && targetMethod !== "GET") {
-      body = await req.text();
+    if (targetMethod !== "DELETE" && targetMethod !== "GET" && targetMethod !== "HEAD") {
+      try {
+        body = await req.text();
+        if (!body || body === '{}') body = undefined;
+      } catch { /* no body */ }
     }
 
     const response = await fetch(url, {
