@@ -41,7 +41,7 @@ export default function Data() {
   const [filterTenant, setFilterTenant] = useState<string>('all');
   const [filterStore, setFilterStore] = useState<string>('all');
   const [filterCategory, setFilterCategory] = useState<string>('all');
-  const [viewLimit, setViewLimit] = useState(25);
+  const [viewLimit, setViewLimit] = useState(50);
 
   // Fetch all data
   const { data: tenants = [], isLoading: tenantsLoading, refetch: refetchTenants } = useQuery({
@@ -70,17 +70,35 @@ export default function Data() {
     queryFn: async () => { const { data } = await rest.list('shelves', { select: '*,tenant:tenants(name),store:stores(name)', order: 'name.asc' }); return data || []; },
   });
 
+  // Enhanced shelf images query with admin, tenant, store, planogram info
   const { data: scans = [], isLoading: scansLoading, refetch: refetchScans } = useQuery({
-    queryKey: ['data-scans'],
-    queryFn: async () => { const { data } = await rest.list('shelf_images', { select: '*,shelf:shelves(name,tenant_id,store_id)', order: 'created_at.desc', limit: 500 }); return data || []; },
+    queryKey: ['data-scans-enhanced'],
+    queryFn: async () => {
+      const { data } = await rest.list('shelf_images', {
+        select: '*,shelf:shelves(name,tenant_id,store_id,tenant:tenants(name,admin_id),store:stores(name))',
+        order: 'created_at.desc',
+        limit: 500,
+      });
+      return data || [];
+    },
   });
 
   const { data: complianceScans = [], isLoading: complianceLoading, refetch: refetchCompliance } = useQuery({
     queryKey: ['data-compliance-scans'],
-    queryFn: async () => { const { data } = await rest.list('compliance_scans', { select: '*,template:planogram_templates(name,tenant_id)', order: 'created_at.desc', limit: 500 }); return data || []; },
+    queryFn: async () => {
+      const { data } = await rest.list('compliance_scans', {
+        select: '*,template:planogram_templates(name,tenant_id,tenant:tenants(name))',
+        order: 'created_at.desc',
+        limit: 500,
+      });
+      return data || [];
+    },
   });
 
   // Cascading filter: admin → tenant → store
+  const handleAdminChange = (v: string) => { setFilterAdmin(v); setFilterTenant('all'); setFilterStore('all'); };
+  const handleTenantChange = (v: string) => { setFilterTenant(v); setFilterStore('all'); };
+
   const filteredTenantsByAdmin = useMemo(() => {
     if (filterAdmin === 'all') return tenants;
     return tenants.filter((t: any) => t.admin_id === filterAdmin);
@@ -90,48 +108,57 @@ export default function Data() {
     t.name.toLowerCase().includes(searchQuery.toLowerCase())
   ), [filteredTenantsByAdmin, searchQuery]);
 
-  const effectiveTenantFilter = filterTenant;
-
   const filteredStores = useMemo(() => stores.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase()) || s.city?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTenant = effectiveTenantFilter === 'all' || s.tenant_id === effectiveTenantFilter;
-    return matchesSearch && matchesTenant;
-  }), [stores, searchQuery, effectiveTenantFilter]);
+    const matchesTenant = filterTenant === 'all' || s.tenant_id === filterTenant;
+    const matchesAdmin = filterAdmin === 'all' || filteredTenantsByAdmin.some(t => t.id === s.tenant_id);
+    return matchesSearch && matchesTenant && matchesAdmin;
+  }), [stores, searchQuery, filterTenant, filterAdmin, filteredTenantsByAdmin]);
 
   const filteredCategories = useMemo(() => categories.filter(c => {
     const matchesSearch = c.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTenant = effectiveTenantFilter === 'all' || c.tenant_id === effectiveTenantFilter;
-    return matchesSearch && matchesTenant;
-  }), [categories, searchQuery, effectiveTenantFilter]);
+    const matchesTenant = filterTenant === 'all' || c.tenant_id === filterTenant;
+    const matchesAdmin = filterAdmin === 'all' || filteredTenantsByAdmin.some(t => t.id === c.tenant_id);
+    return matchesSearch && matchesTenant && matchesAdmin;
+  }), [categories, searchQuery, filterTenant, filterAdmin, filteredTenantsByAdmin]);
 
   const filteredProducts = useMemo(() => products.filter(p => {
     const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase()) || p.barcode?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTenant = effectiveTenantFilter === 'all' || p.tenant_id === effectiveTenantFilter;
+    const matchesTenant = filterTenant === 'all' || p.tenant_id === filterTenant;
     const matchesCategory = filterCategory === 'all' || p.category_id === filterCategory;
-    return matchesSearch && matchesTenant && matchesCategory;
-  }), [products, searchQuery, effectiveTenantFilter, filterCategory]);
+    const matchesAdmin = filterAdmin === 'all' || filteredTenantsByAdmin.some(t => t.id === p.tenant_id);
+    return matchesSearch && matchesTenant && matchesCategory && matchesAdmin;
+  }), [products, searchQuery, filterTenant, filterCategory, filterAdmin, filteredTenantsByAdmin]);
 
   const filteredShelves = useMemo(() => shelves.filter(s => {
     const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTenant = effectiveTenantFilter === 'all' || s.tenant_id === effectiveTenantFilter;
+    const matchesTenant = filterTenant === 'all' || s.tenant_id === filterTenant;
     const matchesStore = filterStore === 'all' || s.store_id === filterStore;
-    return matchesSearch && matchesTenant && matchesStore;
-  }), [shelves, searchQuery, effectiveTenantFilter, filterStore]);
+    const matchesAdmin = filterAdmin === 'all' || filteredTenantsByAdmin.some(t => t.id === s.tenant_id);
+    return matchesSearch && matchesTenant && matchesStore && matchesAdmin;
+  }), [shelves, searchQuery, filterTenant, filterStore, filterAdmin, filteredTenantsByAdmin]);
 
-  const filteredScans = useMemo(() => scans.filter(s => {
-    const matchesSearch = s.file_name?.toLowerCase().includes(searchQuery.toLowerCase()) || s.shelf?.name?.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTenant = effectiveTenantFilter === 'all' || s.shelf?.tenant_id === effectiveTenantFilter;
-    return (matchesSearch !== false) && matchesTenant;
-  }), [scans, searchQuery, effectiveTenantFilter]);
+  const filteredScans = useMemo(() => scans.filter((s: any) => {
+    const matchesTenant = filterTenant === 'all' || s.shelf?.tenant_id === filterTenant;
+    const matchesStore = filterStore === 'all' || s.shelf?.store_id === filterStore;
+    const matchesAdmin = filterAdmin === 'all' || s.shelf?.tenant?.admin_id === filterAdmin;
+    return matchesTenant && matchesStore && matchesAdmin;
+  }), [scans, filterTenant, filterStore, filterAdmin]);
 
   const filteredCompliance = useMemo(() => complianceScans.filter((c: any) => {
-    const matchesTenant = effectiveTenantFilter === 'all' || c.template?.tenant_id === effectiveTenantFilter;
-    return matchesTenant;
-  }), [complianceScans, effectiveTenantFilter]);
+    const matchesTenant = filterTenant === 'all' || c.template?.tenant_id === filterTenant;
+    const matchesAdmin = filterAdmin === 'all' || (c.template?.tenant?.admin_id === filterAdmin);
+    return matchesTenant && matchesAdmin;
+  }), [complianceScans, filterTenant, filterAdmin]);
 
   const filteredAdmins = useMemo(() => admins.filter(a =>
     a.full_name.toLowerCase().includes(searchQuery.toLowerCase()) || a.email.toLowerCase().includes(searchQuery.toLowerCase())
   ), [admins, searchQuery]);
+
+  const getAdminName = (adminId: string | null) => {
+    if (!adminId) return '—';
+    return admins.find(a => a.id === adminId)?.full_name || '—';
+  };
 
   const getCount = (tab: DataTab) => {
     switch (tab) {
@@ -154,7 +181,7 @@ export default function Data() {
       activeTab === 'products' ? filteredProducts :
       activeTab === 'shelves' ? filteredShelves : activeTab === 'compliance' ? filteredCompliance : filteredScans;
     if (data.length === 0) return;
-    const headers = Object.keys(data[0]).filter(k => !['tenant', 'category', 'store', 'shelf'].includes(k));
+    const headers = Object.keys(data[0]).filter(k => !['tenant', 'category', 'store', 'shelf', 'template'].includes(k));
     const csvContent = [headers.join(','), ...data.map(row => headers.map(h => {
       const val = (row as Record<string, unknown>)[h];
       if (val === null || val === undefined) return '';
@@ -183,7 +210,7 @@ export default function Data() {
             <Input placeholder="Search..." value={searchQuery} onChange={(e) => setSearchQuery(e.target.value)} className="pl-9 bg-secondary border-border" />
           </div>
           {isAdmin && (
-            <Select value={filterAdmin} onValueChange={v => { setFilterAdmin(v); }}>
+            <Select value={filterAdmin} onValueChange={handleAdminChange}>
               <SelectTrigger className="w-[160px] bg-secondary border-border"><SelectValue placeholder="All Admins" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Admins</SelectItem>
@@ -192,7 +219,7 @@ export default function Data() {
             </Select>
           )}
           {isAdmin && (
-            <Select value={filterTenant} onValueChange={setFilterTenant}>
+            <Select value={filterTenant} onValueChange={handleTenantChange}>
               <SelectTrigger className="w-[160px] bg-secondary border-border"><SelectValue placeholder="All Tenants" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Tenants</SelectItem>
@@ -222,7 +249,7 @@ export default function Data() {
           <div className="flex items-center gap-2 ml-auto">
             <Select value={String(viewLimit)} onValueChange={v => setViewLimit(Number(v))}>
               <SelectTrigger className="w-[80px] h-8 text-xs bg-secondary border-border"><SelectValue /></SelectTrigger>
-              <SelectContent><SelectItem value="10">10</SelectItem><SelectItem value="25">25</SelectItem><SelectItem value="50">50</SelectItem><SelectItem value="100">100</SelectItem></SelectContent>
+              <SelectContent><SelectItem value="25">25</SelectItem><SelectItem value="50">50</SelectItem><SelectItem value="100">100</SelectItem></SelectContent>
             </Select>
             <Button variant="outline" size="sm" onClick={handleRefresh} disabled={isLoading}>
               <RefreshCw className={cn("w-4 h-4 mr-2", isLoading && "animate-spin")} />Refresh
@@ -253,7 +280,7 @@ export default function Data() {
         {isAdmin && (
           <TabsContent value="admins">
             <div className="rounded-xl bg-card border border-border overflow-hidden">
-              <ScrollArea className="h-[600px]">
+              <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
                 <Table>
                   <TableHeader><TableRow className="bg-secondary/50"><TableHead>Name</TableHead><TableHead>Email</TableHead><TableHead>Phone</TableHead><TableHead>Monthly Limit</TableHead><TableHead>Status</TableHead><TableHead>Created</TableHead></TableRow></TableHeader>
                   <TableBody>
@@ -279,13 +306,14 @@ export default function Data() {
         {isAdmin && (
           <TabsContent value="tenants">
             <div className="rounded-xl bg-card border border-border overflow-hidden">
-              <ScrollArea className="h-[600px]">
+              <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
                 <Table>
-                  <TableHeader><TableRow className="bg-secondary/50"><TableHead>Name</TableHead><TableHead>Status</TableHead><TableHead>Max SKUs</TableHead><TableHead>Monthly Limit</TableHead><TableHead>Weekly Limit</TableHead><TableHead>Created</TableHead></TableRow></TableHeader>
+                  <TableHeader><TableRow className="bg-secondary/50"><TableHead>Name</TableHead><TableHead>Admin</TableHead><TableHead>Status</TableHead><TableHead>Max SKUs</TableHead><TableHead>Monthly Limit</TableHead><TableHead>Weekly Limit</TableHead><TableHead>Created</TableHead></TableRow></TableHeader>
                   <TableBody>
                     {filteredTenants.slice(0, viewLimit).map(t => (
                       <TableRow key={t.id}>
                         <TableCell className="font-medium">{t.name}</TableCell>
+                        <TableCell>{getAdminName((t as any).admin_id)}</TableCell>
                         <TableCell><Badge variant={t.status === 'active' ? 'default' : 'secondary'}>{t.status}</Badge></TableCell>
                         <TableCell>{t.max_skus}</TableCell>
                         <TableCell>{t.max_images_per_month}</TableCell>
@@ -293,7 +321,7 @@ export default function Data() {
                         <TableCell>{format(new Date(t.created_at), 'PP')}</TableCell>
                       </TableRow>
                     ))}
-                    {filteredTenants.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No tenants found.</TableCell></TableRow>}
+                    {filteredTenants.length === 0 && <TableRow><TableCell colSpan={7} className="text-center py-12 text-muted-foreground">No tenants found.</TableCell></TableRow>}
                   </TableBody>
                 </Table>
               </ScrollArea>
@@ -304,7 +332,7 @@ export default function Data() {
         {/* Stores */}
         <TabsContent value="stores">
           <div className="rounded-xl bg-card border border-border overflow-hidden">
-            <ScrollArea className="h-[600px]">
+            <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
               <Table>
                 <TableHeader><TableRow className="bg-secondary/50"><TableHead>Name</TableHead>{isAdmin && <TableHead>Tenant</TableHead>}<TableHead>City</TableHead><TableHead>Country</TableHead><TableHead>Address</TableHead><TableHead>Created</TableHead></TableRow></TableHeader>
                 <TableBody>
@@ -328,7 +356,7 @@ export default function Data() {
         {/* Categories */}
         <TabsContent value="categories">
           <div className="rounded-xl bg-card border border-border overflow-hidden">
-            <ScrollArea className="h-[600px]">
+            <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
               <Table>
                 <TableHeader><TableRow className="bg-secondary/50"><TableHead>Name</TableHead>{isAdmin && <TableHead>Tenant</TableHead>}<TableHead>Description</TableHead><TableHead>Created</TableHead></TableRow></TableHeader>
                 <TableBody>
@@ -350,7 +378,7 @@ export default function Data() {
         {/* Products */}
         <TabsContent value="products">
           <div className="rounded-xl bg-card border border-border overflow-hidden">
-            <ScrollArea className="h-[600px]">
+            <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
               <Table>
                 <TableHeader><TableRow className="bg-secondary/50"><TableHead>Name</TableHead>{isAdmin && <TableHead>Tenant</TableHead>}<TableHead>Category</TableHead><TableHead>Barcode</TableHead><TableHead>Width (cm)</TableHead><TableHead>Training</TableHead><TableHead>Active</TableHead><TableHead>Created</TableHead></TableRow></TableHeader>
                 <TableBody>
@@ -376,7 +404,7 @@ export default function Data() {
         {/* Shelves */}
         <TabsContent value="shelves">
           <div className="rounded-xl bg-card border border-border overflow-hidden">
-            <ScrollArea className="h-[600px]">
+            <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
               <Table>
                 <TableHeader><TableRow className="bg-secondary/50"><TableHead>Name</TableHead>{isAdmin && <TableHead>Tenant</TableHead>}<TableHead>Store</TableHead><TableHead>Location</TableHead><TableHead>Width (cm)</TableHead><TableHead>Created</TableHead></TableRow></TableHeader>
                 <TableBody>
@@ -397,22 +425,47 @@ export default function Data() {
           </div>
         </TabsContent>
 
-        {/* Scans */}
+        {/* Shelf Images (Scans) - Enhanced with admin, tenant, store, planogram info */}
         <TabsContent value="scans">
           <div className="rounded-xl bg-card border border-border overflow-hidden">
-            <ScrollArea className="h-[600px]">
+            <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
               <Table>
-                <TableHeader><TableRow className="bg-secondary/50"><TableHead>Image</TableHead><TableHead>Shelf</TableHead><TableHead>Processed</TableHead><TableHead>Created</TableHead></TableRow></TableHeader>
+                <TableHeader>
+                  <TableRow className="bg-secondary/50">
+                    <TableHead>Image</TableHead>
+                    {isAdmin && <TableHead>Admin</TableHead>}
+                    <TableHead>Tenant</TableHead>
+                    <TableHead>Store</TableHead>
+                    <TableHead>Shelf</TableHead>
+                    <TableHead>Detection</TableHead>
+                    <TableHead>Processed</TableHead>
+                    <TableHead>Created</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
-                  {filteredScans.slice(0, viewLimit).map(s => (
+                  {filteredScans.slice(0, viewLimit).map((s: any) => (
                     <TableRow key={s.id}>
-                      <TableCell className="max-w-[200px] truncate text-sm">{s.file_name || s.image_url?.split('/').pop() || '—'}</TableCell>
-                      <TableCell>{s.shelf?.name || '—'}</TableCell>
+                      <TableCell>
+                        <a href={s.image_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm">
+                          {s.file_name || 'View Image'}
+                        </a>
+                      </TableCell>
+                      {isAdmin && <TableCell className="text-sm">{getAdminName(s.shelf?.tenant?.admin_id)}</TableCell>}
+                      <TableCell>{s.shelf?.tenant?.name || '—'}</TableCell>
+                      <TableCell>{s.shelf?.store?.name || '—'}</TableCell>
+                      <TableCell className="font-medium">{s.shelf?.name || '—'}</TableCell>
+                      <TableCell>
+                        {s.detection_result ? (
+                          <Badge variant="default">Has Results</Badge>
+                        ) : (
+                          <Badge variant="secondary">No Results</Badge>
+                        )}
+                      </TableCell>
                       <TableCell>{s.processed_at ? format(new Date(s.processed_at), 'PP HH:mm') : '—'}</TableCell>
                       <TableCell>{format(new Date(s.created_at), 'PP')}</TableCell>
                     </TableRow>
                   ))}
-                  {filteredScans.length === 0 && <TableRow><TableCell colSpan={4} className="text-center py-12 text-muted-foreground">No scans found.</TableCell></TableRow>}
+                  {filteredScans.length === 0 && <TableRow><TableCell colSpan={isAdmin ? 8 : 7} className="text-center py-12 text-muted-foreground">No shelf images found.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </ScrollArea>
@@ -422,14 +475,27 @@ export default function Data() {
         {/* Compliance Scans */}
         <TabsContent value="compliance">
           <div className="rounded-xl bg-card border border-border overflow-hidden">
-            <ScrollArea className="h-[600px]">
+            <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
               <Table>
-                <TableHeader><TableRow className="bg-secondary/50"><TableHead>Score</TableHead><TableHead>Planogram</TableHead><TableHead>Expected</TableHead><TableHead>Found</TableHead><TableHead>Missing</TableHead><TableHead>Extra</TableHead><TableHead>Date</TableHead><TableHead>Image</TableHead></TableRow></TableHeader>
+                <TableHeader>
+                  <TableRow className="bg-secondary/50">
+                    <TableHead>Score</TableHead>
+                    <TableHead>Planogram</TableHead>
+                    <TableHead>Tenant</TableHead>
+                    <TableHead>Expected</TableHead>
+                    <TableHead>Found</TableHead>
+                    <TableHead>Missing</TableHead>
+                    <TableHead>Extra</TableHead>
+                    <TableHead>Date</TableHead>
+                    <TableHead>Image</TableHead>
+                  </TableRow>
+                </TableHeader>
                 <TableBody>
                   {filteredCompliance.slice(0, viewLimit).map((c: any) => (
                     <TableRow key={c.id}>
                       <TableCell><Badge variant={c.compliance_score >= 80 ? 'default' : 'destructive'}>{c.compliance_score}%</Badge></TableCell>
                       <TableCell className="font-medium">{c.template?.name || '—'}</TableCell>
+                      <TableCell>{c.template?.tenant?.name || '—'}</TableCell>
                       <TableCell>{c.total_expected}</TableCell>
                       <TableCell>{c.total_found}</TableCell>
                       <TableCell>{c.total_missing}</TableCell>
@@ -438,7 +504,7 @@ export default function Data() {
                       <TableCell>{c.image_url && <a href={c.image_url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline text-sm">View</a>}</TableCell>
                     </TableRow>
                   ))}
-                  {filteredCompliance.length === 0 && <TableRow><TableCell colSpan={8} className="text-center py-12 text-muted-foreground">No compliance scans found.</TableCell></TableRow>}
+                  {filteredCompliance.length === 0 && <TableRow><TableCell colSpan={9} className="text-center py-12 text-muted-foreground">No compliance scans found.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </ScrollArea>
