@@ -54,8 +54,16 @@ async function getValidToken(): Promise<string | null> {
 }
 
 // ─── Base fetch helper ───────────────────────────────────
+function getFallbackBaseUrl(): string | null {
+  if (typeof import.meta !== 'undefined' && import.meta.env?.VITE_SUPABASE_URL) {
+    return import.meta.env.VITE_SUPABASE_URL.replace(/\/+$/, '');
+  }
+  return null;
+}
+
 async function apiFetch(path: string, opts: RequestInit = {}) {
-  const base = getApiBaseUrl();
+  const base = getApiBaseUrl().replace(/\/+$/, '');
+  const fallbackBase = getFallbackBaseUrl();
   const token = await getValidToken();
   const apiKey = getApiKey();
   const headers: Record<string, string> = {
@@ -65,7 +73,21 @@ async function apiFetch(path: string, opts: RequestInit = {}) {
   if (apiKey) headers['apikey'] = apiKey;
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
-  const res = await fetch(`${base}${path}`, { ...opts, headers });
+  const request = (targetBase: string, targetHeaders = headers) =>
+    fetch(`${targetBase}${path}`, { ...opts, headers: targetHeaders });
+
+  let res = await request(base);
+
+  // If custom backend rejects Supabase JWT, transparently fallback to Lovable Cloud backend
+  if (res.status === 401 && fallbackBase && base !== fallbackBase) {
+    const errorText = await res.clone().text().catch(() => '');
+    if (errorText.toLowerCase().includes('invalid token')) {
+      const fallbackRes = await request(fallbackBase);
+      if (fallbackRes.ok || fallbackRes.status !== 401) {
+        return fallbackRes;
+      }
+    }
+  }
 
   // If 401, try refreshing the token once
   if (res.status === 401) {
@@ -73,8 +95,8 @@ async function apiFetch(path: string, opts: RequestInit = {}) {
       const { data: { session } } = await supabase.auth.refreshSession();
       if (session?.access_token) {
         setToken(session.access_token);
-        headers['Authorization'] = `Bearer ${session.access_token}`;
-        return fetch(`${base}${path}`, { ...opts, headers });
+        const retryHeaders = { ...headers, Authorization: `Bearer ${session.access_token}` };
+        res = await request(base, retryHeaders);
       }
     } catch {
       // Refresh failed, return original 401
