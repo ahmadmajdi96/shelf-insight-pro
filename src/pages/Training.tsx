@@ -1495,7 +1495,7 @@ export default function Training() {
                                   className="relative w-12 h-12 shrink-0 rounded-lg border border-border overflow-hidden cursor-pointer hover:ring-2 ring-primary/50 transition-all"
                                   onClick={() => openImagePreview(images.indexOf(img))}
                                 >
-                                  <img src={img.image_url} alt="" className="w-full h-full object-cover" />
+                                  <AuthImage src={img.image_url} alt="" className="w-full h-full object-cover" />
                                   {img.is_annotated && (
                                     <div className="absolute inset-0 bg-success/10 flex items-center justify-center">
                                       <CheckCircle2 className="w-3 h-3 text-success drop-shadow" />
