@@ -105,7 +105,7 @@ export function useDatasetImages(datasetId: string | null) {
     queryKey: ['dataset-images', datasetId],
     queryFn: async () => {
       if (!datasetId) return [];
-      // Fetch all images (backend may default to 100 rows)
+      // Paginate to fetch ALL images (backend may default to 100 rows)
       const allImages: DatasetImage[] = [];
       let offset = 0;
       const pageSize = 1000;
@@ -115,15 +115,14 @@ export function useDatasetImages(datasetId: string | null) {
           filters: { dataset_id: `eq.${datasetId}` },
           order: 'created_at.asc',
           limit: pageSize,
+          offset,
         });
-        // Add offset param manually if needed
         const items = (page || []) as DatasetImage[];
         allImages.push(...items);
         if (items.length < pageSize) break;
         offset += pageSize;
       }
-      const data = allImages;
-      return (data || []) as DatasetImage[];
+      return allImages;
     },
     enabled: !!datasetId,
   });
