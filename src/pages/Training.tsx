@@ -825,8 +825,9 @@ export default function Training() {
         let chunkFailed = 0;
 
         try {
+          if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+
           setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'submitting', currentBatch: chunkIndex + 1 }));
-          updateBatchProgress(chunkIndex, { status: 'submitting', error: null });
 
           const chunkSetIds = Array.from(new Set(chunk.map(img => (img as any).image_set_id).filter(Boolean)));
 
