@@ -712,7 +712,12 @@ export default function Training() {
       return;
     }
 
-    const endpoint = localStorage.getItem(INFERENCING_ENDPOINT_STORAGE_KEY)?.replace(/\/+$/, '');
+    const rawEndpoint = localStorage.getItem(INFERENCING_ENDPOINT_STORAGE_KEY) || '';
+    const normalizedEndpoint = rawEndpoint.trim().replace(/\/+$/, '');
+    const endpoint = normalizedEndpoint.endsWith('/v1')
+      ? normalizedEndpoint.slice(0, -3)
+      : normalizedEndpoint;
+
     if (!endpoint) {
       toast({
         title: 'Inferencing endpoint missing',
@@ -721,6 +726,9 @@ export default function Training() {
       });
       return;
     }
+
+    const token = localStorage.getItem('shelfvision_access_token');
+    const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
 
     // Create abort controller for this run
     const abortController = new AbortController();
