@@ -55,7 +55,7 @@ export function useProducts() {
   });
 
   const updateProduct = useMutation({
-    mutationFn: async ({ id, ...updates }: any) => {
+    mutationFn: async ({ id, width_cm, ...updates }: any) => {
       return await rest.update('skus', { id: `eq.${id}` }, updates);
     },
     onSuccess: () => {
