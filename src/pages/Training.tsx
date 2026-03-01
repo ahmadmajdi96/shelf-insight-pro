@@ -927,11 +927,12 @@ export default function Training() {
           id: crypto.randomUUID(),
           classId: matchedClass?.id || '',
           className: matchedClass?.name || predLabel,
-          color: matchedClass?.color || '#3B82F6',
+          color: matchedClass?.color || '#9CA3AF',
           x: Math.max(0, bx),
           y: Math.max(0, by),
           w: Math.min(1 - Math.max(0, bx), bw),
           h: Math.min(1 - Math.max(0, by), bh),
+          isRegistered: !!matchedClass,
         };
       });
 
