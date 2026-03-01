@@ -630,12 +630,12 @@ export default function Training() {
               isRegistered: !!matchedClass,
             };
           });
-          const registeredBboxes = newBboxes.filter((b: any) => b.isRegistered);
-          if (registeredBboxes.length > 0) {
-            await updateAnnotations.mutateAsync({ imageId: img.id, annotations: registeredBboxes });
-            annotatedCount++;
-          }
-        } catch { /* continue */ }
+
+          await updateAnnotations.mutateAsync({ imageId: img.id, annotations: newBboxes });
+          if (newBboxes.length > 0) annotatedCount++;
+        } catch {
+          /* continue */
+        }
       }
       toast({ title: 'Auto-annotation complete', description: `${annotatedCount}/${setImages.length} images annotated.` });
     } catch (err: any) {
