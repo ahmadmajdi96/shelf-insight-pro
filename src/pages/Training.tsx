@@ -901,8 +901,9 @@ export default function Training() {
 
   const saveAnnotations = async () => {
     if (!annotatingImage) return;
-    await updateAnnotations.mutateAsync({ imageId: annotatingImage.id, annotations: bboxes as any });
-    toast({ title: 'Annotations saved' });
+    const registeredOnly = bboxes.filter(b => b.isRegistered);
+    await updateAnnotations.mutateAsync({ imageId: annotatingImage.id, annotations: registeredOnly as any });
+    toast({ title: 'Annotations saved', description: registeredOnly.length < bboxes.length ? `${bboxes.length - registeredOnly.length} unregistered detection(s) excluded.` : undefined });
   };
 
   // ─── Auto-annotate ────────────────────────────────────
