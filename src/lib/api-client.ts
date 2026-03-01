@@ -70,6 +70,14 @@ async function apiFetch(path: string, opts: RequestInit = {}) {
   if (token) headers['Authorization'] = `Bearer ${token}`;
 
   const res = await fetch(`${base}${path}`, { ...opts, headers, mode: 'cors', credentials: 'omit' });
+
+  // If token is expired/invalid, clear session and notify listeners
+  if (res.status === 401 && token) {
+    setToken(null);
+    setStoredUser(null);
+    notifyAuth('SIGNED_OUT', null);
+  }
+
   return res;
 }
 
