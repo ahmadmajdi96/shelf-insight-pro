@@ -786,12 +786,18 @@ export default function Training() {
       let lastError: Error | null = null;
       for (let attempt = 0; attempt <= retries; attempt += 1) {
         if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+
         try {
-          // Use a per-request timeout of 120s to avoid indefinite hangs
-          const timeoutMs = 120_000;
-          const timeoutId = setTimeout(() => {/* no-op, fetch uses signal */}, timeoutMs);
-          const response = await fetch(url, { ...init, signal });
-          clearTimeout(timeoutId);
+          const headers = new Headers(init?.headers || undefined);
+          if (apiKey && !headers.has('apikey')) headers.set('apikey', apiKey);
+          if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+
+          const response = await fetch(url, {
+            ...init,
+            headers,
+            signal,
+          });
+
           const data = await parseJsonSafe(response);
           if (!response.ok) {
             throw new Error(data?.error || data?.detail || data?.message || `Request failed (${response.status})`);
@@ -799,9 +805,12 @@ export default function Training() {
           return data;
         } catch (error: any) {
           if (error?.name === 'AbortError') throw error;
-          lastError = error instanceof Error ? error : new Error(String(error));
+          if (error instanceof TypeError && /load failed|failed to fetch/i.test(String(error.message || ''))) {
+            lastError = new Error(`Network error reaching inferencing endpoint. Verify endpoint, CORS, and auth headers. (${url})`);
+          } else {
+            lastError = error instanceof Error ? error : new Error(String(error));
+          }
           if (attempt === retries) break;
-          // Exponential backoff: 2s, 4s, 8s
           await sleep(2000 * Math.pow(2, attempt));
         }
       }
