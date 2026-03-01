@@ -1019,7 +1019,7 @@ export default function Training() {
       });
     } catch (err: any) {
       if (err?.name === 'AbortError') {
-        toast({ title: 'Auto-annotation cancelled', description: `Saved ${saved || 0} annotations before cancellation.` });
+        toast({ title: 'Auto-annotation cancelled', description: 'Partial annotations were saved.' });
       } else {
         toast({ title: 'Auto-annotate failed', description: err.message || 'Request failed', variant: 'destructive' });
       }
