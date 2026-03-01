@@ -168,6 +168,7 @@ interface ListOptions {
   filters?: Record<string, string>;
   order?: string;
   limit?: number;
+  offset?: number;
   count?: boolean;
   head?: boolean;
 }
