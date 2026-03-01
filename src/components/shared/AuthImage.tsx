@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { cn } from '@/lib/utils';
 import { ImageIcon } from 'lucide-react';
+import { getApiBaseUrl } from '@/lib/api-config';
 
 interface AuthImageProps {
   src: string;
@@ -8,6 +9,15 @@ interface AuthImageProps {
   className?: string;
   draggable?: boolean;
   onLoad?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
+}
+
+function needsAuth(url: string): boolean {
+  try {
+    const base = new URL(getApiBaseUrl()).origin;
+    return new URL(url).origin === base;
+  } catch {
+    return false;
+  }
 }
 
 export function AuthImage({ src, alt, className, draggable, onLoad }: AuthImageProps) {
@@ -23,9 +33,16 @@ export function AuthImage({ src, alt, className, draggable, onLoad }: AuthImageP
     setError(false);
     setBlobUrl(null);
 
+    // If URL doesn't need auth, use it directly
+    if (!needsAuth(src)) {
+      setBlobUrl(src);
+      setLoading(false);
+      return;
+    }
+
     const fetchImage = async () => {
       try {
-        const token = localStorage.getItem('auth_token');
+        const token = localStorage.getItem('shelfvision_access_token');
         const res = await fetch(src, {
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),

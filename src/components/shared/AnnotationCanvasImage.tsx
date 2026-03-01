@@ -1,8 +1,18 @@
 import { useState, useEffect, MutableRefObject } from 'react';
+import { getApiBaseUrl } from '@/lib/api-config';
 
 interface Props {
   imgRef: MutableRefObject<HTMLImageElement | null>;
   src: string;
+}
+
+function needsAuth(url: string): boolean {
+  try {
+    const base = new URL(getApiBaseUrl()).origin;
+    return new URL(url).origin === base;
+  } catch {
+    return false;
+  }
 }
 
 export function AnnotationCanvasImage({ imgRef, src }: Props) {
@@ -12,9 +22,15 @@ export function AnnotationCanvasImage({ imgRef, src }: Props) {
     let cancelled = false;
     let objectUrl: string | null = null;
 
+    // If URL doesn't need auth, use it directly
+    if (!needsAuth(src)) {
+      setBlobUrl(src);
+      return;
+    }
+
     const fetchImage = async () => {
       try {
-        const token = localStorage.getItem('auth_token');
+        const token = localStorage.getItem('shelfvision_access_token');
         const res = await fetch(src, {
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
