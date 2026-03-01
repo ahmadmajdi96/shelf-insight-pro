@@ -1127,6 +1127,21 @@ export default function Training() {
       let processedOverall = 0;
       let failedBatches = 0;
 
+      // Initialize persisted job state
+      const persistedJob: PersistedAutoAnnotateJob = {
+        datasetId: selectedDatasetId!,
+        endpoint,
+        batches: imageChunks.map(chunk => ({
+          jobId: '',
+          imageIds: chunk.map(img => img.id),
+          status: 'polling' as const,
+        })),
+        startedAt: new Date().toISOString(),
+        totalImages: selectedImages.length,
+        selectedSetIds: Array.from(selectedSetIds),
+      };
+      persistAutoAnnotateJob(persistedJob);
+
       for (let chunkIndex = 0; chunkIndex < imageChunks.length; chunkIndex += 1) {
         const chunk = imageChunks[chunkIndex];
         let chunkSaved = 0;
