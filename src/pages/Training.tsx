@@ -77,6 +77,19 @@ interface BBox {
 
 type AutoAnnotateStage = 'idle' | 'submitting' | 'queued' | 'polling' | 'saving';
 
+type AutoAnnotateBatchStatus = 'pending' | 'submitting' | 'queued' | 'polling' | 'saving' | 'completed' | 'failed';
+
+interface AutoAnnotateBatchProgress {
+  index: number;
+  total: number;
+  processed: number;
+  saved: number;
+  failed: number;
+  status: AutoAnnotateBatchStatus;
+  jobId: string | null;
+  error: string | null;
+}
+
 const SELECTED_SETS_AUTO_ANNOTATE_INITIAL = {
   running: false,
   stage: 'idle' as AutoAnnotateStage,
@@ -85,6 +98,19 @@ const SELECTED_SETS_AUTO_ANNOTATE_INITIAL = {
   processed: 0,
   saved: 0,
   failed: 0,
+  currentBatch: 0,
+  totalBatches: 0,
+  batches: [] as AutoAnnotateBatchProgress[],
+};
+
+const AUTO_ANNOTATE_BATCH_STATUS_CONFIG: Record<AutoAnnotateBatchStatus, { label: string; className: string }> = {
+  pending: { label: 'Pending', className: 'bg-muted text-muted-foreground border-border' },
+  submitting: { label: 'Submitting', className: 'bg-warning/10 text-warning border-warning/30' },
+  queued: { label: 'Queued', className: 'bg-secondary text-secondary-foreground border-border' },
+  polling: { label: 'Running', className: 'bg-primary/10 text-primary border-primary/30' },
+  saving: { label: 'Saving', className: 'bg-primary/10 text-primary border-primary/30' },
+  completed: { label: 'Done', className: 'bg-success/10 text-success border-success/30' },
+  failed: { label: 'Failed', className: 'bg-destructive/10 text-destructive border-destructive/30' },
 };
 
 const INFERENCING_ENDPOINT_STORAGE_KEY = 'shelfvision_inferencing_endpoint';
