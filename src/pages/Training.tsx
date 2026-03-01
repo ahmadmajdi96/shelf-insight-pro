@@ -70,6 +70,7 @@ interface BBox {
   className: string;
   color: string;
   x: number; y: number; w: number; h: number;
+  isRegistered: boolean;
 }
 
 type AutoAnnotateStage = 'idle' | 'submitting' | 'queued' | 'polling' | 'saving';
