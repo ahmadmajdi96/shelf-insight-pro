@@ -41,7 +41,8 @@ export function useProducts() {
       const tid = product.tenant_id || tenantId;
       if (!tid) throw new Error('No tenant ID');
 
-      const sku = await rest.create('skus', { ...product, tenant_id: tid });
+      const { width_cm, ...payload } = product;
+      const sku = await rest.create('skus', { ...payload, tenant_id: tid });
       return sku;
     },
     onSuccess: () => {
@@ -54,7 +55,7 @@ export function useProducts() {
   });
 
   const updateProduct = useMutation({
-    mutationFn: async ({ id, ...updates }: any) => {
+    mutationFn: async ({ id, width_cm, ...updates }: any) => {
       return await rest.update('skus', { id: `eq.${id}` }, updates);
     },
     onSuccess: () => {
