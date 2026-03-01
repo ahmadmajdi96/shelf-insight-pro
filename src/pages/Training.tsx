@@ -1326,6 +1326,9 @@ export default function Training() {
             saved,
             failed,
           }));
+          // Update persisted state
+          persistedJob.batches[chunkIndex].status = 'completed';
+          persistAutoAnnotateJob(persistedJob);
         } catch (chunkError: any) {
           // If cancelled, propagate abort to outer catch
           if (chunkError?.name === 'AbortError') throw chunkError;
@@ -1350,10 +1353,15 @@ export default function Training() {
             saved,
             failed,
           }));
+          // Update persisted state
+          persistedJob.batches[chunkIndex].status = 'failed';
+          persistAutoAnnotateJob(persistedJob);
 
           console.error(`[auto-annotate] batch ${chunkIndex + 1} failed`, chunkError);
         }
       }
+
+      clearPersistedAutoAnnotateJob();
 
       qc.invalidateQueries({ queryKey: ['dataset-images', selectedDatasetId] });
       toast({
