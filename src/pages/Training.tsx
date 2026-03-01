@@ -447,16 +447,29 @@ export default function Training() {
     } catch { return null; }
   }, []);
 
+  // ─── Auto-select dataset if persisted job exists ─────
+  useEffect(() => {
+    if (selectedDatasetId) return; // already selected
+    if (!datasets.length) return;
+    const persisted = getPersistedAutoAnnotateJob();
+    if (!persisted) return;
+    const matchingDataset = datasets.find(d => d.id === persisted.datasetId);
+    if (matchingDataset) {
+      setSelectedDatasetId(matchingDataset.id);
+      setActiveTab('images');
+    }
+  }, [datasets, selectedDatasetId, getPersistedAutoAnnotateJob]);
+
   // ─── Resume persisted auto-annotate jobs on mount ──────
   const resumedRef = useRef(false);
   useEffect(() => {
     if (resumedRef.current) return;
-    if (!selectedDatasetId || images.length === 0 || annotationClasses.length === 0) return;
+    if (!selectedDatasetId || images.length === 0) return;
 
     const persisted = getPersistedAutoAnnotateJob();
     if (!persisted || persisted.datasetId !== selectedDatasetId) return;
-    // Check if there are incomplete batches to poll
-    const incompleteBatches = persisted.batches.filter(b => b.status === 'polling');
+    // Check if there are incomplete batches with valid jobIds to poll
+    const incompleteBatches = persisted.batches.filter(b => b.status === 'polling' && b.jobId);
     if (incompleteBatches.length === 0) {
       clearPersistedAutoAnnotateJob();
       return;
