@@ -108,7 +108,7 @@ export function useDatasetImages(datasetId: string | null) {
       // Paginate to fetch ALL images (backend may default to 100 rows)
       const allImages: DatasetImage[] = [];
       let offset = 0;
-      const pageSize = 1000;
+      const pageSize = 500;
       while (true) {
         const { data: page } = await rest.list('dataset_images', {
           select: '*',
