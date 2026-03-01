@@ -778,15 +778,42 @@ export default function Training() {
           continue;
         }
 
+        // Load actual image dimensions for accurate bbox normalization
+        let imgWidth = result.image?.width || result.image_width;
+        let imgHeight = result.image?.height || result.image_height;
+        if (!imgWidth || !imgHeight) {
+          try {
+            const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+              img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+              img.onerror = () => reject(new Error('Failed to load image for dimensions'));
+              // Use authenticated fetch to get image as blob
+              const token = localStorage.getItem('shelfvision_access_token');
+              const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
+              const headers: Record<string, string> = {};
+              if (apiKey) headers['apikey'] = apiKey;
+              if (token) headers['Authorization'] = `Bearer ${token}`;
+              fetch(resolvedImage.image_url, { headers })
+                .then(r => r.blob())
+                .then(blob => { img.src = URL.createObjectURL(blob); })
+                .catch(reject);
+            });
+            imgWidth = dims.w;
+            imgHeight = dims.h;
+          } catch {
+            // fallback: leave undefined, toAnnotationBoxes will use 640
+          }
+        }
+
         const predictions = result.predictions || result.annotations || result.objects || [];
-        const boxes = toAnnotationBoxes(predictions, {
-          width: result.image?.width || result.image_width,
-          height: result.image?.height || result.image_height,
-        });
+        const boxes = toAnnotationBoxes(predictions, { width: imgWidth, height: imgHeight });
 
         const registeredBoxes = boxes.filter(b => b.isRegistered);
+        // Save ALL boxes (registered + unregistered) so they appear in annotation view
+        const allBoxes = boxes;
         try {
-          await updateAnnotations.mutateAsync({ imageId: resolvedImage.id, annotations: registeredBoxes });
+          await updateAnnotations.mutateAsync({ imageId: resolvedImage.id, annotations: allBoxes });
           saved += 1;
         } catch {
           failed += 1;
