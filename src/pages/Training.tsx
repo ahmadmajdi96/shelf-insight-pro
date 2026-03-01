@@ -116,7 +116,7 @@ const AUTO_ANNOTATE_BATCH_STATUS_CONFIG: Record<AutoAnnotateBatchStatus, { label
 const INFERENCING_ENDPOINT_STORAGE_KEY = 'shelfvision_inferencing_endpoint';
 const AUTO_ANNOTATE_POLL_INTERVAL_MS = 5000;
 const AUTO_ANNOTATE_MAX_POLL_ATTEMPTS = 360;
-const AUTO_ANNOTATE_BATCH_SIZE = 100;
+const AUTO_ANNOTATE_BATCH_SIZE = 50;
 
 const DEFAULT_TRAINING_CONFIG = {
   seed: 42,
@@ -357,6 +357,7 @@ export default function Training() {
   const [uploadingSet, setUploadingSet] = useState(false);
   const [selectedSetIds, setSelectedSetIds] = useState<Set<string>>(new Set());
   const [selectedSetsAutoAnnotate, setSelectedSetsAutoAnnotate] = useState(SELECTED_SETS_AUTO_ANNOTATE_INITIAL);
+  const autoAnnotateAbortRef = useRef<AbortController | null>(null);
   const [autoAnnotatingSetId, setAutoAnnotatingSetId] = useState<string | null>(null);
   const [deleteSetId, setDeleteSetId] = useState<string | null>(null);
   const [annotatingSetId, setAnnotatingSetId] = useState<string | null>(null);
@@ -695,6 +696,13 @@ export default function Training() {
     };
   });
 
+  const cancelAutoAnnotation = () => {
+    if (autoAnnotateAbortRef.current) {
+      autoAnnotateAbortRef.current.abort();
+      autoAnnotateAbortRef.current = null;
+    }
+  };
+
   const autoAnnotateSelectedSets = async () => {
     if (!selectedDatasetId) return;
 
@@ -713,6 +721,11 @@ export default function Training() {
       });
       return;
     }
+
+    // Create abort controller for this run
+    const abortController = new AbortController();
+    autoAnnotateAbortRef.current = abortController;
+    const signal = abortController.signal;
 
     const statusIsSuccess = (status: string) => ['completed', 'done', 'success', 'succeeded', 'finished'].some(token => status.includes(token));
     const statusIsFailure = (status: string) => ['failed', 'error', 'cancelled', 'canceled', 'timeout'].some(token => status.includes(token));
@@ -746,7 +759,10 @@ export default function Training() {
       batches: imageChunks.map(buildInitialBatchState),
     });
 
-    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    const sleep = (ms: number) => new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, ms);
+      signal.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); }, { once: true });
+    });
 
     const parseJsonSafe = async (response: Response) => {
       const text = await response.text();
@@ -758,20 +774,27 @@ export default function Training() {
       }
     };
 
-    const fetchJsonWithRetry = async (url: string, init?: RequestInit, retries = 2): Promise<any> => {
+    const fetchJsonWithRetry = async (url: string, init?: RequestInit, retries = 3): Promise<any> => {
       let lastError: Error | null = null;
       for (let attempt = 0; attempt <= retries; attempt += 1) {
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
         try {
-          const response = await fetch(url, init);
+          // Use a per-request timeout of 120s to avoid indefinite hangs
+          const timeoutMs = 120_000;
+          const timeoutId = setTimeout(() => {/* no-op, fetch uses signal */}, timeoutMs);
+          const response = await fetch(url, { ...init, signal });
+          clearTimeout(timeoutId);
           const data = await parseJsonSafe(response);
           if (!response.ok) {
             throw new Error(data?.error || data?.detail || data?.message || `Request failed (${response.status})`);
           }
           return data;
         } catch (error: any) {
+          if (error?.name === 'AbortError') throw error;
           lastError = error instanceof Error ? error : new Error(String(error));
           if (attempt === retries) break;
-          await sleep(1000 * (attempt + 1));
+          // Exponential backoff: 2s, 4s, 8s
+          await sleep(2000 * Math.pow(2, attempt));
         }
       }
       throw lastError || new Error('Request failed');
@@ -807,8 +830,9 @@ export default function Training() {
         let chunkFailed = 0;
 
         try {
+          if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+
           setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'submitting', currentBatch: chunkIndex + 1 }));
-          updateBatchProgress(chunkIndex, { status: 'submitting', error: null });
 
           const chunkSetIds = Array.from(new Set(chunk.map(img => (img as any).image_set_id).filter(Boolean)));
 
@@ -966,6 +990,8 @@ export default function Training() {
             failed,
           }));
         } catch (chunkError: any) {
+          // If cancelled, propagate abort to outer catch
+          if (chunkError?.name === 'AbortError') throw chunkError;
           failedBatches += 1;
 
           processedOverall += chunk.length;
@@ -999,9 +1025,14 @@ export default function Training() {
         variant: failedBatches > 0 && saved === 0 ? 'destructive' : undefined,
       });
     } catch (err: any) {
-      toast({ title: 'Auto-annotate failed', description: err.message || 'Request failed', variant: 'destructive' });
+      if (err?.name === 'AbortError') {
+        toast({ title: 'Auto-annotation cancelled', description: 'Partial annotations were saved.' });
+      } else {
+        toast({ title: 'Auto-annotate failed', description: err.message || 'Request failed', variant: 'destructive' });
+      }
     } finally {
-      setSelectedSetsAutoAnnotate(SELECTED_SETS_AUTO_ANNOTATE_INITIAL);
+      autoAnnotateAbortRef.current = null;
+      setSelectedSetsAutoAnnotate(prev => ({ ...prev, running: false }));
     }
   };
 
@@ -1639,6 +1670,118 @@ export default function Training() {
                 </div>
               </div>
 
+              {/* Selection action bar — shown at top */}
+              {(selectedSetIds.size > 0 || selectedSetsAutoAnnotate.running) && (
+                <div className="rounded-2xl bg-primary/5 border border-primary/20 p-4 flex items-center justify-between flex-wrap gap-3">
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm text-foreground font-semibold">
+                      {selectedSetIds.size} set(s) selected
+                    </span>
+                    <span className="text-xs text-muted-foreground ml-2">
+                      ({images.filter(img => selectedSetIds.has((img as any).image_set_id)).length} total images)
+                    </span>
+                    {selectedSetsAutoAnnotate.running && (
+                      <div className="mt-2 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin" /> {selectedSetsAutoAnnotate.stage}
+                          </Badge>
+                          <Badge variant="secondary" className="text-[10px]">
+                            Batch {Math.max(1, selectedSetsAutoAnnotate.currentBatch)}/{Math.max(1, selectedSetsAutoAnnotate.totalBatches)}
+                          </Badge>
+                          {selectedSetsAutoAnnotate.jobId && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Job: {selectedSetsAutoAnnotate.jobId.slice(0, 8)}…
+                            </Badge>
+                          )}
+                          <Badge variant="secondary" className="text-[10px]">Processed: {selectedSetsAutoAnnotate.processed}/{selectedSetsAutoAnnotate.total}</Badge>
+                          <Badge variant="default" className="text-[10px]">Saved: {selectedSetsAutoAnnotate.saved}</Badge>
+                          {selectedSetsAutoAnnotate.failed > 0 && (
+                            <Badge variant="destructive" className="text-[10px]">Failed: {selectedSetsAutoAnnotate.failed}</Badge>
+                          )}
+                        </div>
+
+                        <div className="space-y-1">
+                          <Progress
+                            value={selectedSetsAutoAnnotate.total > 0 ? (selectedSetsAutoAnnotate.processed / selectedSetsAutoAnnotate.total) * 100 : 0}
+                            className="h-2"
+                          />
+                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                            <span>Overall progress</span>
+                            <span>
+                              {selectedSetsAutoAnnotate.total > 0
+                                ? `${Math.round((selectedSetsAutoAnnotate.processed / selectedSetsAutoAnnotate.total) * 100)}%`
+                                : '0%'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg border border-border bg-card/70 p-2">
+                          <p className="text-[10px] text-muted-foreground mb-1">Per-batch status</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedSetsAutoAnnotate.batches.map((batch) => (
+                              <Badge
+                                key={batch.index}
+                                variant="outline"
+                                title={batch.error || undefined}
+                                className={cn("text-[10px] border", AUTO_ANNOTATE_BATCH_STATUS_CONFIG[batch.status].className)}
+                              >
+                                B{batch.index}: {AUTO_ANNOTATE_BATCH_STATUS_CONFIG[batch.status].label} · {batch.processed}/{batch.total}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div className="flex gap-2 shrink-0">
+                    {selectedSetsAutoAnnotate.running ? (
+                      <Button
+                        size="sm"
+                        variant="destructive"
+                        onClick={cancelAutoAnnotation}
+                      >
+                        <X className="w-3.5 h-3.5 mr-1.5" />
+                        Cancel
+                      </Button>
+                    ) : (
+                      <>
+                        <Button
+                          size="sm"
+                          variant="default"
+                          onClick={() => {
+                            const selectedImages = images.filter(img => selectedSetIds.has((img as any).image_set_id));
+                            if (selectedImages.length === 0) {
+                              toast({ title: 'No images', description: 'Selected sets have no images.', variant: 'destructive' });
+                              return;
+                            }
+                            const firstUnannotated = selectedImages.find(img => !img.is_annotated) || selectedImages[0];
+                            setAnnotatingSetId('__selected__');
+                            setAnnotatingImage(firstUnannotated);
+                            setBboxes((firstUnannotated.annotations as any as BBox[]) || []);
+                            setActiveTab('annotate');
+                          }}
+                        >
+                          <Square className="w-3.5 h-3.5 mr-1.5" />
+                          Manual Annotate
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={autoAnnotateSelectedSets}
+                        >
+                          <Wand2 className="w-3.5 h-3.5 mr-1.5" />
+                          Auto Annotate
+                        </Button>
+                        <Button size="sm" variant="outline" onClick={() => setSelectedSetIds(new Set())}>
+                          <X className="w-3 h-3 mr-1" /> Clear
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
+
               {imageSets.length === 0 ? (
                 <div className="text-center py-16 text-muted-foreground rounded-xl bg-card border border-border">
                   <Package className="w-12 h-12 mx-auto mb-3 opacity-40" />
@@ -1765,111 +1908,7 @@ export default function Training() {
                 </div>
               )}
 
-              {/* Selection action bar */}
-              {selectedSetIds.size > 0 && (
-                <div className="rounded-2xl bg-primary/5 border border-primary/20 p-4 flex items-center justify-between flex-wrap gap-3">
-                  <div>
-                    <span className="text-sm text-foreground font-semibold">
-                      {selectedSetIds.size} set(s) selected
-                    </span>
-                    <span className="text-xs text-muted-foreground ml-2">
-                      ({images.filter(img => selectedSetIds.has((img as any).image_set_id)).length} total images)
-                    </span>
-                    {selectedSetsAutoAnnotate.running && (
-                      <div className="mt-2 space-y-2">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <Badge variant="outline" className="text-[10px] gap-1">
-                            <Loader2 className="w-3 h-3 animate-spin" /> {selectedSetsAutoAnnotate.stage}
-                          </Badge>
-                          <Badge variant="secondary" className="text-[10px]">
-                            Batch {Math.max(1, selectedSetsAutoAnnotate.currentBatch)}/{Math.max(1, selectedSetsAutoAnnotate.totalBatches)}
-                          </Badge>
-                          {selectedSetsAutoAnnotate.jobId && (
-                            <Badge variant="secondary" className="text-[10px]">
-                              Job: {selectedSetsAutoAnnotate.jobId.slice(0, 8)}…
-                            </Badge>
-                          )}
-                          <Badge variant="secondary" className="text-[10px]">Processed: {selectedSetsAutoAnnotate.processed}/{selectedSetsAutoAnnotate.total}</Badge>
-                          <Badge variant="default" className="text-[10px]">Saved: {selectedSetsAutoAnnotate.saved}</Badge>
-                          {selectedSetsAutoAnnotate.failed > 0 && (
-                            <Badge variant="destructive" className="text-[10px]">Failed: {selectedSetsAutoAnnotate.failed}</Badge>
-                          )}
-                        </div>
 
-                        <div className="space-y-1">
-                          <Progress
-                            value={selectedSetsAutoAnnotate.total > 0 ? (selectedSetsAutoAnnotate.processed / selectedSetsAutoAnnotate.total) * 100 : 0}
-                            className="h-2"
-                          />
-                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
-                            <span>Overall progress</span>
-                            <span>
-                              {selectedSetsAutoAnnotate.total > 0
-                                ? `${Math.round((selectedSetsAutoAnnotate.processed / selectedSetsAutoAnnotate.total) * 100)}%`
-                                : '0%'}
-                            </span>
-                          </div>
-                        </div>
-
-                        <div className="rounded-lg border border-border bg-card/70 p-2">
-                          <p className="text-[10px] text-muted-foreground mb-1">Per-batch status</p>
-                          <div className="flex flex-wrap gap-1.5">
-                            {selectedSetsAutoAnnotate.batches.map((batch) => (
-                              <Badge
-                                key={batch.index}
-                                variant="outline"
-                                title={batch.error || undefined}
-                                className={cn("text-[10px] border", AUTO_ANNOTATE_BATCH_STATUS_CONFIG[batch.status].className)}
-                              >
-                                B{batch.index}: {AUTO_ANNOTATE_BATCH_STATUS_CONFIG[batch.status].label} · {batch.processed}/{batch.total}
-                              </Badge>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex gap-2">
-                    <Button
-                      size="sm"
-                      variant="default"
-                      disabled={selectedSetsAutoAnnotate.running}
-                      onClick={() => {
-                        // Start manual annotation for selected sets combined
-                        const selectedImages = images.filter(img => selectedSetIds.has((img as any).image_set_id));
-                        if (selectedImages.length === 0) {
-                          toast({ title: 'No images', description: 'Selected sets have no images.', variant: 'destructive' });
-                          return;
-                        }
-                        const firstUnannotated = selectedImages.find(img => !img.is_annotated) || selectedImages[0];
-                        setAnnotatingSetId('__selected__');
-                        setAnnotatingImage(firstUnannotated);
-                        setBboxes((firstUnannotated.annotations as any as BBox[]) || []);
-                        setActiveTab('annotate');
-                      }}
-                    >
-                      <Square className="w-3.5 h-3.5 mr-1.5" />
-                      Manual Annotate Selected
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={autoAnnotateSelectedSets}
-                      disabled={selectedSetsAutoAnnotate.running}
-                    >
-                      {selectedSetsAutoAnnotate.running ? (
-                        <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
-                      ) : (
-                        <Wand2 className="w-3.5 h-3.5 mr-1.5" />
-                      )}
-                      Auto Annotate Selected
-                    </Button>
-                    <Button size="sm" variant="outline" onClick={() => setSelectedSetIds(new Set())} disabled={selectedSetsAutoAnnotate.running}>
-                      <X className="w-3 h-3 mr-1" /> Clear
-                    </Button>
-                  </div>
-                </div>
-              )}
             </>
           )}
         </TabsContent>
