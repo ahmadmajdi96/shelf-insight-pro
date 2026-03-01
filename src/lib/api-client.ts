@@ -168,6 +168,7 @@ interface ListOptions {
   filters?: Record<string, string>;
   order?: string;
   limit?: number;
+  offset?: number;
   count?: boolean;
   head?: boolean;
 }
@@ -181,6 +182,7 @@ export const rest = {
     }
     if (opts.order) params.set('order', opts.order);
     if (opts.limit) params.set('limit', String(opts.limit));
+    if (opts.offset) params.set('offset', String(opts.offset));
 
     const qs = params.toString();
     const path = `/rest/v1/${resource}${qs ? `?${qs}` : ''}`;
