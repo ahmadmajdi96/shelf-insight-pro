@@ -357,6 +357,7 @@ export default function Training() {
   const [uploadingSet, setUploadingSet] = useState(false);
   const [selectedSetIds, setSelectedSetIds] = useState<Set<string>>(new Set());
   const [selectedSetsAutoAnnotate, setSelectedSetsAutoAnnotate] = useState(SELECTED_SETS_AUTO_ANNOTATE_INITIAL);
+  const autoAnnotateAbortRef = useRef<AbortController | null>(null);
   const [autoAnnotatingSetId, setAutoAnnotatingSetId] = useState<string | null>(null);
   const [deleteSetId, setDeleteSetId] = useState<string | null>(null);
   const [annotatingSetId, setAnnotatingSetId] = useState<string | null>(null);
