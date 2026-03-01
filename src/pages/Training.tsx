@@ -593,11 +593,12 @@ export default function Training() {
               id: crypto.randomUUID(),
               classId: matchedClass?.id || '',
               className: matchedClass?.name || predLabel,
-              color: matchedClass?.color || '#3B82F6',
+              color: matchedClass?.color || '#9CA3AF',
               x: Math.max(0, ((pred.x || 0) - (pred.width || 0) / 2) / imgWidth),
               y: Math.max(0, ((pred.y || 0) - (pred.height || 0) / 2) / imgHeight),
               w: Math.min(1, (pred.width || 0) / imgWidth),
               h: Math.min(1, (pred.height || 0) / imgHeight),
+              isRegistered: !!matchedClass,
             };
           });
           if (newBboxes.length > 0) {
