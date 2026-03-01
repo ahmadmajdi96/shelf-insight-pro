@@ -88,8 +88,8 @@ const SELECTED_SETS_AUTO_ANNOTATE_INITIAL = {
 };
 
 const INFERENCING_ENDPOINT_STORAGE_KEY = 'shelfvision_inferencing_endpoint';
-const AUTO_ANNOTATE_POLL_INTERVAL_MS = 2000;
-const AUTO_ANNOTATE_MAX_POLL_ATTEMPTS = 120;
+const AUTO_ANNOTATE_POLL_INTERVAL_MS = 5000;
+const AUTO_ANNOTATE_MAX_POLL_ATTEMPTS = 360;
 
 const DEFAULT_TRAINING_CONFIG = {
   seed: 42,
@@ -742,6 +742,7 @@ export default function Training() {
         setSelectedSetsAutoAnnotate(prev => ({ ...prev, processed: Math.min(prev.total, processed) }));
 
         const jobStatus = String(statusData.status || '').toLowerCase();
+        console.log(`[auto-annotate] poll #${attempts} status=${jobStatus}`, statusData);
         if (['completed', 'done', 'success', 'succeeded'].includes(jobStatus)) break;
         if (['failed', 'error', 'cancelled'].includes(jobStatus)) {
           throw new Error(statusData?.error || 'Auto-annotation job failed');
