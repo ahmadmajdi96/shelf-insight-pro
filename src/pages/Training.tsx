@@ -742,13 +742,13 @@ export default function Training() {
         setSelectedSetsAutoAnnotate(prev => ({ ...prev, processed: Math.min(prev.total, processed) }));
 
         const jobStatus = String(statusData.status || '').toLowerCase();
-        if (['completed', 'done', 'success'].includes(jobStatus)) break;
+        if (['completed', 'done', 'success', 'succeeded'].includes(jobStatus)) break;
         if (['failed', 'error', 'cancelled'].includes(jobStatus)) {
           throw new Error(statusData?.error || 'Auto-annotation job failed');
         }
       }
 
-      if (!statusData || !['completed', 'done', 'success'].includes(String(statusData.status || '').toLowerCase())) {
+      if (!statusData || !['completed', 'done', 'success', 'succeeded'].includes(String(statusData.status || '').toLowerCase())) {
         throw new Error('Auto-annotation job timed out');
       }
 
@@ -756,16 +756,22 @@ export default function Training() {
       setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'saving' }));
 
       const imagesById = new Map(selectedImages.map(img => [img.id, img]));
-      const imagesByUrl = new Map(selectedImages.flatMap(img => [[img.image_url, img], [toInferencingImageUrl(img.image_url), img]]));
       const imagesByFileName = new Map(selectedImages.map(img => [img.file_name, img]));
+
+      // Extract image_id from image_rel path pattern: {jobId}/input/{idx}_{imageId}_{fileName}
+      const extractImageId = (result: any): string | null => {
+        const rel = result.image_rel || '';
+        const match = rel.match(/\d+_([0-9a-f-]{36})_/);
+        return match ? match[1] : null;
+      };
 
       let saved = 0;
       let failed = 0;
 
       for (const result of results) {
+        const extractedId = extractImageId(result);
         const resolvedImage =
-          imagesById.get(result.image_id || result.imageId) ||
-          imagesByUrl.get(result.image_url || result.imageUrl || result.source_url || result.sourceUrl) ||
+          imagesById.get(result.image_id || result.imageId || extractedId) ||
           imagesByFileName.get(result.file_name || result.fileName);
         if (!resolvedImage) {
           failed += 1;
