@@ -855,7 +855,7 @@ export default function Training() {
 
           const submitData = await fetchJsonWithRetry(`${endpoint}/v1/jobs/batch`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json', ...(apiKey ? { apikey: apiKey } : {}), ...(token ? { Authorization: `Bearer ${token}` } : {}) },
             body: JSON.stringify({
               dataset_id: selectedDatasetId,
               image_set_ids: chunkSetIds,
