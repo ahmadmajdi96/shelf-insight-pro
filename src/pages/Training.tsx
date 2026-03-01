@@ -742,8 +742,9 @@ export default function Training() {
         const predictions = result.predictions || result.annotations || [];
         const boxes = toAnnotationBoxes(predictions);
 
+        const registeredBoxes = boxes.filter(b => b.isRegistered);
         try {
-          await updateAnnotations.mutateAsync({ imageId: resolvedImage.id, annotations: boxes });
+          await updateAnnotations.mutateAsync({ imageId: resolvedImage.id, annotations: registeredBoxes });
           saved += 1;
         } catch {
           failed += 1;
