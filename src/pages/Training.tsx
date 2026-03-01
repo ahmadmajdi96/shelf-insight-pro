@@ -49,6 +49,19 @@ import {
   type Dataset, type DatasetImage, type DatasetClass,
 } from '@/hooks/useDatasets';
 import { useImageSets, useImageSetUpload, type ImageSet } from '@/hooks/useImageSets';
+import { getApiBaseUrl } from '@/lib/api-config';
+
+// Convert private backend storage URLs to public Supabase storage URLs
+// so the inferencing server can download images without auth
+function toPublicStorageUrl(url: string): string {
+  const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || '';
+  const match = url.match(/\/storage\/v1\/object\/(dataset-images\/.+)$/);
+  if (match && SUPABASE_URL) {
+    return `${SUPABASE_URL.replace(/\/+$/, '')}/storage/v1/object/public/${match[1]}`;
+  }
+  return url;
+}
+
 
 const CLASS_COLORS = [
   '#3B82F6', '#EF4444', '#10B981', '#F59E0B', '#8B5CF6',
@@ -677,7 +690,7 @@ export default function Training() {
           image_set_ids: Array.from(selectedSetIds),
           images: selectedImages.map(img => ({
             image_id: img.id,
-            image_url: img.image_url,
+            image_url: toPublicStorageUrl(img.image_url),
             file_name: img.file_name,
           })),
           classes: annotationClasses.map(c => ({ id: c.id, name: c.name })),
