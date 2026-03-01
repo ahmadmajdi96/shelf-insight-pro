@@ -985,6 +985,8 @@ export default function Training() {
             failed,
           }));
         } catch (chunkError: any) {
+          // If cancelled, propagate abort to outer catch
+          if (chunkError?.name === 'AbortError') throw chunkError;
           failedBatches += 1;
 
           processedOverall += chunk.length;
