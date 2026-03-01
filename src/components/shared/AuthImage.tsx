@@ -1,4 +1,4 @@
-import { forwardRef } from 'react';
+import { forwardRef, memo } from 'react';
 import { useAuthenticatedImage } from '@/hooks/useAuthenticatedImage';
 import { cn } from '@/lib/utils';
 import { ImageIcon } from 'lucide-react';
@@ -7,12 +7,8 @@ interface AuthImageProps extends React.ImgHTMLAttributes<HTMLImageElement> {
   src: string;
 }
 
-/**
- * Renders an image that requires authentication headers to load.
- * Fetches the image via authenticated request and displays it as a blob URL.
- */
-export const AuthImage = forwardRef<HTMLImageElement, AuthImageProps>(
-  ({ src, className, alt, ...props }, ref) => {
+const AuthImageInner = forwardRef<HTMLImageElement, AuthImageProps>(
+  function AuthImage({ src, className, alt, ...props }, ref) {
     const { blobUrl, loading, error } = useAuthenticatedImage(src);
 
     if (loading) {
@@ -35,4 +31,6 @@ export const AuthImage = forwardRef<HTMLImageElement, AuthImageProps>(
   }
 );
 
-AuthImage.displayName = 'AuthImage';
+AuthImageInner.displayName = 'AuthImage';
+
+export const AuthImage = memo(AuthImageInner);
