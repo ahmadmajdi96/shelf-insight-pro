@@ -70,6 +70,7 @@ interface BBox {
   className: string;
   color: string;
   x: number; y: number; w: number; h: number;
+  isRegistered: boolean;
 }
 
 type AutoAnnotateStage = 'idle' | 'submitting' | 'queued' | 'polling' | 'saving';
@@ -592,15 +593,17 @@ export default function Training() {
               id: crypto.randomUUID(),
               classId: matchedClass?.id || '',
               className: matchedClass?.name || predLabel,
-              color: matchedClass?.color || '#3B82F6',
+              color: matchedClass?.color || '#9CA3AF',
               x: Math.max(0, ((pred.x || 0) - (pred.width || 0) / 2) / imgWidth),
               y: Math.max(0, ((pred.y || 0) - (pred.height || 0) / 2) / imgHeight),
               w: Math.min(1, (pred.width || 0) / imgWidth),
               h: Math.min(1, (pred.height || 0) / imgHeight),
+              isRegistered: !!matchedClass,
             };
           });
-          if (newBboxes.length > 0) {
-            await updateAnnotations.mutateAsync({ imageId: img.id, annotations: newBboxes });
+          const registeredBboxes = newBboxes.filter((b: any) => b.isRegistered);
+          if (registeredBboxes.length > 0) {
+            await updateAnnotations.mutateAsync({ imageId: img.id, annotations: registeredBboxes });
             annotatedCount++;
           }
         } catch { /* continue */ }
@@ -627,11 +630,12 @@ export default function Training() {
       id: crypto.randomUUID(),
       classId: matchedClass?.id || '',
       className: matchedClass?.name || String(predLabel),
-      color: matchedClass?.color || '#3B82F6',
+      color: matchedClass?.color || '#9CA3AF',
       x: Math.max(0, bx),
       y: Math.max(0, by),
       w: Math.min(1 - Math.max(0, bx), bw),
       h: Math.min(1 - Math.max(0, by), bh),
+      isRegistered: !!matchedClass,
     };
   });
 
@@ -738,8 +742,9 @@ export default function Training() {
         const predictions = result.predictions || result.annotations || [];
         const boxes = toAnnotationBoxes(predictions);
 
+        const registeredBoxes = boxes.filter(b => b.isRegistered);
         try {
-          await updateAnnotations.mutateAsync({ imageId: resolvedImage.id, annotations: boxes });
+          await updateAnnotations.mutateAsync({ imageId: resolvedImage.id, annotations: registeredBoxes });
           saved += 1;
         } catch {
           failed += 1;
@@ -876,6 +881,7 @@ export default function Training() {
       id: crypto.randomUUID(),
       classId: cls.id, className: cls.name, color: cls.color,
       x, y, w, h,
+      isRegistered: true,
     }]);
     setDrawing(false);
     setDrawStart(null);
@@ -897,8 +903,9 @@ export default function Training() {
 
   const saveAnnotations = async () => {
     if (!annotatingImage) return;
-    await updateAnnotations.mutateAsync({ imageId: annotatingImage.id, annotations: bboxes as any });
-    toast({ title: 'Annotations saved' });
+    const registeredOnly = bboxes.filter(b => b.isRegistered);
+    await updateAnnotations.mutateAsync({ imageId: annotatingImage.id, annotations: registeredOnly as any });
+    toast({ title: 'Annotations saved', description: registeredOnly.length < bboxes.length ? `${bboxes.length - registeredOnly.length} unregistered detection(s) excluded.` : undefined });
   };
 
   // ─── Auto-annotate ────────────────────────────────────
@@ -924,11 +931,12 @@ export default function Training() {
           id: crypto.randomUUID(),
           classId: matchedClass?.id || '',
           className: matchedClass?.name || predLabel,
-          color: matchedClass?.color || '#3B82F6',
+          color: matchedClass?.color || '#9CA3AF',
           x: Math.max(0, bx),
           y: Math.max(0, by),
           w: Math.min(1 - Math.max(0, bx), bw),
           h: Math.min(1 - Math.max(0, by), bh),
+          isRegistered: !!matchedClass,
         };
       });
 
@@ -1644,7 +1652,7 @@ export default function Training() {
                   {bboxes.map(box => (
                     <div
                       key={box.id}
-                      className="absolute border-2 group/box"
+                      className={`absolute group/box ${box.isRegistered ? 'border-2' : 'border-2 border-dashed'}`}
                       style={{
                         left: `${box.x * 100}%`, top: `${box.y * 100}%`,
                         width: `${box.w * 100}%`, height: `${box.h * 100}%`,
@@ -1653,7 +1661,7 @@ export default function Training() {
                       onDoubleClick={(e) => { e.stopPropagation(); handleBboxDoubleClick(box.id); }}
                     >
                       <span className="absolute -top-5 left-0 text-[10px] font-medium px-1 rounded text-white whitespace-nowrap" style={{ backgroundColor: box.color }}>
-                        {box.className}
+                        {box.className}{!box.isRegistered && ' (unregistered)'}
                       </span>
                       <button
                         className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover/box:opacity-100 transition-opacity"
@@ -1727,7 +1735,7 @@ export default function Training() {
                         <div key={b.id} className="flex items-center justify-between text-xs px-1 py-1 rounded hover:bg-secondary">
                           <div className="flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: b.color }} />
-                            <span className="text-foreground">{b.className}</span>
+                            <span className="text-foreground">{b.className}{!b.isRegistered && <span className="text-muted-foreground ml-1 italic">(unregistered)</span>}</span>
                           </div>
                           <button onClick={() => removeBbox(b.id)} className="text-muted-foreground hover:text-destructive">
                             <X className="w-3 h-3" />
