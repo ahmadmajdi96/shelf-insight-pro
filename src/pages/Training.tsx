@@ -1775,7 +1775,7 @@ export default function Training() {
                 </div>
               )}
 
-
+              {imageSets.length === 0 ? (
                 <div className="text-center py-16 text-muted-foreground rounded-xl bg-card border border-border">
                   <Package className="w-12 h-12 mx-auto mb-3 opacity-40" />
                   <p>No image sets yet. Click "Upload Images" to create a set.</p>
