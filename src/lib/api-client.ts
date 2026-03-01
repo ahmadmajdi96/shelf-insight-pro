@@ -319,7 +319,7 @@ export const storage = {
   },
 
   getPublicUrl(bucket: string, path: string) {
-    return `${getApiBaseUrl()}/storage/v1/object/${bucket}/${path}`;
+    return `${getApiBaseUrl()}/storage/v1/object/public/${bucket}/${path}`;
   },
 };
 
