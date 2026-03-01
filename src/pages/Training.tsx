@@ -1733,7 +1733,7 @@ export default function Training() {
                         <div key={b.id} className="flex items-center justify-between text-xs px-1 py-1 rounded hover:bg-secondary">
                           <div className="flex items-center gap-1.5">
                             <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: b.color }} />
-                            <span className="text-foreground">{b.className}</span>
+                            <span className="text-foreground">{b.className}{!b.isRegistered && <span className="text-muted-foreground ml-1 italic">(unregistered)</span>}</span>
                           </div>
                           <button onClick={() => removeBbox(b.id)} className="text-muted-foreground hover:text-destructive">
                             <X className="w-3 h-3" />
