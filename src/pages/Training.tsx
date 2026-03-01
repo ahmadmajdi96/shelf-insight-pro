@@ -114,9 +114,13 @@ const AUTO_ANNOTATE_BATCH_STATUS_CONFIG: Record<AutoAnnotateBatchStatus, { label
 };
 
 const INFERENCING_ENDPOINT_STORAGE_KEY = 'shelfvision_inferencing_endpoint';
-const AUTO_ANNOTATE_POLL_INTERVAL_MS = 5000;
+const AUTO_ANNOTATE_POLL_INTERVAL_MS_DEFAULT = 5000;
+const AUTO_ANNOTATE_POLL_INTERVAL_MS_FAST = 2000;
+const AUTO_ANNOTATE_FAST_THRESHOLD = 20; // use fast polling for chunks <= this size
 const AUTO_ANNOTATE_MAX_POLL_ATTEMPTS = 360;
 const AUTO_ANNOTATE_BATCH_SIZE = 50;
+const AUTO_ANNOTATE_DIM_CONCURRENCY = 10; // parallel image dimension fetches
+const AUTO_ANNOTATE_SAVE_CONCURRENCY = 8; // parallel DB save calls
 
 const DEFAULT_TRAINING_CONFIG = {
   seed: 42,
