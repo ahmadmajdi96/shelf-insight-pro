@@ -48,6 +48,7 @@ import {
   useDatasets, useDatasetImages, useDatasetClasses, useTrainingJobs,
   type Dataset, type DatasetImage, type DatasetClass,
 } from '@/hooks/useDatasets';
+import { useImageSets, useImageSetUpload, type ImageSet } from '@/hooks/useImageSets';
 import { getApiBaseUrl } from '@/lib/api-config';
 
 // Convert private backend storage URLs to public Supabase storage URLs
