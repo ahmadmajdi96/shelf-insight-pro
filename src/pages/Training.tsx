@@ -677,7 +677,7 @@ export default function Training() {
           image_set_ids: Array.from(selectedSetIds),
           images: selectedImages.map(img => ({
             image_id: img.id,
-            image_url: img.image_url,
+            image_url: toPublicStorageUrl(img.image_url),
             file_name: img.file_name,
           })),
           classes: annotationClasses.map(c => ({ id: c.id, name: c.name })),
