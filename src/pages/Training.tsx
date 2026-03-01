@@ -114,9 +114,13 @@ const AUTO_ANNOTATE_BATCH_STATUS_CONFIG: Record<AutoAnnotateBatchStatus, { label
 };
 
 const INFERENCING_ENDPOINT_STORAGE_KEY = 'shelfvision_inferencing_endpoint';
-const AUTO_ANNOTATE_POLL_INTERVAL_MS = 5000;
+const AUTO_ANNOTATE_POLL_INTERVAL_MS_DEFAULT = 5000;
+const AUTO_ANNOTATE_POLL_INTERVAL_MS_FAST = 2000;
+const AUTO_ANNOTATE_FAST_THRESHOLD = 20; // use fast polling for chunks <= this size
 const AUTO_ANNOTATE_MAX_POLL_ATTEMPTS = 360;
 const AUTO_ANNOTATE_BATCH_SIZE = 50;
+const AUTO_ANNOTATE_DIM_CONCURRENCY = 10; // parallel image dimension fetches
+const AUTO_ANNOTATE_SAVE_CONCURRENCY = 8; // parallel DB save calls
 
 const DEFAULT_TRAINING_CONFIG = {
   seed: 42,
@@ -878,9 +882,13 @@ export default function Training() {
           let attempts = 0;
           const maxAttemptsForChunk = Math.max(AUTO_ANNOTATE_MAX_POLL_ATTEMPTS, Math.ceil(chunk.length / 10) * 60);
 
+          const pollInterval = chunk.length <= AUTO_ANNOTATE_FAST_THRESHOLD
+            ? AUTO_ANNOTATE_POLL_INTERVAL_MS_FAST
+            : AUTO_ANNOTATE_POLL_INTERVAL_MS_DEFAULT;
+
           while (attempts < maxAttemptsForChunk) {
             attempts += 1;
-            await sleep(AUTO_ANNOTATE_POLL_INTERVAL_MS);
+            await sleep(pollInterval);
 
             setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'polling' }));
             updateBatchProgress(chunkIndex, { status: 'polling', jobId });
@@ -918,6 +926,34 @@ export default function Training() {
           }));
           updateBatchProgress(chunkIndex, { status: 'saving', processed: chunk.length });
 
+          // --- Helper: fetch image dimensions with auth ---
+          const fetchImageDims = async (imageUrl: string): Promise<{ w: number; h: number }> => {
+            return new Promise<{ w: number; h: number }>((resolve, reject) => {
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+              let objectUrl = '';
+              img.onload = () => {
+                const payload = { w: img.naturalWidth, h: img.naturalHeight };
+                if (objectUrl) URL.revokeObjectURL(objectUrl);
+                resolve(payload);
+              };
+              img.onerror = () => {
+                if (objectUrl) URL.revokeObjectURL(objectUrl);
+                reject(new Error('Failed to load image'));
+              };
+              const h: Record<string, string> = {};
+              if (apiKey) h['apikey'] = apiKey;
+              if (token) h['Authorization'] = `Bearer ${token}`;
+              fetch(imageUrl, { headers: h })
+                .then(r => { if (!r.ok) throw new Error('fetch failed'); return r.blob(); })
+                .then(blob => { objectUrl = URL.createObjectURL(blob); img.src = objectUrl; })
+                .catch(reject);
+            });
+          };
+
+          // --- Resolve images and split into items needing dims vs not ---
+          type ResolvedResult = { result: any; image: DatasetImage; needsDims: boolean };
+          const resolvedResults: ResolvedResult[] = [];
           for (const result of results) {
             const extractedId = extractImageId(result);
             const resolvedImage =
@@ -928,68 +964,51 @@ export default function Training() {
               failed += 1;
               continue;
             }
+            const hasDims = !!(result.image?.width && result.image?.height) || !!(result.image_width && result.image_height);
+            resolvedResults.push({ result, image: resolvedImage, needsDims: !hasDims });
+          }
 
-            // Load actual image dimensions for accurate bbox normalization
+          // --- Phase 1: Parallel dimension fetching with concurrency limit ---
+          const dimCache = new Map<string, { w: number; h: number }>();
+          const needDims = resolvedResults.filter(r => r.needsDims);
+          for (let i = 0; i < needDims.length; i += AUTO_ANNOTATE_DIM_CONCURRENCY) {
+            if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+            const batch = needDims.slice(i, i + AUTO_ANNOTATE_DIM_CONCURRENCY);
+            const dimResults = await Promise.allSettled(
+              batch.map(r => fetchImageDims(r.image.image_url).then(d => ({ id: r.image.id, dims: d })))
+            );
+            for (const dr of dimResults) {
+              if (dr.status === 'fulfilled') dimCache.set(dr.value.id, dr.value.dims);
+            }
+          }
+
+          // --- Phase 2: Build all annotation payloads ---
+          type SaveItem = { imageId: string; annotations: any[] };
+          const saveItems: SaveItem[] = [];
+          for (const { result, image, needsDims: nd } of resolvedResults) {
             let imgWidth = result.image?.width || result.image_width;
             let imgHeight = result.image?.height || result.image_height;
-            if (!imgWidth || !imgHeight) {
-              try {
-                const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
-                  const img = new Image();
-                  img.crossOrigin = 'anonymous';
-                  let objectUrl = '';
-
-                  img.onload = () => {
-                    const payload = { w: img.naturalWidth, h: img.naturalHeight };
-                    if (objectUrl) URL.revokeObjectURL(objectUrl);
-                    resolve(payload);
-                  };
-                  img.onerror = () => {
-                    if (objectUrl) URL.revokeObjectURL(objectUrl);
-                    reject(new Error('Failed to load image for dimensions'));
-                  };
-
-                  const token = localStorage.getItem('shelfvision_access_token');
-                  const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
-                  const headers: Record<string, string> = {};
-                  if (apiKey) headers['apikey'] = apiKey;
-                  if (token) headers['Authorization'] = `Bearer ${token}`;
-
-                  fetch(resolvedImage.image_url, { headers })
-                    .then(r => {
-                      if (!r.ok) throw new Error('Failed to fetch image bytes');
-                      return r.blob();
-                    })
-                    .then(blob => {
-                      objectUrl = URL.createObjectURL(blob);
-                      img.src = objectUrl;
-                    })
-                    .catch(reject);
-                });
-                imgWidth = dims.w;
-                imgHeight = dims.h;
-              } catch {
-                // fallback: leave undefined, toAnnotationBoxes will use 640
-              }
+            if (nd) {
+              const cached = dimCache.get(image.id);
+              if (cached) { imgWidth = cached.w; imgHeight = cached.h; }
             }
-
             const predictions = result.predictions || result.annotations || result.objects || [];
             const boxes = toAnnotationBoxes(predictions, { width: imgWidth, height: imgHeight });
+            saveItems.push({ imageId: image.id, annotations: boxes as any[] });
+          }
 
-            try {
-              await updateAnnotations.mutateAsync({ imageId: resolvedImage.id, annotations: boxes });
-              chunkSaved += 1;
-              saved += 1;
-            } catch {
-              chunkFailed += 1;
-              failed += 1;
+          // --- Phase 3: Parallel DB saves with concurrency limit ---
+          for (let i = 0; i < saveItems.length; i += AUTO_ANNOTATE_SAVE_CONCURRENCY) {
+            if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+            const batch = saveItems.slice(i, i + AUTO_ANNOTATE_SAVE_CONCURRENCY);
+            const saveResults = await Promise.allSettled(
+              batch.map(item => updateAnnotations.mutateAsync(item))
+            );
+            for (const sr of saveResults) {
+              if (sr.status === 'fulfilled') { chunkSaved++; saved++; }
+              else { chunkFailed++; failed++; }
             }
-
-            updateBatchProgress(chunkIndex, {
-              status: 'saving',
-              saved: chunkSaved,
-              failed: chunkFailed,
-            });
+            updateBatchProgress(chunkIndex, { status: 'saving', saved: chunkSaved, failed: chunkFailed });
             setSelectedSetsAutoAnnotate(prev => ({ ...prev, saved, failed }));
           }
 
