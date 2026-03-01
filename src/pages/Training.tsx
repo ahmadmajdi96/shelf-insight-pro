@@ -882,9 +882,13 @@ export default function Training() {
           let attempts = 0;
           const maxAttemptsForChunk = Math.max(AUTO_ANNOTATE_MAX_POLL_ATTEMPTS, Math.ceil(chunk.length / 10) * 60);
 
+          const pollInterval = chunk.length <= AUTO_ANNOTATE_FAST_THRESHOLD
+            ? AUTO_ANNOTATE_POLL_INTERVAL_MS_FAST
+            : AUTO_ANNOTATE_POLL_INTERVAL_MS_DEFAULT;
+
           while (attempts < maxAttemptsForChunk) {
             attempts += 1;
-            await sleep(AUTO_ANNOTATE_POLL_INTERVAL_MS);
+            await sleep(pollInterval);
 
             setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'polling' }));
             updateBatchProgress(chunkIndex, { status: 'polling', jobId });
