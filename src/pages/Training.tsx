@@ -756,7 +756,7 @@ export default function Training() {
       setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'saving' }));
 
       const imagesById = new Map(selectedImages.map(img => [img.id, img]));
-      const imagesByUrl = new Map(selectedImages.map(img => [img.image_url, img]));
+      const imagesByUrl = new Map(selectedImages.flatMap(img => [[img.image_url, img], [toInferencingImageUrl(img.image_url), img]]));
       const imagesByFileName = new Map(selectedImages.map(img => [img.file_name, img]));
 
       let saved = 0;
