@@ -103,6 +103,21 @@ const SELECTED_SETS_AUTO_ANNOTATE_INITIAL = {
   batches: [] as AutoAnnotateBatchProgress[],
 };
 
+const AUTO_ANNOTATE_PERSIST_KEY = 'shelfvision_auto_annotate_jobs';
+
+interface PersistedAutoAnnotateJob {
+  datasetId: string;
+  endpoint: string;
+  batches: {
+    jobId: string;
+    imageIds: string[];
+    status: 'polling' | 'completed' | 'failed';
+  }[];
+  startedAt: string;
+  totalImages: number;
+  selectedSetIds: string[];
+}
+
 const AUTO_ANNOTATE_BATCH_STATUS_CONFIG: Record<AutoAnnotateBatchStatus, { label: string; className: string }> = {
   pending: { label: 'Pending', className: 'bg-muted text-muted-foreground border-border' },
   submitting: { label: 'Submitting', className: 'bg-warning/10 text-warning border-warning/30' },
