@@ -1,7 +1,7 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { cn } from '@/lib/utils';
 import { ImageIcon } from 'lucide-react';
-import { getApiBaseUrl } from '@/lib/api-config';
+import { resolveImageUrl, shouldFetchWithAuth } from '@/lib/image-url';
 
 interface AuthImageProps {
   src: string;
@@ -11,19 +11,12 @@ interface AuthImageProps {
   onLoad?: (e: React.SyntheticEvent<HTMLImageElement>) => void;
 }
 
-function needsAuth(url: string): boolean {
-  try {
-    const base = new URL(getApiBaseUrl()).origin;
-    return new URL(url).origin === base;
-  } catch {
-    return false;
-  }
-}
-
 export function AuthImage({ src, alt, className, draggable, onLoad }: AuthImageProps) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(false);
+
+  const resolvedSrc = useMemo(() => resolveImageUrl(src), [src]);
 
   useEffect(() => {
     let cancelled = false;
@@ -33,9 +26,9 @@ export function AuthImage({ src, alt, className, draggable, onLoad }: AuthImageP
     setError(false);
     setBlobUrl(null);
 
-    // If URL doesn't need auth, use it directly
-    if (!needsAuth(src)) {
-      setBlobUrl(src);
+    // Public/external URLs can be used directly.
+    if (!shouldFetchWithAuth(resolvedSrc)) {
+      setBlobUrl(resolvedSrc);
       setLoading(false);
       return;
     }
@@ -43,7 +36,7 @@ export function AuthImage({ src, alt, className, draggable, onLoad }: AuthImageP
     const fetchImage = async () => {
       try {
         const token = localStorage.getItem('shelfvision_access_token');
-        const res = await fetch(src, {
+        const res = await fetch(resolvedSrc, {
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
@@ -55,7 +48,11 @@ export function AuthImage({ src, alt, className, draggable, onLoad }: AuthImageP
         objectUrl = URL.createObjectURL(blob);
         setBlobUrl(objectUrl);
       } catch {
-        if (!cancelled) setError(true);
+        if (!cancelled) {
+          // Final fallback to direct URL rendering.
+          setBlobUrl(resolvedSrc);
+          setError(false);
+        }
       } finally {
         if (!cancelled) setLoading(false);
       }
@@ -67,7 +64,7 @@ export function AuthImage({ src, alt, className, draggable, onLoad }: AuthImageP
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [src]);
+  }, [resolvedSrc]);
 
   if (loading) {
     return (
@@ -87,3 +84,4 @@ export function AuthImage({ src, alt, className, draggable, onLoad }: AuthImageP
 
   return <img src={blobUrl} alt={alt || ''} className={className} draggable={draggable} onLoad={onLoad} />;
 }
+

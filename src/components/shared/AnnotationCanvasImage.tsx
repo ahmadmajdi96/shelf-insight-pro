@@ -1,37 +1,29 @@
-import { useState, useEffect, MutableRefObject } from 'react';
-import { getApiBaseUrl } from '@/lib/api-config';
+import { useState, useEffect, useMemo, MutableRefObject } from 'react';
+import { resolveImageUrl, shouldFetchWithAuth } from '@/lib/image-url';
 
 interface Props {
   imgRef: MutableRefObject<HTMLImageElement | null>;
   src: string;
 }
 
-function needsAuth(url: string): boolean {
-  try {
-    const base = new URL(getApiBaseUrl()).origin;
-    return new URL(url).origin === base;
-  } catch {
-    return false;
-  }
-}
-
 export function AnnotationCanvasImage({ imgRef, src }: Props) {
   const [blobUrl, setBlobUrl] = useState<string | null>(null);
+  const resolvedSrc = useMemo(() => resolveImageUrl(src), [src]);
 
   useEffect(() => {
     let cancelled = false;
     let objectUrl: string | null = null;
 
-    // If URL doesn't need auth, use it directly
-    if (!needsAuth(src)) {
-      setBlobUrl(src);
+    // Public/external URLs can be used directly.
+    if (!shouldFetchWithAuth(resolvedSrc)) {
+      setBlobUrl(resolvedSrc);
       return;
     }
 
     const fetchImage = async () => {
       try {
         const token = localStorage.getItem('shelfvision_access_token');
-        const res = await fetch(src, {
+        const res = await fetch(resolvedSrc, {
           headers: {
             ...(token ? { Authorization: `Bearer ${token}` } : {}),
             apikey: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '',
@@ -43,7 +35,10 @@ export function AnnotationCanvasImage({ imgRef, src }: Props) {
         objectUrl = URL.createObjectURL(blob);
         setBlobUrl(objectUrl);
       } catch {
-        // silently fail
+        if (!cancelled) {
+          // Final fallback to direct URL rendering.
+          setBlobUrl(resolvedSrc);
+        }
       }
     };
 
@@ -52,7 +47,7 @@ export function AnnotationCanvasImage({ imgRef, src }: Props) {
       cancelled = true;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [src]);
+  }, [resolvedSrc]);
 
   if (!blobUrl) return <div className="w-full h-48 bg-muted animate-pulse rounded" />;
 
@@ -66,3 +61,4 @@ export function AnnotationCanvasImage({ imgRef, src }: Props) {
     />
   );
 }
+
