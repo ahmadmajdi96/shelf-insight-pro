@@ -742,13 +742,13 @@ export default function Training() {
         setSelectedSetsAutoAnnotate(prev => ({ ...prev, processed: Math.min(prev.total, processed) }));
 
         const jobStatus = String(statusData.status || '').toLowerCase();
-        if (['completed', 'done', 'success'].includes(jobStatus)) break;
+        if (['completed', 'done', 'success', 'succeeded'].includes(jobStatus)) break;
         if (['failed', 'error', 'cancelled'].includes(jobStatus)) {
           throw new Error(statusData?.error || 'Auto-annotation job failed');
         }
       }
 
-      if (!statusData || !['completed', 'done', 'success'].includes(String(statusData.status || '').toLowerCase())) {
+      if (!statusData || !['completed', 'done', 'success', 'succeeded'].includes(String(statusData.status || '').toLowerCase())) {
         throw new Error('Auto-annotation job timed out');
       }
 
@@ -756,31 +756,64 @@ export default function Training() {
       setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'saving' }));
 
       const imagesById = new Map(selectedImages.map(img => [img.id, img]));
-      const imagesByUrl = new Map(selectedImages.flatMap(img => [[img.image_url, img], [toInferencingImageUrl(img.image_url), img]]));
       const imagesByFileName = new Map(selectedImages.map(img => [img.file_name, img]));
+
+      // Extract image_id from image_rel path pattern: {jobId}/input/{idx}_{imageId}_{fileName}
+      const extractImageId = (result: any): string | null => {
+        const rel = result.image_rel || '';
+        const match = rel.match(/\d+_([0-9a-f-]{36})_/);
+        return match ? match[1] : null;
+      };
 
       let saved = 0;
       let failed = 0;
 
       for (const result of results) {
+        const extractedId = extractImageId(result);
         const resolvedImage =
-          imagesById.get(result.image_id || result.imageId) ||
-          imagesByUrl.get(result.image_url || result.imageUrl || result.source_url || result.sourceUrl) ||
+          imagesById.get(result.image_id || result.imageId || extractedId) ||
           imagesByFileName.get(result.file_name || result.fileName);
         if (!resolvedImage) {
           failed += 1;
           continue;
         }
 
+        // Load actual image dimensions for accurate bbox normalization
+        let imgWidth = result.image?.width || result.image_width;
+        let imgHeight = result.image?.height || result.image_height;
+        if (!imgWidth || !imgHeight) {
+          try {
+            const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+              img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
+              img.onerror = () => reject(new Error('Failed to load image for dimensions'));
+              // Use authenticated fetch to get image as blob
+              const token = localStorage.getItem('shelfvision_access_token');
+              const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
+              const headers: Record<string, string> = {};
+              if (apiKey) headers['apikey'] = apiKey;
+              if (token) headers['Authorization'] = `Bearer ${token}`;
+              fetch(resolvedImage.image_url, { headers })
+                .then(r => r.blob())
+                .then(blob => { img.src = URL.createObjectURL(blob); })
+                .catch(reject);
+            });
+            imgWidth = dims.w;
+            imgHeight = dims.h;
+          } catch {
+            // fallback: leave undefined, toAnnotationBoxes will use 640
+          }
+        }
+
         const predictions = result.predictions || result.annotations || result.objects || [];
-        const boxes = toAnnotationBoxes(predictions, {
-          width: result.image?.width || result.image_width,
-          height: result.image?.height || result.image_height,
-        });
+        const boxes = toAnnotationBoxes(predictions, { width: imgWidth, height: imgHeight });
 
         const registeredBoxes = boxes.filter(b => b.isRegistered);
+        // Save ALL boxes (registered + unregistered) so they appear in annotation view
+        const allBoxes = boxes;
         try {
-          await updateAnnotations.mutateAsync({ imageId: resolvedImage.id, annotations: registeredBoxes });
+          await updateAnnotations.mutateAsync({ imageId: resolvedImage.id, annotations: allBoxes });
           saved += 1;
         } catch {
           failed += 1;
