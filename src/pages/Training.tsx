@@ -669,7 +669,7 @@ export default function Training() {
     });
 
     try {
-      const submitResponse = await fetch(`${endpoint}/jobs/auto-annotate`, {
+      const submitResponse = await fetch(`${endpoint}/v1/jobs/batch`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
