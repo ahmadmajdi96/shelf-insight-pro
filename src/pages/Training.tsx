@@ -879,6 +879,7 @@ export default function Training() {
       id: crypto.randomUUID(),
       classId: cls.id, className: cls.name, color: cls.color,
       x, y, w, h,
+      isRegistered: true,
     }]);
     setDrawing(false);
     setDrawStart(null);
