@@ -1776,20 +1776,56 @@ export default function Training() {
                       ({images.filter(img => selectedSetIds.has((img as any).image_set_id)).length} total images)
                     </span>
                     {selectedSetsAutoAnnotate.running && (
-                      <div className="flex flex-wrap items-center gap-2 mt-2">
-                        <Badge variant="outline" className="text-[10px] gap-1">
-                          <Loader2 className="w-3 h-3 animate-spin" /> {selectedSetsAutoAnnotate.stage}
-                        </Badge>
-                        {selectedSetsAutoAnnotate.jobId && (
-                          <Badge variant="secondary" className="text-[10px]">
-                            Job: {selectedSetsAutoAnnotate.jobId.slice(0, 8)}…
+                      <div className="mt-2 space-y-2">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <Badge variant="outline" className="text-[10px] gap-1">
+                            <Loader2 className="w-3 h-3 animate-spin" /> {selectedSetsAutoAnnotate.stage}
                           </Badge>
-                        )}
-                        <Badge variant="secondary" className="text-[10px]">Processed: {selectedSetsAutoAnnotate.processed}/{selectedSetsAutoAnnotate.total}</Badge>
-                        <Badge variant="default" className="text-[10px]">Saved: {selectedSetsAutoAnnotate.saved}</Badge>
-                        {selectedSetsAutoAnnotate.failed > 0 && (
-                          <Badge variant="destructive" className="text-[10px]">Failed: {selectedSetsAutoAnnotate.failed}</Badge>
-                        )}
+                          <Badge variant="secondary" className="text-[10px]">
+                            Batch {Math.max(1, selectedSetsAutoAnnotate.currentBatch)}/{Math.max(1, selectedSetsAutoAnnotate.totalBatches)}
+                          </Badge>
+                          {selectedSetsAutoAnnotate.jobId && (
+                            <Badge variant="secondary" className="text-[10px]">
+                              Job: {selectedSetsAutoAnnotate.jobId.slice(0, 8)}…
+                            </Badge>
+                          )}
+                          <Badge variant="secondary" className="text-[10px]">Processed: {selectedSetsAutoAnnotate.processed}/{selectedSetsAutoAnnotate.total}</Badge>
+                          <Badge variant="default" className="text-[10px]">Saved: {selectedSetsAutoAnnotate.saved}</Badge>
+                          {selectedSetsAutoAnnotate.failed > 0 && (
+                            <Badge variant="destructive" className="text-[10px]">Failed: {selectedSetsAutoAnnotate.failed}</Badge>
+                          )}
+                        </div>
+
+                        <div className="space-y-1">
+                          <Progress
+                            value={selectedSetsAutoAnnotate.total > 0 ? (selectedSetsAutoAnnotate.processed / selectedSetsAutoAnnotate.total) * 100 : 0}
+                            className="h-2"
+                          />
+                          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+                            <span>Overall progress</span>
+                            <span>
+                              {selectedSetsAutoAnnotate.total > 0
+                                ? `${Math.round((selectedSetsAutoAnnotate.processed / selectedSetsAutoAnnotate.total) * 100)}%`
+                                : '0%'}
+                            </span>
+                          </div>
+                        </div>
+
+                        <div className="rounded-lg border border-border bg-card/70 p-2">
+                          <p className="text-[10px] text-muted-foreground mb-1">Per-batch status</p>
+                          <div className="flex flex-wrap gap-1.5">
+                            {selectedSetsAutoAnnotate.batches.map((batch) => (
+                              <Badge
+                                key={batch.index}
+                                variant="outline"
+                                title={batch.error || undefined}
+                                className={cn("text-[10px] border", AUTO_ANNOTATE_BATCH_STATUS_CONFIG[batch.status].className)}
+                              >
+                                B{batch.index}: {AUTO_ANNOTATE_BATCH_STATUS_CONFIG[batch.status].label} · {batch.processed}/{batch.total}
+                              </Badge>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     )}
                   </div>
