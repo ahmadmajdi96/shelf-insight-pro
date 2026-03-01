@@ -1639,7 +1639,7 @@ export default function Training() {
                   onMouseUp={handleCanvasMouseUp}
                   onMouseLeave={() => { if (drawing) { setDrawing(false); setDrawStart(null); setDrawCurrent(null); } }}
                 >
-                  <AuthImage ref={imgRef} src={annotatingImage.image_url} alt="" className="w-full h-auto block" draggable={false} />
+                  <AnnotationImage imgRef={imgRef} src={annotatingImage.image_url} />
                   {bboxes.map(box => (
                     <div
                       key={box.id}
