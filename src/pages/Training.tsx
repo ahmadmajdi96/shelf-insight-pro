@@ -482,7 +482,7 @@ export default function Training() {
     // Kick off resume
     resumeAutoAnnotation(persisted);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [selectedDatasetId, images.length, annotationClasses.length]);
+  }, [selectedDatasetId, images.length]);
 
   const resumeAutoAnnotation = async (persisted: PersistedAutoAnnotateJob) => {
     const endpoint = persisted.endpoint;
