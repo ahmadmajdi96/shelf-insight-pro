@@ -722,6 +722,17 @@ export default function Training() {
       imageChunks.push(selectedImages.slice(index, index + AUTO_ANNOTATE_BATCH_SIZE));
     }
 
+    const buildInitialBatchState = (chunk: DatasetImage[], index: number): AutoAnnotateBatchProgress => ({
+      index: index + 1,
+      total: chunk.length,
+      processed: 0,
+      saved: 0,
+      failed: 0,
+      status: 'pending',
+      jobId: null,
+      error: null,
+    });
+
     setSelectedSetsAutoAnnotate({
       running: true,
       stage: 'submitting',
@@ -730,7 +741,49 @@ export default function Training() {
       processed: 0,
       saved: 0,
       failed: 0,
+      currentBatch: 0,
+      totalBatches: imageChunks.length,
+      batches: imageChunks.map(buildInitialBatchState),
     });
+
+    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
+    const parseJsonSafe = async (response: Response) => {
+      const text = await response.text();
+      if (!text) return {};
+      try {
+        return JSON.parse(text);
+      } catch {
+        return { message: text };
+      }
+    };
+
+    const fetchJsonWithRetry = async (url: string, init?: RequestInit, retries = 2): Promise<any> => {
+      let lastError: Error | null = null;
+      for (let attempt = 0; attempt <= retries; attempt += 1) {
+        try {
+          const response = await fetch(url, init);
+          const data = await parseJsonSafe(response);
+          if (!response.ok) {
+            throw new Error(data?.error || data?.detail || data?.message || `Request failed (${response.status})`);
+          }
+          return data;
+        } catch (error: any) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+          if (attempt === retries) break;
+          await sleep(1000 * (attempt + 1));
+        }
+      }
+      throw lastError || new Error('Request failed');
+    };
+
+    const updateBatchProgress = (batchIndex: number, patch: Partial<AutoAnnotateBatchProgress>) => {
+      setSelectedSetsAutoAnnotate(prev => ({
+        ...prev,
+        currentBatch: batchIndex + 1,
+        batches: prev.batches.map((batch, idx) => (idx === batchIndex ? { ...batch, ...patch } : batch)),
+      }));
+    };
 
     try {
       const imagesById = new Map(selectedImages.map(img => [img.id, img]));
@@ -746,140 +799,204 @@ export default function Training() {
       let saved = 0;
       let failed = 0;
       let processedOverall = 0;
+      let failedBatches = 0;
 
-      for (const chunk of imageChunks) {
-        setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'submitting' }));
+      for (let chunkIndex = 0; chunkIndex < imageChunks.length; chunkIndex += 1) {
+        const chunk = imageChunks[chunkIndex];
+        let chunkSaved = 0;
+        let chunkFailed = 0;
 
-        const chunkSetIds = Array.from(new Set(chunk.map(img => (img as any).image_set_id).filter(Boolean)));
+        try {
+          setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'submitting', currentBatch: chunkIndex + 1 }));
+          updateBatchProgress(chunkIndex, { status: 'submitting', error: null });
 
-        const submitResponse = await fetch(`${endpoint}/v1/jobs/batch`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            dataset_id: selectedDatasetId,
-            image_set_ids: chunkSetIds,
-            images: chunk.map(img => ({
-              image_id: img.id,
-              image_url: toInferencingImageUrl(img.image_url),
-              file_name: img.file_name,
-            })),
-            classes: annotationClasses.map(c => ({ id: c.id, name: c.name })),
-          }),
-        });
+          const chunkSetIds = Array.from(new Set(chunk.map(img => (img as any).image_set_id).filter(Boolean)));
 
-        const submitData = await submitResponse.json();
-        if (!submitResponse.ok) {
-          throw new Error(submitData?.error || submitData?.detail || submitData?.message || 'Failed to submit auto-annotation job');
-        }
+          const submitData = await fetchJsonWithRetry(`${endpoint}/v1/jobs/batch`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              dataset_id: selectedDatasetId,
+              image_set_ids: chunkSetIds,
+              images: chunk.map(img => ({
+                image_id: img.id,
+                image_url: toInferencingImageUrl(img.image_url),
+                file_name: img.file_name,
+              })),
+              classes: annotationClasses.map(c => ({ id: c.id, name: c.name })),
+            }),
+          }, 3);
 
-        const jobId = submitData.job_id || submitData.jobId;
-        if (!jobId) throw new Error('Inference job response did not include job_id');
+          const jobId = submitData.job_id || submitData.jobId;
+          if (!jobId) throw new Error('Inference job response did not include job_id');
 
-        setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'queued', jobId }));
+          setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'queued', jobId }));
+          updateBatchProgress(chunkIndex, { status: 'queued', jobId });
 
-        let statusData: any = null;
-        let attempts = 0;
-        const maxAttemptsForChunk = Math.max(AUTO_ANNOTATE_MAX_POLL_ATTEMPTS, Math.ceil(chunk.length / 10) * 60);
+          let statusData: any = null;
+          let attempts = 0;
+          const maxAttemptsForChunk = Math.max(AUTO_ANNOTATE_MAX_POLL_ATTEMPTS, Math.ceil(chunk.length / 10) * 60);
 
-        while (attempts < maxAttemptsForChunk) {
-          attempts += 1;
-          setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'polling' }));
+          while (attempts < maxAttemptsForChunk) {
+            attempts += 1;
+            await sleep(AUTO_ANNOTATE_POLL_INTERVAL_MS);
 
-          await new Promise(resolve => setTimeout(resolve, AUTO_ANNOTATE_POLL_INTERVAL_MS));
+            setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'polling' }));
+            updateBatchProgress(chunkIndex, { status: 'polling', jobId });
 
-          const statusResponse = await fetch(`${endpoint}/v1/jobs/${jobId}`);
-          statusData = await statusResponse.json();
-          if (!statusResponse.ok) {
-            throw new Error(statusData?.error || statusData?.detail || 'Failed to poll auto-annotation job');
-          }
+            statusData = await fetchJsonWithRetry(`${endpoint}/v1/jobs/${jobId}`, undefined, 2);
 
-          const processedChunk = Number(statusData.processed ?? statusData.progress?.processed ?? 0);
-          const safeProcessedChunk = Math.max(0, Math.min(chunk.length, processedChunk));
-          setSelectedSetsAutoAnnotate(prev => ({
-            ...prev,
-            processed: Math.min(prev.total, processedOverall + safeProcessedChunk),
-          }));
+            const processedChunk = Number(statusData.processed ?? statusData.progress?.processed ?? 0);
+            const safeProcessedChunk = Math.max(0, Math.min(chunk.length, processedChunk));
 
-          const jobStatus = String(statusData.status ?? statusData.state ?? statusData.job_status ?? '').toLowerCase();
-          console.log(`[auto-annotate] poll #${attempts} status=${jobStatus}`, statusData);
-          if (statusIsSuccess(jobStatus)) break;
-          if (statusIsFailure(jobStatus)) {
-            throw new Error(statusData?.error || statusData?.detail || 'Auto-annotation job failed');
-          }
-        }
+            updateBatchProgress(chunkIndex, { processed: safeProcessedChunk, status: 'polling' });
+            setSelectedSetsAutoAnnotate(prev => ({
+              ...prev,
+              processed: Math.min(prev.total, processedOverall + safeProcessedChunk),
+            }));
 
-        const finalStatus = String(statusData?.status ?? statusData?.state ?? statusData?.job_status ?? '').toLowerCase();
-        const results = (statusData?.results || statusData?.images || []) as any[];
-
-        if (!statusIsSuccess(finalStatus)) {
-          throw new Error('Auto-annotation job timed out');
-        }
-
-        setSelectedSetsAutoAnnotate(prev => ({
-          ...prev,
-          stage: 'saving',
-          processed: Math.min(prev.total, processedOverall + chunk.length),
-        }));
-
-        for (const result of results) {
-          const extractedId = extractImageId(result);
-          const resolvedImage =
-            imagesById.get(result.image_id || result.imageId || extractedId) ||
-            imagesByFileName.get(result.file_name || result.fileName);
-          if (!resolvedImage) {
-            failed += 1;
-            continue;
-          }
-
-          // Load actual image dimensions for accurate bbox normalization
-          let imgWidth = result.image?.width || result.image_width;
-          let imgHeight = result.image?.height || result.image_height;
-          if (!imgWidth || !imgHeight) {
-            try {
-              const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
-                const img = new Image();
-                img.crossOrigin = 'anonymous';
-                img.onload = () => resolve({ w: img.naturalWidth, h: img.naturalHeight });
-                img.onerror = () => reject(new Error('Failed to load image for dimensions'));
-                // Use authenticated fetch to get image as blob
-                const token = localStorage.getItem('shelfvision_access_token');
-                const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
-                const headers: Record<string, string> = {};
-                if (apiKey) headers['apikey'] = apiKey;
-                if (token) headers['Authorization'] = `Bearer ${token}`;
-                fetch(resolvedImage.image_url, { headers })
-                  .then(r => r.blob())
-                  .then(blob => { img.src = URL.createObjectURL(blob); })
-                  .catch(reject);
-              });
-              imgWidth = dims.w;
-              imgHeight = dims.h;
-            } catch {
-              // fallback: leave undefined, toAnnotationBoxes will use 640
+            const jobStatus = String(statusData.status ?? statusData.state ?? statusData.job_status ?? '').toLowerCase();
+            console.log(`[auto-annotate] poll #${attempts} status=${jobStatus}`, statusData);
+            if (statusIsSuccess(jobStatus)) break;
+            if (statusIsFailure(jobStatus)) {
+              throw new Error(statusData?.error || statusData?.detail || 'Auto-annotation job failed');
             }
           }
 
-          const predictions = result.predictions || result.annotations || result.objects || [];
-          const boxes = toAnnotationBoxes(predictions, { width: imgWidth, height: imgHeight });
+          const finalStatus = String(statusData?.status ?? statusData?.state ?? statusData?.job_status ?? '').toLowerCase();
+          const results = (statusData?.results || statusData?.images || []) as any[];
 
-          // Save ALL boxes (registered + unregistered) so they appear in annotation view
-          try {
-            await updateAnnotations.mutateAsync({ imageId: resolvedImage.id, annotations: boxes });
-            saved += 1;
-          } catch {
-            failed += 1;
+          if (!statusIsSuccess(finalStatus)) {
+            throw new Error('Auto-annotation job timed out');
           }
 
-          setSelectedSetsAutoAnnotate(prev => ({ ...prev, saved, failed }));
-        }
+          setSelectedSetsAutoAnnotate(prev => ({
+            ...prev,
+            stage: 'saving',
+            processed: Math.min(prev.total, processedOverall + chunk.length),
+          }));
+          updateBatchProgress(chunkIndex, { status: 'saving', processed: chunk.length });
 
-        processedOverall += chunk.length;
+          for (const result of results) {
+            const extractedId = extractImageId(result);
+            const resolvedImage =
+              imagesById.get(result.image_id || result.imageId || extractedId) ||
+              imagesByFileName.get(result.file_name || result.fileName);
+            if (!resolvedImage) {
+              chunkFailed += 1;
+              failed += 1;
+              continue;
+            }
+
+            // Load actual image dimensions for accurate bbox normalization
+            let imgWidth = result.image?.width || result.image_width;
+            let imgHeight = result.image?.height || result.image_height;
+            if (!imgWidth || !imgHeight) {
+              try {
+                const dims = await new Promise<{ w: number; h: number }>((resolve, reject) => {
+                  const img = new Image();
+                  img.crossOrigin = 'anonymous';
+                  let objectUrl = '';
+
+                  img.onload = () => {
+                    const payload = { w: img.naturalWidth, h: img.naturalHeight };
+                    if (objectUrl) URL.revokeObjectURL(objectUrl);
+                    resolve(payload);
+                  };
+                  img.onerror = () => {
+                    if (objectUrl) URL.revokeObjectURL(objectUrl);
+                    reject(new Error('Failed to load image for dimensions'));
+                  };
+
+                  const token = localStorage.getItem('shelfvision_access_token');
+                  const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
+                  const headers: Record<string, string> = {};
+                  if (apiKey) headers['apikey'] = apiKey;
+                  if (token) headers['Authorization'] = `Bearer ${token}`;
+
+                  fetch(resolvedImage.image_url, { headers })
+                    .then(r => {
+                      if (!r.ok) throw new Error('Failed to fetch image bytes');
+                      return r.blob();
+                    })
+                    .then(blob => {
+                      objectUrl = URL.createObjectURL(blob);
+                      img.src = objectUrl;
+                    })
+                    .catch(reject);
+                });
+                imgWidth = dims.w;
+                imgHeight = dims.h;
+              } catch {
+                // fallback: leave undefined, toAnnotationBoxes will use 640
+              }
+            }
+
+            const predictions = result.predictions || result.annotations || result.objects || [];
+            const boxes = toAnnotationBoxes(predictions, { width: imgWidth, height: imgHeight });
+
+            try {
+              await updateAnnotations.mutateAsync({ imageId: resolvedImage.id, annotations: boxes });
+              chunkSaved += 1;
+              saved += 1;
+            } catch {
+              chunkFailed += 1;
+              failed += 1;
+            }
+
+            updateBatchProgress(chunkIndex, {
+              status: 'saving',
+              saved: chunkSaved,
+              failed: chunkFailed,
+            });
+            setSelectedSetsAutoAnnotate(prev => ({ ...prev, saved, failed }));
+          }
+
+          processedOverall += chunk.length;
+          updateBatchProgress(chunkIndex, {
+            status: 'completed',
+            processed: chunk.length,
+            saved: chunkSaved,
+            failed: chunkFailed,
+          });
+          setSelectedSetsAutoAnnotate(prev => ({
+            ...prev,
+            processed: Math.min(prev.total, processedOverall),
+            saved,
+            failed,
+          }));
+        } catch (chunkError: any) {
+          failedBatches += 1;
+
+          processedOverall += chunk.length;
+          const remainingInChunk = Math.max(0, chunk.length - chunkSaved - chunkFailed);
+          chunkFailed += remainingInChunk;
+          failed += remainingInChunk;
+
+          const errorMessage = chunkError?.message || 'Batch failed';
+          updateBatchProgress(chunkIndex, {
+            status: 'failed',
+            processed: chunk.length,
+            saved: chunkSaved,
+            failed: chunkFailed,
+            error: errorMessage,
+          });
+          setSelectedSetsAutoAnnotate(prev => ({
+            ...prev,
+            processed: Math.min(prev.total, processedOverall),
+            saved,
+            failed,
+          }));
+
+          console.error(`[auto-annotate] batch ${chunkIndex + 1} failed`, chunkError);
+        }
       }
 
       qc.invalidateQueries({ queryKey: ['dataset-images', selectedDatasetId] });
       toast({
-        title: 'Auto-annotation complete',
-        description: `Saved annotations for ${saved}/${selectedImages.length} images${failed ? ` (${failed} failed)` : ''}.`,
+        title: failedBatches > 0 ? 'Auto-annotation finished with errors' : 'Auto-annotation complete',
+        description: `Saved annotations for ${saved}/${selectedImages.length} images${failed ? ` (${failed} failed)` : ''}${failedBatches ? ` across ${failedBatches}/${imageChunks.length} batches` : ''}.`,
+        variant: failedBatches > 0 && saved === 0 ? 'destructive' : undefined,
       });
     } catch (err: any) {
       toast({ title: 'Auto-annotate failed', description: err.message || 'Request failed', variant: 'destructive' });
