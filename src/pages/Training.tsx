@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { AuthImage } from '@/components/shared/AuthImage';
-import { useAuthenticatedImage } from '@/hooks/useAuthenticatedImage';
+import { AnnotationCanvasImage } from '@/components/shared/AnnotationCanvasImage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
