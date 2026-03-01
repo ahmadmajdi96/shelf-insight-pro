@@ -110,7 +110,10 @@ export function useDatasetImages(datasetId: string | null) {
         filters: { dataset_id: `eq.${datasetId}` },
         order: 'created_at.asc',
       });
-      return (data || []) as DatasetImage[];
+      return ((data || []) as DatasetImage[]).map(img => ({
+        ...img,
+        image_url: img.image_url.replace('/storage/v1/object/dataset-images/', '/storage/v1/object/public/dataset-images/'),
+      }));
     },
     enabled: !!datasetId,
   });
