@@ -742,6 +742,7 @@ export default function Training() {
         setSelectedSetsAutoAnnotate(prev => ({ ...prev, processed: Math.min(prev.total, processed) }));
 
         const jobStatus = String(statusData.status || '').toLowerCase();
+        console.log(`[auto-annotate] poll #${attempts} status=${jobStatus}`, statusData);
         if (['completed', 'done', 'success', 'succeeded'].includes(jobStatus)) break;
         if (['failed', 'error', 'cancelled'].includes(jobStatus)) {
           throw new Error(statusData?.error || 'Auto-annotation job failed');
