@@ -9,6 +9,7 @@ import {
   FolderPlus, Package, FileJson
 } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
+import { AuthImage } from '@/components/shared/AuthImage';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -1494,7 +1495,7 @@ export default function Training() {
                                   className="relative w-12 h-12 shrink-0 rounded-lg border border-border overflow-hidden cursor-pointer hover:ring-2 ring-primary/50 transition-all"
                                   onClick={() => openImagePreview(images.indexOf(img))}
                                 >
-                                  <img src={img.image_url} alt="" className="w-full h-full object-cover" />
+                                  <AuthImage src={img.image_url} alt="" className="w-full h-full object-cover" />
                                   {img.is_annotated && (
                                     <div className="absolute inset-0 bg-success/10 flex items-center justify-center">
                                       <CheckCircle2 className="w-3 h-3 text-success drop-shadow" />
@@ -1638,7 +1639,7 @@ export default function Training() {
                   onMouseUp={handleCanvasMouseUp}
                   onMouseLeave={() => { if (drawing) { setDrawing(false); setDrawStart(null); setDrawCurrent(null); } }}
                 >
-                  <img ref={imgRef} src={annotatingImage.image_url} alt="" className="w-full h-auto block" draggable={false} />
+                  <AuthImage ref={imgRef} src={annotatingImage.image_url} alt="" className="w-full h-auto block" draggable={false} />
                   {bboxes.map(box => (
                     <div
                       key={box.id}
@@ -1930,7 +1931,7 @@ export default function Training() {
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
-                <img
+                <AuthImage
                   src={images[previewImageIndex].image_url}
                   alt={images[previewImageIndex].file_name || ''}
                   className="max-h-[70vh] object-contain rounded-lg"
