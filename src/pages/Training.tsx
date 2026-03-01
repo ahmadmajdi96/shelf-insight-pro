@@ -777,14 +777,16 @@ export default function Training() {
     const fetchJsonWithRetry = async (url: string, init?: RequestInit, retries = 2): Promise<any> => {
       let lastError: Error | null = null;
       for (let attempt = 0; attempt <= retries; attempt += 1) {
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
         try {
-          const response = await fetch(url, init);
+          const response = await fetch(url, { ...init, signal });
           const data = await parseJsonSafe(response);
           if (!response.ok) {
             throw new Error(data?.error || data?.detail || data?.message || `Request failed (${response.status})`);
           }
           return data;
         } catch (error: any) {
+          if (error?.name === 'AbortError') throw error;
           lastError = error instanceof Error ? error : new Error(String(error));
           if (attempt === retries) break;
           await sleep(1000 * (attempt + 1));
