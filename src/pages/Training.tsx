@@ -1370,6 +1370,7 @@ export default function Training() {
         variant: failedBatches > 0 && saved === 0 ? 'destructive' : undefined,
       });
     } catch (err: any) {
+      clearPersistedAutoAnnotateJob();
       if (err?.name === 'AbortError') {
         toast({ title: 'Auto-annotation cancelled', description: 'Partial annotations were saved.' });
       } else {
