@@ -757,19 +757,26 @@ export default function Training() {
 
       const imagesById = new Map(selectedImages.map(img => [img.id, img]));
       const imagesByUrl = new Map(selectedImages.map(img => [img.image_url, img]));
+      const imagesByFileName = new Map(selectedImages.map(img => [img.file_name, img]));
 
       let saved = 0;
       let failed = 0;
 
       for (const result of results) {
-        const resolvedImage = imagesById.get(result.image_id || result.imageId) || imagesByUrl.get(result.image_url || result.imageUrl);
+        const resolvedImage =
+          imagesById.get(result.image_id || result.imageId) ||
+          imagesByUrl.get(result.image_url || result.imageUrl || result.source_url || result.sourceUrl) ||
+          imagesByFileName.get(result.file_name || result.fileName);
         if (!resolvedImage) {
           failed += 1;
           continue;
         }
 
-        const predictions = result.predictions || result.annotations || [];
-        const boxes = toAnnotationBoxes(predictions);
+        const predictions = result.predictions || result.annotations || result.objects || [];
+        const boxes = toAnnotationBoxes(predictions, {
+          width: result.image?.width || result.image_width,
+          height: result.image?.height || result.image_height,
+        });
 
         const registeredBoxes = boxes.filter(b => b.isRegistered);
         try {
