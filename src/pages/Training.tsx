@@ -133,7 +133,7 @@ const AUTO_ANNOTATE_POLL_INTERVAL_MS_DEFAULT = 5000;
 const AUTO_ANNOTATE_POLL_INTERVAL_MS_FAST = 2000;
 const AUTO_ANNOTATE_FAST_THRESHOLD = 20; // use fast polling for chunks <= this size
 const AUTO_ANNOTATE_MAX_POLL_ATTEMPTS = 360;
-const AUTO_ANNOTATE_BATCH_SIZE = 10;
+const AUTO_ANNOTATE_BATCH_SIZE = 5;
 const AUTO_ANNOTATE_DIM_CONCURRENCY = 10; // parallel image dimension fetches
 const AUTO_ANNOTATE_SAVE_CONCURRENCY = 8; // parallel DB save calls
 
@@ -818,7 +818,7 @@ export default function Training() {
   // ─── Upload (Supabase storage) ─────────────────────────
   const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!selectedDatasetId || !e.target.files?.length) return;
-    const files = Array.from(e.target.files).slice(0, 500);
+    const files = Array.from(e.target.files).slice(0, 50);
     const validFiles = files.filter(f => f.type.startsWith('image/'));
     if (validFiles.length === 0) {
       toast({ title: 'No valid images', description: 'Only image files are accepted.', variant: 'destructive' });
