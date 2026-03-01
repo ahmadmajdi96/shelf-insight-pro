@@ -1018,9 +1018,14 @@ export default function Training() {
         variant: failedBatches > 0 && saved === 0 ? 'destructive' : undefined,
       });
     } catch (err: any) {
-      toast({ title: 'Auto-annotate failed', description: err.message || 'Request failed', variant: 'destructive' });
+      if (err?.name === 'AbortError') {
+        toast({ title: 'Auto-annotation cancelled', description: `Saved ${saved || 0} annotations before cancellation.` });
+      } else {
+        toast({ title: 'Auto-annotate failed', description: err.message || 'Request failed', variant: 'destructive' });
+      }
     } finally {
-      setSelectedSetsAutoAnnotate(SELECTED_SETS_AUTO_ANNOTATE_INITIAL);
+      autoAnnotateAbortRef.current = null;
+      setSelectedSetsAutoAnnotate(prev => ({ ...prev, running: false }));
     }
   };
 
