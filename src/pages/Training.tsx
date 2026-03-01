@@ -601,8 +601,9 @@ export default function Training() {
               isRegistered: !!matchedClass,
             };
           });
-          if (newBboxes.length > 0) {
-            await updateAnnotations.mutateAsync({ imageId: img.id, annotations: newBboxes });
+          const registeredBboxes = newBboxes.filter((b: any) => b.isRegistered);
+          if (registeredBboxes.length > 0) {
+            await updateAnnotations.mutateAsync({ imageId: img.id, annotations: registeredBboxes });
             annotatedCount++;
           }
         } catch { /* continue */ }
