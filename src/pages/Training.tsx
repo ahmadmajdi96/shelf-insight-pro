@@ -1143,9 +1143,8 @@ export default function Training() {
 
   const saveAnnotations = async () => {
     if (!annotatingImage) return;
-    const registeredOnly = bboxes.filter(b => b.isRegistered);
-    await updateAnnotations.mutateAsync({ imageId: annotatingImage.id, annotations: registeredOnly as any });
-    toast({ title: 'Annotations saved', description: registeredOnly.length < bboxes.length ? `${bboxes.length - registeredOnly.length} unregistered detection(s) excluded.` : undefined });
+    await updateAnnotations.mutateAsync({ imageId: annotatingImage.id, annotations: bboxes as any });
+    toast({ title: 'Annotations saved' });
   };
 
   // ─── Auto-annotate ────────────────────────────────────
