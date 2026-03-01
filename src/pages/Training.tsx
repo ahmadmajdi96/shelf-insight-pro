@@ -703,7 +703,7 @@ export default function Training() {
 
         await new Promise(resolve => setTimeout(resolve, AUTO_ANNOTATE_POLL_INTERVAL_MS));
 
-        const statusResponse = await fetch(`${endpoint}/jobs/${jobId}`);
+        const statusResponse = await fetch(`${endpoint}/v1/jobs/${jobId}`);
         statusData = await statusResponse.json();
         if (!statusResponse.ok) {
           throw new Error(statusData?.error || 'Failed to poll auto-annotation job');
