@@ -105,11 +105,24 @@ export function useDatasetImages(datasetId: string | null) {
     queryKey: ['dataset-images', datasetId],
     queryFn: async () => {
       if (!datasetId) return [];
-      const { data } = await rest.list('dataset_images', {
-        select: '*',
-        filters: { dataset_id: `eq.${datasetId}` },
-        order: 'created_at.asc',
-      });
+      // Fetch all images (backend may default to 100 rows)
+      const allImages: DatasetImage[] = [];
+      let offset = 0;
+      const pageSize = 1000;
+      while (true) {
+        const { data: page } = await rest.list('dataset_images', {
+          select: '*',
+          filters: { dataset_id: `eq.${datasetId}` },
+          order: 'created_at.asc',
+          limit: pageSize,
+        });
+        // Add offset param manually if needed
+        const items = (page || []) as DatasetImage[];
+        allImages.push(...items);
+        if (items.length < pageSize) break;
+        offset += pageSize;
+      }
+      const data = allImages;
       return (data || []) as DatasetImage[];
     },
     enabled: !!datasetId,
