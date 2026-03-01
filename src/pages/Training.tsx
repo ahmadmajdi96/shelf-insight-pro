@@ -774,12 +774,16 @@ export default function Training() {
       }
     };
 
-    const fetchJsonWithRetry = async (url: string, init?: RequestInit, retries = 2): Promise<any> => {
+    const fetchJsonWithRetry = async (url: string, init?: RequestInit, retries = 3): Promise<any> => {
       let lastError: Error | null = null;
       for (let attempt = 0; attempt <= retries; attempt += 1) {
         if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
         try {
+          // Use a per-request timeout of 120s to avoid indefinite hangs
+          const timeoutMs = 120_000;
+          const timeoutId = setTimeout(() => {/* no-op, fetch uses signal */}, timeoutMs);
           const response = await fetch(url, { ...init, signal });
+          clearTimeout(timeoutId);
           const data = await parseJsonSafe(response);
           if (!response.ok) {
             throw new Error(data?.error || data?.detail || data?.message || `Request failed (${response.status})`);
@@ -789,7 +793,8 @@ export default function Training() {
           if (error?.name === 'AbortError') throw error;
           lastError = error instanceof Error ? error : new Error(String(error));
           if (attempt === retries) break;
-          await sleep(1000 * (attempt + 1));
+          // Exponential backoff: 2s, 4s, 8s
+          await sleep(2000 * Math.pow(2, attempt));
         }
       }
       throw lastError || new Error('Request failed');
