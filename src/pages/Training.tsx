@@ -1650,7 +1650,7 @@ export default function Training() {
                   {bboxes.map(box => (
                     <div
                       key={box.id}
-                      className="absolute border-2 group/box"
+                      className={`absolute group/box ${box.isRegistered ? 'border-2' : 'border-2 border-dashed'}`}
                       style={{
                         left: `${box.x * 100}%`, top: `${box.y * 100}%`,
                         width: `${box.w * 100}%`, height: `${box.h * 100}%`,
@@ -1659,7 +1659,7 @@ export default function Training() {
                       onDoubleClick={(e) => { e.stopPropagation(); handleBboxDoubleClick(box.id); }}
                     >
                       <span className="absolute -top-5 left-0 text-[10px] font-medium px-1 rounded text-white whitespace-nowrap" style={{ backgroundColor: box.color }}>
-                        {box.className}
+                        {box.className}{!box.isRegistered && ' (unregistered)'}
                       </span>
                       <button
                         className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-destructive text-white flex items-center justify-center opacity-0 group-hover/box:opacity-100 transition-opacity"
