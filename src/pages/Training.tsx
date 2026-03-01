@@ -103,6 +103,21 @@ const SELECTED_SETS_AUTO_ANNOTATE_INITIAL = {
   batches: [] as AutoAnnotateBatchProgress[],
 };
 
+const AUTO_ANNOTATE_PERSIST_KEY = 'shelfvision_auto_annotate_jobs';
+
+interface PersistedAutoAnnotateJob {
+  datasetId: string;
+  endpoint: string;
+  batches: {
+    jobId: string;
+    imageIds: string[];
+    status: 'polling' | 'completed' | 'failed';
+  }[];
+  startedAt: string;
+  totalImages: number;
+  selectedSetIds: string[];
+}
+
 const AUTO_ANNOTATE_BATCH_STATUS_CONFIG: Record<AutoAnnotateBatchStatus, { label: string; className: string }> = {
   pending: { label: 'Pending', className: 'bg-muted text-muted-foreground border-border' },
   submitting: { label: 'Submitting', className: 'bg-warning/10 text-warning border-warning/30' },
@@ -409,7 +424,287 @@ export default function Training() {
     }
   }, [filterAdmin]);
 
-  // ─── Dataset CRUD ──────────────────────────────────────
+  // ─── Auto-annotate persistence helpers ─────────────────
+  const persistAutoAnnotateJob = useCallback((job: PersistedAutoAnnotateJob) => {
+    try { localStorage.setItem(AUTO_ANNOTATE_PERSIST_KEY, JSON.stringify(job)); } catch { /* quota */ }
+  }, []);
+
+  const clearPersistedAutoAnnotateJob = useCallback(() => {
+    localStorage.removeItem(AUTO_ANNOTATE_PERSIST_KEY);
+  }, []);
+
+  const getPersistedAutoAnnotateJob = useCallback((): PersistedAutoAnnotateJob | null => {
+    try {
+      const raw = localStorage.getItem(AUTO_ANNOTATE_PERSIST_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as PersistedAutoAnnotateJob;
+      // Expire after 2 hours
+      if (Date.now() - new Date(parsed.startedAt).getTime() > 2 * 60 * 60 * 1000) {
+        localStorage.removeItem(AUTO_ANNOTATE_PERSIST_KEY);
+        return null;
+      }
+      return parsed;
+    } catch { return null; }
+  }, []);
+
+  // ─── Auto-select dataset if persisted job exists ─────
+  useEffect(() => {
+    if (selectedDatasetId) return; // already selected
+    if (!datasets.length) return;
+    const persisted = getPersistedAutoAnnotateJob();
+    if (!persisted) return;
+    const matchingDataset = datasets.find(d => d.id === persisted.datasetId);
+    if (matchingDataset) {
+      setSelectedDatasetId(matchingDataset.id);
+      setActiveTab('images');
+    }
+  }, [datasets, selectedDatasetId, getPersistedAutoAnnotateJob]);
+
+  // ─── Resume persisted auto-annotate jobs on mount ──────
+  const resumedRef = useRef(false);
+  useEffect(() => {
+    if (resumedRef.current) return;
+    if (!selectedDatasetId || images.length === 0) return;
+
+    const persisted = getPersistedAutoAnnotateJob();
+    if (!persisted || persisted.datasetId !== selectedDatasetId) return;
+    // Check if there are incomplete batches with valid jobIds to poll
+    const incompleteBatches = persisted.batches.filter(b => b.status === 'polling' && b.jobId);
+    if (incompleteBatches.length === 0) {
+      clearPersistedAutoAnnotateJob();
+      return;
+    }
+
+    resumedRef.current = true;
+    // Restore selected sets
+    setSelectedSetIds(new Set(persisted.selectedSetIds));
+
+    // Kick off resume
+    resumeAutoAnnotation(persisted);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedDatasetId, images.length]);
+
+  const resumeAutoAnnotation = async (persisted: PersistedAutoAnnotateJob) => {
+    const endpoint = persisted.endpoint;
+    const token = localStorage.getItem('shelfvision_access_token');
+    const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY || '';
+
+    const abortController = new AbortController();
+    autoAnnotateAbortRef.current = abortController;
+    const signal = abortController.signal;
+
+    const statusIsSuccess = (status: string) => ['completed', 'done', 'success', 'succeeded', 'finished'].some(t => status.includes(t));
+    const statusIsFailure = (status: string) => ['failed', 'error', 'cancelled', 'canceled', 'timeout'].some(t => status.includes(t));
+
+    const sleep = (ms: number) => new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, ms);
+      signal.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); }, { once: true });
+    });
+
+    const parseJsonSafe = async (response: Response) => {
+      const text = await response.text();
+      if (!text) return {};
+      try { return JSON.parse(text); } catch { return { message: text }; }
+    };
+
+    const fetchJsonWithRetry = async (url: string, init?: RequestInit, retries = 3): Promise<any> => {
+      let lastError: Error | null = null;
+      for (let attempt = 0; attempt <= retries; attempt++) {
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+        try {
+          const headers = new Headers(init?.headers || undefined);
+          if (apiKey && !headers.has('apikey')) headers.set('apikey', apiKey);
+          if (token && !headers.has('Authorization')) headers.set('Authorization', `Bearer ${token}`);
+          const response = await fetch(url, { ...init, headers, signal });
+          const data = await parseJsonSafe(response);
+          if (!response.ok) throw new Error(data?.error || data?.detail || data?.message || `Request failed (${response.status})`);
+          return data;
+        } catch (error: any) {
+          if (error?.name === 'AbortError') throw error;
+          lastError = error instanceof Error ? error : new Error(String(error));
+          if (attempt === retries) break;
+          await sleep(2000 * Math.pow(2, attempt));
+        }
+      }
+      throw lastError || new Error('Request failed');
+    };
+
+    const extractImageId = (result: any): string | null => {
+      const rel = result.image_rel || '';
+      const match = rel.match(/\d+_([0-9a-f-]{36})_/);
+      return match ? match[1] : null;
+    };
+
+    // Build lookup maps from current images
+    const allSelectedImages = images.filter(img => persisted.batches.some(b => b.imageIds.includes(img.id)));
+    const imagesById = new Map(allSelectedImages.map(img => [img.id, img]));
+    const imagesByFileName = new Map(allSelectedImages.map(img => [img.file_name, img]));
+
+    // Build batch UI state
+    const batchStates: AutoAnnotateBatchProgress[] = persisted.batches.map((b, idx) => ({
+      index: idx + 1,
+      total: b.imageIds.length,
+      processed: b.status === 'completed' ? b.imageIds.length : 0,
+      saved: 0,
+      failed: 0,
+      status: b.status === 'completed' ? 'completed' : 'polling',
+      jobId: b.jobId,
+      error: null,
+    }));
+
+    setSelectedSetsAutoAnnotate({
+      running: true,
+      stage: 'polling',
+      jobId: persisted.batches.find(b => b.status === 'polling')?.jobId || null,
+      total: persisted.totalImages,
+      processed: 0,
+      saved: 0,
+      failed: 0,
+      currentBatch: 0,
+      totalBatches: persisted.batches.length,
+      batches: batchStates,
+    });
+
+    toast({ title: 'Resuming auto-annotation', description: `Found ${persisted.batches.filter(b => b.status === 'polling').length} pending batch(es).` });
+
+    let saved = 0;
+    let failed = 0;
+    let failedBatches = 0;
+
+    const fetchImageDims = async (imageUrl: string): Promise<{ w: number; h: number }> => {
+      return new Promise((resolve, reject) => {
+        const img = new Image();
+        img.crossOrigin = 'anonymous';
+        let objectUrl = '';
+        img.onload = () => { const p = { w: img.naturalWidth, h: img.naturalHeight }; if (objectUrl) URL.revokeObjectURL(objectUrl); resolve(p); };
+        img.onerror = () => { if (objectUrl) URL.revokeObjectURL(objectUrl); reject(new Error('Failed')); };
+        const h: Record<string, string> = {};
+        if (apiKey) h['apikey'] = apiKey;
+        if (token) h['Authorization'] = `Bearer ${token}`;
+        fetch(imageUrl, { headers: h }).then(r => { if (!r.ok) throw new Error(); return r.blob(); })
+          .then(blob => { objectUrl = URL.createObjectURL(blob); img.src = objectUrl; }).catch(reject);
+      });
+    };
+
+    try {
+      for (let bi = 0; bi < persisted.batches.length; bi++) {
+        const batch = persisted.batches[bi];
+        if (batch.status === 'completed') continue;
+        if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+
+        let chunkSaved = 0;
+        let chunkFailed = 0;
+
+        const updateBatch = (patch: Partial<AutoAnnotateBatchProgress>) => {
+          setSelectedSetsAutoAnnotate(prev => ({
+            ...prev,
+            currentBatch: bi + 1,
+            batches: prev.batches.map((b, idx) => idx === bi ? { ...b, ...patch } : b),
+          }));
+        };
+
+        try {
+          updateBatch({ status: 'polling' });
+          setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'polling', currentBatch: bi + 1 }));
+
+          const pollInterval = batch.imageIds.length <= AUTO_ANNOTATE_FAST_THRESHOLD ? AUTO_ANNOTATE_POLL_INTERVAL_MS_FAST : AUTO_ANNOTATE_POLL_INTERVAL_MS_DEFAULT;
+          let statusData: any = null;
+          let attempts = 0;
+          const maxAttempts = Math.max(AUTO_ANNOTATE_MAX_POLL_ATTEMPTS, Math.ceil(batch.imageIds.length / 10) * 60);
+
+          while (attempts < maxAttempts) {
+            attempts++;
+            await sleep(pollInterval);
+            statusData = await fetchJsonWithRetry(`${endpoint}/v1/jobs/${batch.jobId}`, undefined, 2);
+            const jobStatus = String(statusData.status ?? statusData.state ?? statusData.job_status ?? '').toLowerCase();
+            console.log(`[auto-annotate-resume] poll #${attempts} batch ${bi + 1} status=${jobStatus}`);
+            if (statusIsSuccess(jobStatus)) break;
+            if (statusIsFailure(jobStatus)) throw new Error(statusData?.error || 'Job failed');
+          }
+
+          const finalStatus = String(statusData?.status ?? statusData?.state ?? '').toLowerCase();
+          if (!statusIsSuccess(finalStatus)) throw new Error('Timed out');
+
+          // Save results
+          updateBatch({ status: 'saving', processed: batch.imageIds.length });
+          setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'saving' }));
+
+          const results = (statusData?.results || statusData?.images || []) as any[];
+
+          type ResolvedResult = { result: any; image: DatasetImage; needsDims: boolean };
+          const resolvedResults: ResolvedResult[] = [];
+          for (const result of results) {
+            const extractedId = extractImageId(result);
+            const resolvedImage = imagesById.get(result.image_id || result.imageId || extractedId) || imagesByFileName.get(result.file_name || result.fileName);
+            if (!resolvedImage) { chunkFailed++; failed++; continue; }
+            const hasDims = !!(result.image?.width && result.image?.height) || !!(result.image_width && result.image_height);
+            resolvedResults.push({ result, image: resolvedImage, needsDims: !hasDims });
+          }
+
+          // Parallel dim fetch
+          const dimCache = new Map<string, { w: number; h: number }>();
+          const needDims = resolvedResults.filter(r => r.needsDims);
+          for (let i = 0; i < needDims.length; i += AUTO_ANNOTATE_DIM_CONCURRENCY) {
+            if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+            const group = needDims.slice(i, i + AUTO_ANNOTATE_DIM_CONCURRENCY);
+            const dimResults = await Promise.allSettled(group.map(r => fetchImageDims(r.image.image_url).then(d => ({ id: r.image.id, dims: d }))));
+            for (const dr of dimResults) { if (dr.status === 'fulfilled') dimCache.set(dr.value.id, dr.value.dims); }
+          }
+
+          type SaveItem = { imageId: string; annotations: any[] };
+          const saveItems: SaveItem[] = [];
+          for (const { result, image, needsDims: nd } of resolvedResults) {
+            let imgW = result.image?.width || result.image_width;
+            let imgH = result.image?.height || result.image_height;
+            if (nd) { const c = dimCache.get(image.id); if (c) { imgW = c.w; imgH = c.h; } }
+            const predictions = result.predictions || result.annotations || result.objects || [];
+            const boxes = toAnnotationBoxes(predictions, { width: imgW, height: imgH });
+            saveItems.push({ imageId: image.id, annotations: boxes as any[] });
+          }
+
+          for (let i = 0; i < saveItems.length; i += AUTO_ANNOTATE_SAVE_CONCURRENCY) {
+            if (signal.aborted) throw new DOMException('Aborted', 'AbortError');
+            const group = saveItems.slice(i, i + AUTO_ANNOTATE_SAVE_CONCURRENCY);
+            const saveResults = await Promise.allSettled(group.map(item => updateAnnotations.mutateAsync(item)));
+            for (const sr of saveResults) { if (sr.status === 'fulfilled') { chunkSaved++; saved++; } else { chunkFailed++; failed++; } }
+            updateBatch({ saved: chunkSaved, failed: chunkFailed });
+            setSelectedSetsAutoAnnotate(prev => ({ ...prev, saved, failed }));
+          }
+
+          updateBatch({ status: 'completed', processed: batch.imageIds.length, saved: chunkSaved, failed: chunkFailed });
+          // Update persisted state
+          persisted.batches[bi].status = 'completed';
+          persistAutoAnnotateJob(persisted);
+        } catch (chunkErr: any) {
+          if (chunkErr?.name === 'AbortError') throw chunkErr;
+          failedBatches++;
+          const remaining = Math.max(0, batch.imageIds.length - chunkSaved - chunkFailed);
+          failed += remaining;
+          updateBatch({ status: 'failed', error: chunkErr?.message || 'Failed', failed: chunkFailed + remaining });
+          persisted.batches[bi].status = 'failed';
+          persistAutoAnnotateJob(persisted);
+        }
+      }
+
+      clearPersistedAutoAnnotateJob();
+      qc.invalidateQueries({ queryKey: ['dataset-images', selectedDatasetId] });
+      toast({
+        title: failedBatches > 0 ? 'Resumed annotation finished with errors' : 'Resumed annotation complete',
+        description: `Saved ${saved}/${persisted.totalImages} images.`,
+        variant: failedBatches > 0 && saved === 0 ? 'destructive' : undefined,
+      });
+    } catch (err: any) {
+      if (err?.name === 'AbortError') {
+        toast({ title: 'Auto-annotation cancelled', description: 'Partial annotations were saved.' });
+      } else {
+        toast({ title: 'Resume failed', description: err?.message || 'Unknown error', variant: 'destructive' });
+      }
+    } finally {
+      autoAnnotateAbortRef.current = null;
+      setSelectedSetsAutoAnnotate(prev => ({ ...prev, running: false }));
+    }
+  };
+
   const openNewDataset = () => {
     setEditingDataset(null);
     setDatasetForm({ name: '', description: '', tenant_id: '', admin_id: '' });
@@ -845,6 +1140,21 @@ export default function Training() {
       let processedOverall = 0;
       let failedBatches = 0;
 
+      // Initialize persisted job state
+      const persistedJob: PersistedAutoAnnotateJob = {
+        datasetId: selectedDatasetId!,
+        endpoint,
+        batches: imageChunks.map(chunk => ({
+          jobId: '',
+          imageIds: chunk.map(img => img.id),
+          status: 'polling' as const,
+        })),
+        startedAt: new Date().toISOString(),
+        totalImages: selectedImages.length,
+        selectedSetIds: Array.from(selectedSetIds),
+      };
+      persistAutoAnnotateJob(persistedJob);
+
       for (let chunkIndex = 0; chunkIndex < imageChunks.length; chunkIndex += 1) {
         const chunk = imageChunks[chunkIndex];
         let chunkSaved = 0;
@@ -877,6 +1187,10 @@ export default function Training() {
 
           setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'queued', jobId }));
           updateBatchProgress(chunkIndex, { status: 'queued', jobId });
+
+          // Persist jobId so we can resume after sign-out/sign-in
+          persistedJob.batches[chunkIndex].jobId = jobId;
+          persistAutoAnnotateJob(persistedJob);
 
           let statusData: any = null;
           let attempts = 0;
@@ -1025,6 +1339,9 @@ export default function Training() {
             saved,
             failed,
           }));
+          // Update persisted state
+          persistedJob.batches[chunkIndex].status = 'completed';
+          persistAutoAnnotateJob(persistedJob);
         } catch (chunkError: any) {
           // If cancelled, propagate abort to outer catch
           if (chunkError?.name === 'AbortError') throw chunkError;
@@ -1049,10 +1366,15 @@ export default function Training() {
             saved,
             failed,
           }));
+          // Update persisted state
+          persistedJob.batches[chunkIndex].status = 'failed';
+          persistAutoAnnotateJob(persistedJob);
 
           console.error(`[auto-annotate] batch ${chunkIndex + 1} failed`, chunkError);
         }
       }
+
+      clearPersistedAutoAnnotateJob();
 
       qc.invalidateQueries({ queryKey: ['dataset-images', selectedDatasetId] });
       toast({
@@ -1061,6 +1383,7 @@ export default function Training() {
         variant: failedBatches > 0 && saved === 0 ? 'destructive' : undefined,
       });
     } catch (err: any) {
+      clearPersistedAutoAnnotateJob();
       if (err?.name === 'AbortError') {
         toast({ title: 'Auto-annotation cancelled', description: 'Partial annotations were saved.' });
       } else {
