@@ -696,6 +696,13 @@ export default function Training() {
     };
   });
 
+  const cancelAutoAnnotation = () => {
+    if (autoAnnotateAbortRef.current) {
+      autoAnnotateAbortRef.current.abort();
+      autoAnnotateAbortRef.current = null;
+    }
+  };
+
   const autoAnnotateSelectedSets = async () => {
     if (!selectedDatasetId) return;
 
@@ -714,6 +721,11 @@ export default function Training() {
       });
       return;
     }
+
+    // Create abort controller for this run
+    const abortController = new AbortController();
+    autoAnnotateAbortRef.current = abortController;
+    const signal = abortController.signal;
 
     const statusIsSuccess = (status: string) => ['completed', 'done', 'success', 'succeeded', 'finished'].some(token => status.includes(token));
     const statusIsFailure = (status: string) => ['failed', 'error', 'cancelled', 'canceled', 'timeout'].some(token => status.includes(token));
@@ -747,7 +759,10 @@ export default function Training() {
       batches: imageChunks.map(buildInitialBatchState),
     });
 
-    const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+    const sleep = (ms: number) => new Promise((resolve, reject) => {
+      const timer = setTimeout(resolve, ms);
+      signal.addEventListener('abort', () => { clearTimeout(timer); reject(new DOMException('Aborted', 'AbortError')); }, { once: true });
+    });
 
     const parseJsonSafe = async (response: Response) => {
       const text = await response.text();
