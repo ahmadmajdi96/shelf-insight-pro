@@ -618,25 +618,52 @@ export default function Training() {
     }
   };
 
-  const toAnnotationBoxes = (predictions: any[]): BBox[] => predictions.map((pred: any) => {
-    const predLabel = pred.class || pred.label || 'unknown';
+  const toInferencingImageUrl = (url: string): string => {
+    try {
+      const parsed = new URL(url);
+      parsed.pathname = parsed.pathname.replace('/storage/v1/object/dataset-images/', '/storage/v1/object/public/dataset-images/');
+      return parsed.toString();
+    } catch {
+      return url.replace('/storage/v1/object/dataset-images/', '/storage/v1/object/public/dataset-images/');
+    }
+  };
+
+  const toAnnotationBoxes = (predictions: any[], imageMeta?: { width?: number; height?: number }): BBox[] => predictions.map((pred: any) => {
+    const predLabel = pred.pred_label || pred.class || pred.label || 'unknown';
     const matchedClass = annotationClasses.find(c => c.name.toLowerCase() === String(predLabel).toLowerCase());
-    const imgWidth = pred.image?.width || pred.image_width || 640;
-    const imgHeight = pred.image?.height || pred.image_height || 640;
-    const bx = ((pred.x || 0) - (pred.width || 0) / 2) / imgWidth;
-    const by = ((pred.y || 0) - (pred.height || 0) / 2) / imgHeight;
-    const bw = (pred.width || 0) / imgWidth;
-    const bh = (pred.height || 0) / imgHeight;
+    const imgWidth = Number(pred.image?.width || pred.image_width || imageMeta?.width || 640);
+    const imgHeight = Number(pred.image?.height || pred.image_height || imageMeta?.height || 640);
+
+    let bx = 0;
+    let by = 0;
+    let bw = 0;
+    let bh = 0;
+
+    if (Array.isArray(pred.bbox) && pred.bbox.length === 4) {
+      const [x1, y1, x2, y2] = pred.bbox.map((v: any) => Number(v) || 0);
+      bx = x1 / imgWidth;
+      by = y1 / imgHeight;
+      bw = Math.max(0, x2 - x1) / imgWidth;
+      bh = Math.max(0, y2 - y1) / imgHeight;
+    } else {
+      bx = ((Number(pred.x) || 0) - (Number(pred.width) || 0) / 2) / imgWidth;
+      by = ((Number(pred.y) || 0) - (Number(pred.height) || 0) / 2) / imgHeight;
+      bw = (Number(pred.width) || 0) / imgWidth;
+      bh = (Number(pred.height) || 0) / imgHeight;
+    }
+
+    const safeX = Math.max(0, Math.min(1, bx));
+    const safeY = Math.max(0, Math.min(1, by));
 
     return {
       id: crypto.randomUUID(),
       classId: matchedClass?.id || '',
       className: matchedClass?.name || String(predLabel),
       color: matchedClass?.color || '#9CA3AF',
-      x: Math.max(0, bx),
-      y: Math.max(0, by),
-      w: Math.min(1 - Math.max(0, bx), bw),
-      h: Math.min(1 - Math.max(0, by), bh),
+      x: safeX,
+      y: safeY,
+      w: Math.max(0, Math.min(1 - safeX, bw)),
+      h: Math.max(0, Math.min(1 - safeY, bh)),
       isRegistered: !!matchedClass,
     };
   });
@@ -679,6 +706,7 @@ export default function Training() {
           image_set_ids: Array.from(selectedSetIds),
           images: selectedImages.map(img => ({
             image_id: img.id,
+            image_url: toInferencingImageUrl(img.image_url),
             file_name: img.file_name,
           })),
           classes: annotationClasses.map(c => ({ id: c.id, name: c.name })),
@@ -728,20 +756,27 @@ export default function Training() {
       setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'saving' }));
 
       const imagesById = new Map(selectedImages.map(img => [img.id, img]));
-      const imagesByUrl = new Map(selectedImages.map(img => [img.image_url, img]));
+      const imagesByUrl = new Map(selectedImages.flatMap(img => [[img.image_url, img], [toInferencingImageUrl(img.image_url), img]]));
+      const imagesByFileName = new Map(selectedImages.map(img => [img.file_name, img]));
 
       let saved = 0;
       let failed = 0;
 
       for (const result of results) {
-        const resolvedImage = imagesById.get(result.image_id || result.imageId) || imagesByUrl.get(result.image_url || result.imageUrl);
+        const resolvedImage =
+          imagesById.get(result.image_id || result.imageId) ||
+          imagesByUrl.get(result.image_url || result.imageUrl || result.source_url || result.sourceUrl) ||
+          imagesByFileName.get(result.file_name || result.fileName);
         if (!resolvedImage) {
           failed += 1;
           continue;
         }
 
-        const predictions = result.predictions || result.annotations || [];
-        const boxes = toAnnotationBoxes(predictions);
+        const predictions = result.predictions || result.annotations || result.objects || [];
+        const boxes = toAnnotationBoxes(predictions, {
+          width: result.image?.width || result.image_width,
+          height: result.image?.height || result.image_height,
+        });
 
         const registeredBoxes = boxes.filter(b => b.isRegistered);
         try {
