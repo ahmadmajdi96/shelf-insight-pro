@@ -1175,6 +1175,10 @@ export default function Training() {
           setSelectedSetsAutoAnnotate(prev => ({ ...prev, stage: 'queued', jobId }));
           updateBatchProgress(chunkIndex, { status: 'queued', jobId });
 
+          // Persist jobId so we can resume after sign-out/sign-in
+          persistedJob.batches[chunkIndex].jobId = jobId;
+          persistAutoAnnotateJob(persistedJob);
+
           let statusData: any = null;
           let attempts = 0;
           const maxAttemptsForChunk = Math.max(AUTO_ANNOTATE_MAX_POLL_ATTEMPTS, Math.ceil(chunk.length / 10) * 60);
