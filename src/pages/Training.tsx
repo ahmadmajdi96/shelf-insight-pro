@@ -1931,7 +1931,7 @@ export default function Training() {
                 >
                   <ChevronLeft className="w-5 h-5" />
                 </Button>
-                <img
+                <AuthImage
                   src={images[previewImageIndex].image_url}
                   alt={images[previewImageIndex].file_name || ''}
                   className="max-h-[70vh] object-contain rounded-lg"
