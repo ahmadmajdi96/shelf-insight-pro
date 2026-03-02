@@ -1719,7 +1719,7 @@ export default function Training() {
       'Content-Type': 'application/json',
       'x-target-path': path,
       'x-target-method': method,
-      'x-target-url': trainingEndpoint,
+      'x-target-url': trainingBaseUrl,
     };
     if (apiKey) headers['apikey'] = apiKey;
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -1741,8 +1741,8 @@ export default function Training() {
   const startTraining = async () => {
     if (!selectedDatasetId) return;
 
-    const trainingEndpoint = localStorage.getItem(TRAINING_ENDPOINT_KEY)?.replace(/\/+$/, '');
-    if (!trainingEndpoint) {
+    const trainingBaseUrl = getTrainingBaseUrl();
+    if (!trainingBaseUrl) {
       toast({ title: 'Training endpoint not configured', description: 'Please set the Training Endpoint in Settings.', variant: 'destructive' });
       return;
     }
@@ -1751,7 +1751,7 @@ export default function Training() {
     try {
       const payload = buildTrainingRequestPayload();
 
-      const res = await proxyFetch(trainingEndpoint, '/train/payload', 'POST', payload);
+      const res = await proxyFetch(trainingBaseUrl, '/train/payload', 'POST', payload);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
@@ -1764,7 +1764,7 @@ export default function Training() {
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
 
       // Start polling GET /status
-      pollTrainingStatus(trainingEndpoint);
+      pollTrainingStatus(trainingBaseUrl);
     } catch (e: any) {
       toast({ title: 'Training failed', description: e.message, variant: 'destructive' });
     } finally {
