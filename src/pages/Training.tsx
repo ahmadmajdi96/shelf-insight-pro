@@ -1744,12 +1744,28 @@ export default function Training() {
       }
 
       const data = await res.json();
+
+      // Create a training job record in the database
+      const jobResult = await rest.create('training_jobs', {
+        dataset_id: selectedDatasetId,
+        epochs: trainForm.epochs,
+        batch_size: trainForm.batch_size,
+        status: 'training',
+        started_at: new Date().toISOString(),
+        progress: 0,
+      });
+      const jobId = jobResult?.id;
+
+      // Update dataset status
+      await rest.update('datasets', { id: `eq.${selectedDatasetId}` }, { status: 'training' });
+
       setShowTrainModal(false);
       toast({ title: 'Training job started', description: data?.message || 'The model is being trained.' });
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
+      qc.invalidateQueries({ queryKey: ['datasets'] });
 
       // Start polling GET /status
-      pollTrainingStatus(trainingBaseUrl);
+      pollTrainingStatus(trainingBaseUrl, jobId);
     } catch (e: any) {
       toast({ title: 'Training failed', description: e.message, variant: 'destructive' });
     } finally {
@@ -1757,7 +1773,7 @@ export default function Training() {
     }
   };
 
-  const pollTrainingStatus = (endpoint: string) => {
+  const pollTrainingStatus = (endpoint: string, jobId?: string) => {
     const MAX_POLLS = 360;
     const POLL_INTERVAL = 5000;
     let pollCount = 0;
@@ -1771,9 +1787,37 @@ export default function Training() {
         if (!res.ok) return;
         const status = await res.json();
 
+        // Update the training job record with progress/status from server
+        if (jobId) {
+          const updatePayload: any = {};
+          if (status?.progress !== undefined) updatePayload.progress = status.progress;
+          if (status?.status === 'completed') {
+            updatePayload.status = 'completed';
+            updatePayload.completed_at = new Date().toISOString();
+            updatePayload.progress = 100;
+            if (status?.result_url) updatePayload.result_url = status.result_url;
+          } else if (status?.status === 'failed') {
+            updatePayload.status = 'failed';
+            updatePayload.error_message = status?.error_message || 'Training failed';
+          } else if (status?.status) {
+            updatePayload.status = status.status;
+          }
+          if (Object.keys(updatePayload).length > 0) {
+            await rest.update('training_jobs', { id: `eq.${jobId}` }, updatePayload).catch(() => {});
+          }
+        }
+
         qc.invalidateQueries({ queryKey: ['training-jobs'] });
 
         if (status?.status === 'completed' || status?.status === 'failed') {
+          // Update dataset status
+          if (selectedDatasetId) {
+            await rest.update('datasets', { id: `eq.${selectedDatasetId}` }, {
+              status: status.status === 'completed' ? 'ready' : 'draft',
+            }).catch(() => {});
+            qc.invalidateQueries({ queryKey: ['datasets'] });
+          }
+
           if (status.status === 'completed') {
             toast({ title: 'Training completed', description: 'Model training finished successfully.' });
           } else {
