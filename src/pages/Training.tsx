@@ -1736,7 +1736,7 @@ export default function Training() {
     try {
       const payload = buildTrainingRequestPayload();
 
-      const res = await proxyFetch(trainingBaseUrl, '/train/payload', 'POST', payload);
+      const res = await trainingFetch(trainingBaseUrl, '/train/payload', 'POST', payload);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
@@ -1767,7 +1767,7 @@ export default function Training() {
       pollCount++;
 
       try {
-        const res = await proxyFetch(endpoint, '/status', 'GET');
+        const res = await trainingFetch(endpoint, '/status', 'GET');
         if (!res.ok) return;
         const status = await res.json();
 
