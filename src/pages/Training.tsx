@@ -1712,6 +1712,7 @@ export default function Training() {
       'Content-Type': 'application/json',
       'x-target-path': path,
       'x-target-method': method,
+      'x-target-url': trainingEndpoint,
     };
     if (apiKey) headers['apikey'] = apiKey;
     if (token) headers['Authorization'] = `Bearer ${token}`;
