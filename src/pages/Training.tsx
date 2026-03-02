@@ -1711,7 +1711,7 @@ export default function Training() {
   };
 
   const proxyFetch = async (trainingBaseUrl: string, path: string, method: string, body?: any) => {
-    const base = getApiBaseUrl().replace(/\/+$/, '');
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/+$/, '') || '';
     const token = localStorage.getItem('shelfvision_access_token');
     const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
