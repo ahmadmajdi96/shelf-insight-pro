@@ -77,18 +77,23 @@ export function useImageSetUpload() {
   const uploadToSet = useMutation({
     mutationFn: async ({ datasetId, imageSetId, files }: { datasetId: string; imageSetId: string; files: File[] }) => {
       const uploaded: any[] = [];
-      for (const file of files) {
-        const path = `${datasetId}/${crypto.randomUUID()}-${file.name}`;
-        await storage.upload('dataset-images', path, file);
-        const publicUrl = storage.getPublicUrl('dataset-images', path);
-
-        const data = await rest.create('dataset_images', {
-          dataset_id: datasetId,
-          image_url: publicUrl,
-          file_name: file.name,
-          image_set_id: imageSetId,
-        });
-        uploaded.push(data);
+      const CONCURRENCY = 4;
+      for (let i = 0; i < files.length; i += CONCURRENCY) {
+        const batch = files.slice(i, i + CONCURRENCY);
+        const results = await Promise.all(
+          batch.map(async (file) => {
+            const path = `${datasetId}/${crypto.randomUUID()}-${file.name}`;
+            await storage.upload('dataset-images', path, file);
+            const publicUrl = storage.getPublicUrl('dataset-images', path);
+            return rest.create('dataset_images', {
+              dataset_id: datasetId,
+              image_url: publicUrl,
+              file_name: file.name,
+              image_set_id: imageSetId,
+            });
+          })
+        );
+        uploaded.push(...results);
       }
       return uploaded;
     },
