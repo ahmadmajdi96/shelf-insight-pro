@@ -1702,17 +1702,24 @@ export default function Training() {
   // ─── Training ──────────────────────────────────────────
   const TRAINING_ENDPOINT_KEY = 'shelfvision_training_endpoint';
 
-  const proxyFetch = async (trainingEndpoint: string, path: string, method: string, body?: any) => {
+  const getTrainingBaseUrl = () => {
+    const raw = localStorage.getItem(TRAINING_ENDPOINT_KEY)?.trim() || '';
+    const sanitized = raw.replace(/\/+$/, '');
+    if (sanitized.endsWith('/train/payload')) return sanitized.slice(0, -'/train/payload'.length);
+    if (sanitized.endsWith('/status')) return sanitized.slice(0, -'/status'.length);
+    return sanitized;
+  };
+
+  const proxyFetch = async (trainingBaseUrl: string, path: string, method: string, body?: any) => {
     const base = getApiBaseUrl().replace(/\/+$/, '');
     const token = localStorage.getItem('shelfvision_access_token');
     const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    const targetUrl = `${trainingEndpoint}${path}`;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'x-target-path': path,
       'x-target-method': method,
-      'x-target-url': trainingEndpoint,
+      'x-target-url': trainingBaseUrl,
     };
     if (apiKey) headers['apikey'] = apiKey;
     if (token) headers['Authorization'] = `Bearer ${token}`;
@@ -1734,8 +1741,8 @@ export default function Training() {
   const startTraining = async () => {
     if (!selectedDatasetId) return;
 
-    const trainingEndpoint = localStorage.getItem(TRAINING_ENDPOINT_KEY)?.replace(/\/+$/, '');
-    if (!trainingEndpoint) {
+    const trainingBaseUrl = getTrainingBaseUrl();
+    if (!trainingBaseUrl) {
       toast({ title: 'Training endpoint not configured', description: 'Please set the Training Endpoint in Settings.', variant: 'destructive' });
       return;
     }
@@ -1744,7 +1751,7 @@ export default function Training() {
     try {
       const payload = buildTrainingRequestPayload();
 
-      const res = await proxyFetch(trainingEndpoint, '/train/payload', 'POST', payload);
+      const res = await proxyFetch(trainingBaseUrl, '/train/payload', 'POST', payload);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
@@ -1757,7 +1764,7 @@ export default function Training() {
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
 
       // Start polling GET /status
-      pollTrainingStatus(trainingEndpoint);
+      pollTrainingStatus(trainingBaseUrl);
     } catch (e: any) {
       toast({ title: 'Training failed', description: e.message, variant: 'destructive' });
     } finally {
