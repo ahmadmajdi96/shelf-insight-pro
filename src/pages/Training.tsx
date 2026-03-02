@@ -847,7 +847,13 @@ export default function Training() {
   const handleSetFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files?.length) return;
     const files = Array.from(e.target.files).filter(f => f.type.startsWith('image/'));
-    setUploadSetFiles(prev => [...prev, ...files]);
+    setUploadSetFiles(prev => {
+      const combined = [...prev, ...files];
+      if (combined.length > 50) {
+        toast({ title: 'Limit reached', description: 'Maximum 50 images per set. Extra files were removed.', variant: 'destructive' });
+      }
+      return combined.slice(0, 50);
+    });
     e.target.value = '';
   };
 
@@ -1268,12 +1274,19 @@ export default function Training() {
           // --- Resolve images and split into items needing dims vs not ---
           type ResolvedResult = { result: any; image: DatasetImage; needsDims: boolean };
           const resolvedResults: ResolvedResult[] = [];
-          for (const result of results) {
+          for (let ri = 0; ri < results.length; ri++) {
+            const result = results[ri];
             const extractedId = extractImageId(result);
-            const resolvedImage =
+            let resolvedImage =
               imagesById.get(result.image_id || result.imageId || extractedId) ||
               imagesByFileName.get(result.file_name || result.fileName);
+            // Fallback: match by index within the chunk if ID/filename matching fails
+            if (!resolvedImage && ri < chunk.length) {
+              console.warn(`[auto-annotate] result ${ri} could not be matched by ID/filename, falling back to index match`);
+              resolvedImage = chunk[ri];
+            }
             if (!resolvedImage) {
+              console.warn(`[auto-annotate] result ${ri} could not be resolved at all`, result);
               chunkFailed += 1;
               failed += 1;
               continue;
