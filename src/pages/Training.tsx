@@ -46,7 +46,7 @@ import { rest } from '@/lib/api-client';
 import { invoke } from '@/lib/api-client';
 import {
   useDatasets, useDatasetImages, useDatasetClasses, useTrainingJobs,
-  type Dataset, type DatasetImage, type DatasetClass,
+  type Dataset, type DatasetImage, type DatasetClass, type TrainingJob,
 } from '@/hooks/useDatasets';
 import { useImageSets, useImageSetUpload, type ImageSet } from '@/hooks/useImageSets';
 import { getApiBaseUrl } from '@/lib/api-config';
