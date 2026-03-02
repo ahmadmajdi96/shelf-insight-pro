@@ -1702,6 +1702,35 @@ export default function Training() {
   // ─── Training ──────────────────────────────────────────
   const TRAINING_ENDPOINT_KEY = 'shelfvision_training_endpoint';
 
+  const proxyFetch = async (trainingEndpoint: string, path: string, method: string, body?: any) => {
+    const base = getApiBaseUrl().replace(/\/+$/, '');
+    const token = localStorage.getItem('shelfvision_access_token');
+    const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
+    const targetUrl = `${trainingEndpoint}${path}`;
+
+    const headers: Record<string, string> = {
+      'Content-Type': 'application/json',
+      'x-target-path': path,
+      'x-target-method': method,
+      'x-target-url': trainingEndpoint,
+    };
+    if (apiKey) headers['apikey'] = apiKey;
+    if (token) headers['Authorization'] = `Bearer ${token}`;
+
+    // Route through the api-proxy edge function, but override the target URL
+    // The proxy forwards to BACKEND_URL + x-target-path. Since training endpoint
+    // may differ, we call the training endpoint directly but via the proxy pattern.
+    // We'll post to the proxy with the full target path.
+    const res = await fetch(`${base}/functions/v1/api-proxy`, {
+      method: 'POST',
+      headers,
+      body: body !== undefined ? JSON.stringify(body) : undefined,
+      mode: 'cors',
+      credentials: 'omit',
+    });
+    return res;
+  };
+
   const startTraining = async () => {
     if (!selectedDatasetId) return;
 
@@ -1714,17 +1743,8 @@ export default function Training() {
     setTrainingStarting(true);
     try {
       const payload = buildTrainingRequestPayload();
-      const token = localStorage.getItem('shelfvision_access_token');
 
-      // POST /train/payload
-      const res = await fetch(`${trainingEndpoint}/train/payload`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify(payload),
-      });
+      const res = await proxyFetch(trainingEndpoint, '/train/payload', 'POST', payload);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
@@ -1737,7 +1757,7 @@ export default function Training() {
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
 
       // Start polling GET /status
-      pollTrainingStatus(trainingEndpoint, token);
+      pollTrainingStatus(trainingEndpoint);
     } catch (e: any) {
       toast({ title: 'Training failed', description: e.message, variant: 'destructive' });
     } finally {
@@ -1745,7 +1765,7 @@ export default function Training() {
     }
   };
 
-  const pollTrainingStatus = (endpoint: string, token: string | null) => {
+  const pollTrainingStatus = (endpoint: string) => {
     const MAX_POLLS = 360;
     const POLL_INTERVAL = 5000;
     let pollCount = 0;
@@ -1755,18 +1775,12 @@ export default function Training() {
       pollCount++;
 
       try {
-        const res = await fetch(`${endpoint}/status`, {
-          headers: {
-            ...(token ? { Authorization: `Bearer ${token}` } : {}),
-          },
-        });
+        const res = await proxyFetch(endpoint, '/status', 'GET');
         if (!res.ok) return;
         const status = await res.json();
 
-        // Refresh jobs list to reflect latest status
         qc.invalidateQueries({ queryKey: ['training-jobs'] });
 
-        // Stop polling if terminal state
         if (status?.status === 'completed' || status?.status === 'failed') {
           if (status.status === 'completed') {
             toast({ title: 'Training completed', description: 'Model training finished successfully.' });

@@ -6,7 +6,7 @@ const NO_BODY_STATUSES = new Set([101, 103, 204, 205, 304]);
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-target-path, x-target-method, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "authorization, x-client-info, apikey, content-type, x-target-path, x-target-method, x-target-url, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
 
@@ -18,6 +18,7 @@ serve(async (req) => {
   try {
     const targetPath = req.headers.get("x-target-path");
     const targetMethod = (req.headers.get("x-target-method") || "POST").toUpperCase();
+    const targetBaseUrl = req.headers.get("x-target-url"); // optional override
 
     if (!targetPath) {
       return new Response(JSON.stringify({ error: "Missing x-target-path header" }), {
@@ -25,6 +26,8 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const baseUrl = targetBaseUrl ? targetBaseUrl.replace(/\/+$/, "") : BACKEND_URL;
 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     const apikey = req.headers.get("apikey");
@@ -39,7 +42,7 @@ serve(async (req) => {
       if (raw && raw !== "{}") body = raw;
     }
 
-    const upstream = await fetch(`${BACKEND_URL}${targetPath}`, {
+    const upstream = await fetch(`${baseUrl}${targetPath}`, {
       method: targetMethod,
       headers,
       body,
