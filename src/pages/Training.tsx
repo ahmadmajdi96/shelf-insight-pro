@@ -1702,11 +1702,18 @@ export default function Training() {
   // ─── Training ──────────────────────────────────────────
   const TRAINING_ENDPOINT_KEY = 'shelfvision_training_endpoint';
 
-  const proxyFetch = async (trainingEndpoint: string, path: string, method: string, body?: any) => {
+  const getTrainingBaseUrl = () => {
+    const raw = localStorage.getItem(TRAINING_ENDPOINT_KEY)?.trim() || '';
+    const sanitized = raw.replace(/\/+$/, '');
+    if (sanitized.endsWith('/train/payload')) return sanitized.slice(0, -'/train/payload'.length);
+    if (sanitized.endsWith('/status')) return sanitized.slice(0, -'/status'.length);
+    return sanitized;
+  };
+
+  const proxyFetch = async (trainingBaseUrl: string, path: string, method: string, body?: any) => {
     const base = getApiBaseUrl().replace(/\/+$/, '');
     const token = localStorage.getItem('shelfvision_access_token');
     const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-    const targetUrl = `${trainingEndpoint}${path}`;
 
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
