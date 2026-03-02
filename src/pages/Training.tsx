@@ -1710,30 +1710,15 @@ export default function Training() {
     return sanitized;
   };
 
-  const proxyFetch = async (trainingBaseUrl: string, path: string, method: string, body?: any) => {
-    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/+$/, '') || '';
-    const token = localStorage.getItem('shelfvision_access_token');
-    const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
-
+  const trainingFetch = async (trainingBaseUrl: string, path: string, method: string, body?: any) => {
+    const url = `${trainingBaseUrl}${path}`;
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
-      'x-target-path': path,
-      'x-target-method': method,
-      'x-target-url': trainingBaseUrl,
     };
-    if (apiKey) headers['apikey'] = apiKey;
-    if (token) headers['Authorization'] = `Bearer ${token}`;
-
-    // Route through the api-proxy edge function, but override the target URL
-    // The proxy forwards to BACKEND_URL + x-target-path. Since training endpoint
-    // may differ, we call the training endpoint directly but via the proxy pattern.
-    // We'll post to the proxy with the full target path.
-    const res = await fetch(`${supabaseUrl}/functions/v1/api-proxy`, {
-      method: 'POST',
+    const res = await fetch(url, {
+      method,
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
-      mode: 'cors',
-      credentials: 'omit',
     });
     return res;
   };
@@ -1751,7 +1736,7 @@ export default function Training() {
     try {
       const payload = buildTrainingRequestPayload();
 
-      const res = await proxyFetch(trainingBaseUrl, '/train/payload', 'POST', payload);
+      const res = await trainingFetch(trainingBaseUrl, '/train/payload', 'POST', payload);
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
@@ -1782,7 +1767,7 @@ export default function Training() {
       pollCount++;
 
       try {
-        const res = await proxyFetch(endpoint, '/status', 'GET');
+        const res = await trainingFetch(endpoint, '/status', 'GET');
         if (!res.ok) return;
         const status = await res.json();
 
