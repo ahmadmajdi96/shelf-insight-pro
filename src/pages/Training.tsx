@@ -1745,8 +1745,10 @@ export default function Training() {
 
       const data = await res.json();
 
-      // Create a training job record in the database
-      const jobResult = await rest.create('training_jobs', {
+      // Create a training job record in the database with client-generated ID
+      const jobId = crypto.randomUUID();
+      await rest.create('training_jobs', {
+        id: jobId,
         dataset_id: selectedDatasetId,
         epochs: trainForm.epochs,
         batch_size: trainForm.batch_size,
@@ -1754,7 +1756,6 @@ export default function Training() {
         started_at: new Date().toISOString(),
         progress: 0,
       });
-      const jobId = jobResult?.id;
 
       // Update dataset status
       await rest.update('datasets', { id: `eq.${selectedDatasetId}` }, { status: 'training' });
