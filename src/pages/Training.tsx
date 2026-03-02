@@ -1700,26 +1700,87 @@ export default function Training() {
   };
 
   // ─── Training ──────────────────────────────────────────
+  const TRAINING_ENDPOINT_KEY = 'shelfvision_training_endpoint';
+
   const startTraining = async () => {
     if (!selectedDatasetId) return;
+
+    const trainingEndpoint = localStorage.getItem(TRAINING_ENDPOINT_KEY)?.replace(/\/+$/, '');
+    if (!trainingEndpoint) {
+      toast({ title: 'Training endpoint not configured', description: 'Please set the Training Endpoint in Settings.', variant: 'destructive' });
+      return;
+    }
+
     setTrainingStarting(true);
     try {
-      const data = await invoke('start-training', {
-        dataset_id: selectedDatasetId,
-        tenant_id: selectedDataset?.tenant_id || null,
-        has_previous_model: jobs.some(j => j.status === 'completed'),
-        epochs: trainForm.epochs,
-        batch_size: trainForm.batch_size,
-        config: trainingConfig,
+      const payload = buildTrainingRequestPayload();
+      const token = localStorage.getItem('shelfvision_access_token');
+
+      // POST /train/payload
+      const res = await fetch(`${trainingEndpoint}/train/payload`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          ...(token ? { Authorization: `Bearer ${token}` } : {}),
+        },
+        body: JSON.stringify(payload),
       });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(err?.detail || err?.error || err?.message || `Training request failed (${res.status})`);
+      }
+
+      const data = await res.json();
       setShowTrainModal(false);
       toast({ title: 'Training job started', description: data?.message || 'The model is being trained.' });
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
+
+      // Start polling GET /status
+      pollTrainingStatus(trainingEndpoint, token);
     } catch (e: any) {
       toast({ title: 'Training failed', description: e.message, variant: 'destructive' });
     } finally {
       setTrainingStarting(false);
     }
+  };
+
+  const pollTrainingStatus = (endpoint: string, token: string | null) => {
+    const MAX_POLLS = 360;
+    const POLL_INTERVAL = 5000;
+    let pollCount = 0;
+
+    const poll = async () => {
+      if (pollCount >= MAX_POLLS) return;
+      pollCount++;
+
+      try {
+        const res = await fetch(`${endpoint}/status`, {
+          headers: {
+            ...(token ? { Authorization: `Bearer ${token}` } : {}),
+          },
+        });
+        if (!res.ok) return;
+        const status = await res.json();
+
+        // Refresh jobs list to reflect latest status
+        qc.invalidateQueries({ queryKey: ['training-jobs'] });
+
+        // Stop polling if terminal state
+        if (status?.status === 'completed' || status?.status === 'failed') {
+          if (status.status === 'completed') {
+            toast({ title: 'Training completed', description: 'Model training finished successfully.' });
+          } else {
+            toast({ title: 'Training failed', description: status?.error_message || 'Training job failed.', variant: 'destructive' });
+          }
+          return;
+        }
+      } catch { /* ignore poll errors */ }
+
+      setTimeout(poll, POLL_INTERVAL);
+    };
+
+    setTimeout(poll, POLL_INTERVAL);
   };
 
   useEffect(() => {
