@@ -18,6 +18,7 @@ serve(async (req) => {
   try {
     const targetPath = req.headers.get("x-target-path");
     const targetMethod = (req.headers.get("x-target-method") || "POST").toUpperCase();
+    const targetBaseUrl = req.headers.get("x-target-url"); // optional override
 
     if (!targetPath) {
       return new Response(JSON.stringify({ error: "Missing x-target-path header" }), {
@@ -25,6 +26,8 @@ serve(async (req) => {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    const baseUrl = targetBaseUrl ? targetBaseUrl.replace(/\/+$/, "") : BACKEND_URL;
 
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     const apikey = req.headers.get("apikey");
@@ -39,7 +42,7 @@ serve(async (req) => {
       if (raw && raw !== "{}") body = raw;
     }
 
-    const upstream = await fetch(`${BACKEND_URL}${targetPath}`, {
+    const upstream = await fetch(`${baseUrl}${targetPath}`, {
       method: targetMethod,
       headers,
       body,
