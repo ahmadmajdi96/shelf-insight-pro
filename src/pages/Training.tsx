@@ -1711,7 +1711,7 @@ export default function Training() {
   };
 
   const proxyFetch = async (trainingBaseUrl: string, path: string, method: string, body?: any) => {
-    const base = getApiBaseUrl().replace(/\/+$/, '');
+    const supabaseUrl = import.meta.env.VITE_SUPABASE_URL?.replace(/\/+$/, '') || '';
     const token = localStorage.getItem('shelfvision_access_token');
     const apiKey = import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY;
 
@@ -1728,7 +1728,7 @@ export default function Training() {
     // The proxy forwards to BACKEND_URL + x-target-path. Since training endpoint
     // may differ, we call the training endpoint directly but via the proxy pattern.
     // We'll post to the proxy with the full target path.
-    const res = await fetch(`${base}/functions/v1/api-proxy`, {
+    const res = await fetch(`${supabaseUrl}/functions/v1/api-proxy`, {
       method: 'POST',
       headers,
       body: body !== undefined ? JSON.stringify(body) : undefined,
