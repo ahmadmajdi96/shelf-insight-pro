@@ -1414,9 +1414,14 @@ export default function Training() {
       ? images.filter(img => selectedSetIds.has((img as any).image_set_id))
       : images;
     
+    const tenantId = selectedDataset?.tenant_id || null;
+    const hasPreviousModel = jobs.some(j => j.status === 'completed');
+
     return {
       dataset_id: selectedDatasetId,
       dataset_name: selectedDataset?.name,
+      tenant_id: tenantId,
+      has_previous_model: hasPreviousModel,
       config: trainingConfig,
       classes: annotationClasses.map(c => ({ id: c.id, name: c.name, color: c.color })),
       images: selectedImages.map(img => ({
@@ -1701,6 +1706,8 @@ export default function Training() {
     try {
       const data = await invoke('start-training', {
         dataset_id: selectedDatasetId,
+        tenant_id: selectedDataset?.tenant_id || null,
+        has_previous_model: jobs.some(j => j.status === 'completed'),
         epochs: trainForm.epochs,
         batch_size: trainForm.batch_size,
         config: trainingConfig,
