@@ -46,7 +46,7 @@ import { rest } from '@/lib/api-client';
 import { invoke } from '@/lib/api-client';
 import {
   useDatasets, useDatasetImages, useDatasetClasses, useTrainingJobs,
-  type Dataset, type DatasetImage, type DatasetClass,
+  type Dataset, type DatasetImage, type DatasetClass, type TrainingJob,
 } from '@/hooks/useDatasets';
 import { useImageSets, useImageSetUpload, type ImageSet } from '@/hooks/useImageSets';
 import { getApiBaseUrl } from '@/lib/api-config';
@@ -368,6 +368,7 @@ export default function Training() {
 
   // Model versioning
   const [evaluationJobId, setEvaluationJobId] = useState<string | null>(null);
+  const [optimisticTrainingJobs, setOptimisticTrainingJobs] = useState<TrainingJob[]>([]);
 
   // Image sets
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -384,6 +385,14 @@ export default function Training() {
   // Preview request
   const [showPreviewRequest, setShowPreviewRequest] = useState(false);
   const selectedDataset = datasets.find(d => d.id === selectedDatasetId);
+
+  const visibleJobs = useMemo(() => {
+    const serverIds = new Set(jobs.map(j => j.id));
+    const optimisticForDataset = optimisticTrainingJobs.filter(j => j.dataset_id === selectedDatasetId && !serverIds.has(j.id));
+    return [...optimisticForDataset, ...jobs].sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  }, [jobs, optimisticTrainingJobs, selectedDatasetId]);
 
   // Filtered tenants based on selected admin in dataset form
   const filteredTenantsForForm = useMemo(() => {
@@ -1745,20 +1754,43 @@ export default function Training() {
 
       const data = await res.json();
 
-      // Create a training job record in the database with client-generated ID
-      const jobId = crypto.randomUUID();
+      const nowIso = new Date().toISOString();
+      const jobId = data?.job_id || data?.id || crypto.randomUUID();
+
+      // Always show ongoing training immediately in UI (fallback for read-only backend resources)
+      setOptimisticTrainingJobs(prev => [
+        {
+          id: jobId,
+          dataset_id: selectedDatasetId,
+          status: 'training',
+          model_type: 'yolov8',
+          epochs: trainForm.epochs,
+          batch_size: trainForm.batch_size,
+          progress: 0,
+          result_url: null,
+          error_message: null,
+          started_at: nowIso,
+          completed_at: null,
+          created_by: null,
+          created_at: nowIso,
+          updated_at: nowIso,
+        },
+        ...prev.filter(j => j.id !== jobId),
+      ]);
+
+      // Try to persist on backend when writes are allowed
       await rest.create('training_jobs', {
         id: jobId,
         dataset_id: selectedDatasetId,
         epochs: trainForm.epochs,
         batch_size: trainForm.batch_size,
         status: 'training',
-        started_at: new Date().toISOString(),
+        started_at: nowIso,
         progress: 0,
-      });
+      }).catch(() => {});
 
-      // Update dataset status
-      await rest.update('datasets', { id: `eq.${selectedDatasetId}` }, { status: 'training' });
+      // Update dataset status (best-effort)
+      await rest.update('datasets', { id: `eq.${selectedDatasetId}` }, { status: 'training' }).catch(() => {});
 
       setShowTrainModal(false);
       toast({ title: 'Training job started', description: data?.message || 'The model is being trained.' });
@@ -1788,14 +1820,40 @@ export default function Training() {
         if (!res.ok) return;
         const status = await res.json();
 
-        // Update the training job record with progress/status from server
+        // Update in-app training row + best-effort backend update
         if (jobId) {
+          const nowIso = new Date().toISOString();
+          const nextStatus = status?.status === 'completed'
+            ? 'completed'
+            : status?.status === 'failed'
+              ? 'failed'
+              : status?.status || 'training';
+
+          const nextProgress = status?.status === 'completed'
+            ? 100
+            : status?.progress !== undefined
+              ? Number(status.progress)
+              : undefined;
+
+          setOptimisticTrainingJobs(prev => prev.map(j =>
+            j.id === jobId
+              ? {
+                  ...j,
+                  status: nextStatus,
+                  progress: nextProgress ?? j.progress,
+                  result_url: status?.result_url ?? j.result_url,
+                  error_message: status?.status === 'failed' ? (status?.error_message || 'Training failed') : j.error_message,
+                  completed_at: status?.status === 'completed' ? nowIso : j.completed_at,
+                  updated_at: nowIso,
+                }
+              : j
+          ));
+
           const updatePayload: any = {};
-          if (status?.progress !== undefined) updatePayload.progress = status.progress;
+          if (nextProgress !== undefined) updatePayload.progress = nextProgress;
           if (status?.status === 'completed') {
             updatePayload.status = 'completed';
-            updatePayload.completed_at = new Date().toISOString();
-            updatePayload.progress = 100;
+            updatePayload.completed_at = nowIso;
             if (status?.result_url) updatePayload.result_url = status.result_url;
           } else if (status?.status === 'failed') {
             updatePayload.status = 'failed';
@@ -1931,7 +1989,7 @@ export default function Training() {
                 {tab.value === 'datasets' && <Badge variant="secondary" className="ml-1">{filteredDatasets.length}</Badge>}
                 {tab.value === 'classes' && selectedDatasetId && <Badge variant="secondary" className="ml-1">{classes.length}</Badge>}
                 {tab.value === 'images' && selectedDatasetId && <Badge variant="secondary" className="ml-1">{images.length}</Badge>}
-                {tab.value === 'train' && selectedDatasetId && <Badge variant="secondary" className="ml-1">{jobs.length}</Badge>}
+                {tab.value === 'train' && selectedDatasetId && <Badge variant="secondary" className="ml-1">{visibleJobs.length}</Badge>}
               </TabsTrigger>
             ))}
           </TabsList>
@@ -2600,7 +2658,7 @@ export default function Training() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {jobs.length === 0 ? (
+                  {visibleJobs.length === 0 ? (
                     <TableRow>
                       <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                         <Brain className="w-12 h-12 mx-auto mb-3 opacity-40" />
@@ -2608,7 +2666,7 @@ export default function Training() {
                       </TableCell>
                     </TableRow>
                   ) : (
-                    jobs.map(job => {
+                    visibleJobs.map(job => {
                       const cfg = statusConfig[job.status] || statusConfig.pending;
                       return (
                         <TableRow key={job.id}>
@@ -2660,7 +2718,7 @@ export default function Training() {
 
           {/* Model Evaluation Details */}
           {evaluationJobId && (() => {
-            const evalJob = jobs.find(j => j.id === evaluationJobId);
+            const evalJob = visibleJobs.find(j => j.id === evaluationJobId);
             if (!evalJob) return null;
             return (
               <div className="rounded-xl bg-card border border-border p-6 space-y-4">
