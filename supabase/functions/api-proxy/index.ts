@@ -37,12 +37,15 @@ serve(async (req) => {
     if (authorization) headers["Authorization"] = authorization;
 
     let body: string | undefined;
-    if (!["DELETE", "GET", "HEAD"].includes(targetMethod)) {
-      const raw = await req.text();
-      if (raw && raw !== "{}") body = raw;
+    const raw = await req.text();
+    if (!["DELETE", "GET", "HEAD"].includes(targetMethod) && raw && raw !== "{}") {
+      body = raw;
     }
 
-    const upstream = await fetch(`${baseUrl}${targetPath}`, {
+    const upstreamUrl = `${baseUrl}${targetPath}`;
+    console.log(`api-proxy: ${targetMethod} ${upstreamUrl}`);
+
+    const upstream = await fetch(upstreamUrl, {
       method: targetMethod,
       headers,
       body,
