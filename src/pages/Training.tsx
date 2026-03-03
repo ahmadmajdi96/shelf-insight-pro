@@ -368,7 +368,22 @@ export default function Training() {
 
   // Model versioning
   const [evaluationJobId, setEvaluationJobId] = useState<string | null>(null);
-  const [optimisticTrainingJobs, setOptimisticTrainingJobs] = useState<TrainingJob[]>([]);
+  const [optimisticTrainingJobs, setOptimisticTrainingJobs] = useState<TrainingJob[]>(() => {
+    try {
+      const stored = localStorage.getItem('shelfvision_optimistic_training_jobs');
+      if (stored) {
+        const parsed = JSON.parse(stored) as TrainingJob[];
+        // Only keep jobs less than 2 hours old
+        return parsed.filter(j => Date.now() - new Date(j.created_at).getTime() < 2 * 60 * 60 * 1000);
+      }
+    } catch {}
+    return [];
+  });
+
+  // Persist optimistic jobs to localStorage
+  useEffect(() => {
+    localStorage.setItem('shelfvision_optimistic_training_jobs', JSON.stringify(optimisticTrainingJobs));
+  }, [optimisticTrainingJobs]);
 
   // Image sets
   const [showUploadModal, setShowUploadModal] = useState(false);
@@ -388,7 +403,16 @@ export default function Training() {
 
   const visibleJobs = useMemo(() => {
     const serverIds = new Set(jobs.map(j => j.id));
-    const optimisticForDataset = optimisticTrainingJobs.filter(j => j.dataset_id === selectedDatasetId && !serverIds.has(j.id));
+    // Keep optimistic jobs that haven't appeared on the server yet,
+    // or that are still "training" locally (server may lag behind)
+    const optimisticForDataset = optimisticTrainingJobs.filter(j => {
+      if (j.dataset_id !== selectedDatasetId) return false;
+      // If server already has this job, prefer server version
+      if (serverIds.has(j.id)) return false;
+      // Keep optimistic jobs that are still active (not older than 2 hours)
+      const age = Date.now() - new Date(j.created_at).getTime();
+      return age < 2 * 60 * 60 * 1000;
+    });
     return [...optimisticForDataset, ...jobs].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
