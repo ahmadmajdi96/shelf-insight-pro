@@ -394,6 +394,7 @@ export default function Training() {
   const [selectedSetsAutoAnnotate, setSelectedSetsAutoAnnotate] = useState(SELECTED_SETS_AUTO_ANNOTATE_INITIAL);
   const autoAnnotateAbortRef = useRef<AbortController | null>(null);
   const [autoAnnotatingSetId, setAutoAnnotatingSetId] = useState<string | null>(null);
+  const [getClassification, setGetClassification] = useState(false);
   const [deleteSetId, setDeleteSetId] = useState<string | null>(null);
   const [annotatingSetId, setAnnotatingSetId] = useState<string | null>(null);
 
@@ -1218,6 +1219,7 @@ export default function Training() {
                 file_name: img.file_name,
               })),
               classes: annotationClasses.map(c => ({ id: c.id, name: c.name })),
+              get_classification: getClassification,
             }),
           }, 3);
 
@@ -2338,6 +2340,16 @@ export default function Training() {
                           <Square className="w-3.5 h-3.5 mr-1.5" />
                           Manual Annotate
                         </Button>
+                        <div className="flex items-center gap-2">
+                          <Switch
+                            id="get-classification-toggle"
+                            checked={getClassification}
+                            onCheckedChange={setGetClassification}
+                          />
+                          <Label htmlFor="get-classification-toggle" className="text-xs whitespace-nowrap cursor-pointer">
+                            Get Classes
+                          </Label>
+                        </div>
                         <Button
                           size="sm"
                           variant="outline"
