@@ -1703,17 +1703,22 @@ export default function Training() {
   };
 
   // ─── Model versioning ─────────────────────────────────
-  const handleActivateModel = async (jobId: string) => {
+  const handleDeployModel = async (jobId: string) => {
     try {
-      await rest.update('model_trainings', { id: `eq.${jobId}` }, { status: 'completed' });
-      if (selectedDatasetId) {
-        const otherJobs = jobs.filter(j => j.id !== jobId && j.status === 'completed');
-        for (const j of otherJobs) {
-          await rest.update('model_trainings', { id: `eq.${j.id}` }, { status: 'pending' });
-        }
+      // First, set any currently deployed model back to completed
+      const currentlyDeployed = visibleJobs.filter(j => j.status === 'deployed' && j.id !== jobId);
+      for (const dj of currentlyDeployed) {
+        await rest.update('model_trainings', { id: `eq.${dj.id}` }, { status: 'completed' });
       }
+      // Set this model as deployed
+      await rest.update('model_trainings', { id: `eq.${jobId}` }, { status: 'deployed' });
+      setOptimisticTrainingJobs(prev => prev.map(j => {
+        if (j.id === jobId) return { ...j, status: 'deployed' };
+        if (j.status === 'deployed') return { ...j, status: 'completed' };
+        return j;
+      }));
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
-      toast({ title: 'Model activated', description: 'This model version is now active.' });
+      toast({ title: 'Model deployed successfully' });
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     }
