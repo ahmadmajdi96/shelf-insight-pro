@@ -2379,7 +2379,7 @@ export default function Training() {
                     const annotatedCount = getSetAnnotatedCount(set.id);
                     const isSelected = selectedSetIds.has(set.id);
                     const isAutoAnnotating = autoAnnotatingSetId === set.id;
-                    const progressPct = set.image_count > 0 ? (annotatedCount / set.image_count) * 100 : 0;
+                    const progressPct = setImgs.length > 0 ? (annotatedCount / setImgs.length) * 100 : 0;
                     return (
                       <div
                         key={set.id}
@@ -2433,7 +2433,7 @@ export default function Training() {
                             variant={progressPct === 100 && set.image_count > 0 ? 'default' : 'outline'}
                             className="text-[10px] gap-1"
                           >
-                            <CheckCircle2 className="w-3 h-3" />{annotatedCount}/{set.image_count}
+                            <CheckCircle2 className="w-3 h-3" />{annotatedCount}/{setImgs.length}
                           </Badge>
                           {set.is_trained && (
                             <Badge className="text-[10px] gap-1 bg-success/80 text-success-foreground">
@@ -2706,7 +2706,7 @@ export default function Training() {
                       const cfg = statusConfig[job.status] || statusConfig.pending;
                       return (
                         <TableRow key={job.id}>
-                          <TableCell className="font-medium">{job.model_type.toUpperCase()}</TableCell>
+                          <TableCell className="font-medium">Model {selectedDataset?.name || ''} {format(new Date(job.created_at), 'yyyy-MM-dd HH:mm')}</TableCell>
                           <TableCell>{job.epochs}</TableCell>
                           <TableCell>{job.batch_size}</TableCell>
                           <TableCell><Badge className={cn("text-[10px]", cfg.className)}>{cfg.label}</Badge></TableCell>
