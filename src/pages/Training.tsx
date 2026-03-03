@@ -2722,7 +2722,7 @@ export default function Training() {
               <div className="rounded-xl bg-card border border-border p-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold text-foreground flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-primary" /> Model Evaluation — {evalJob.model_type.toUpperCase()}
+                    <BarChart3 className="w-5 h-5 text-primary" /> Model Evaluation — {evalJob.model_name || 'Unknown'}
                   </h4>
                   <Button variant="ghost" size="sm" onClick={() => setEvaluationJobId(null)}>
                     <X className="w-4 h-4" />
