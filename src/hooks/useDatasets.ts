@@ -36,18 +36,22 @@ export interface DatasetClass {
 export interface TrainingJob {
   id: string;
   dataset_id: string;
+  tenant_id: string | null;
+  model_name: string;
+  model_location: string | null;
   status: string;
-  model_type: string;
-  epochs: number;
-  batch_size: number;
-  progress: number;
-  result_url: string | null;
-  error_message: string | null;
-  started_at: string | null;
-  completed_at: string | null;
-  created_by: string | null;
   created_at: string;
-  updated_at: string;
+  // Legacy fields kept for UI compatibility (populated from optimistic state)
+  model_type?: string;
+  epochs?: number;
+  batch_size?: number;
+  progress?: number;
+  result_url?: string | null;
+  error_message?: string | null;
+  started_at?: string | null;
+  completed_at?: string | null;
+  created_by?: string | null;
+  updated_at?: string;
 }
 
 // ─── Datasets ────────────────────────────────────────────
@@ -238,7 +242,7 @@ export function useDatasetClasses(datasetId: string | null) {
   return { classes, isLoading, createClass, updateClass, deleteClass };
 }
 
-// ─── Training Jobs ───────────────────────────────────────
+// ─── Training Jobs (model_trainings) ─────────────────────
 export function useTrainingJobs(datasetId?: string | null) {
   const { toast } = useToast();
   const qc = useQueryClient();
@@ -248,14 +252,14 @@ export function useTrainingJobs(datasetId?: string | null) {
     queryFn: async () => {
       const opts: any = { select: '*', order: 'created_at.desc' };
       if (datasetId) opts.filters = { dataset_id: `eq.${datasetId}` };
-      const { data } = await rest.list('training_jobs', opts);
+      const { data } = await rest.list('model_trainings', opts);
       return (data || []) as TrainingJob[];
     },
   });
 
   const createJob = useMutation({
-    mutationFn: async (payload: { dataset_id: string; epochs?: number; batch_size?: number }) => {
-      return await rest.create('training_jobs', { ...payload, status: 'pending' });
+    mutationFn: async (payload: { model_name: string; model_location?: string; tenant_id?: string; dataset_id: string; status?: string }) => {
+      return await rest.create('model_trainings', { ...payload, status: payload.status || 'training' });
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ['training-jobs'] });

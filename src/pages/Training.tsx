@@ -1699,12 +1699,11 @@ export default function Training() {
   // ─── Model versioning ─────────────────────────────────
   const handleActivateModel = async (jobId: string) => {
     try {
-      await rest.update('training_jobs', { id: `eq.${jobId}` }, { status: 'completed' });
+      await rest.update('model_trainings', { id: `eq.${jobId}` }, { status: 'completed' });
       if (selectedDatasetId) {
-        // Deactivate other completed jobs for this dataset
         const otherJobs = jobs.filter(j => j.id !== jobId && j.status === 'completed');
         for (const j of otherJobs) {
-          await rest.update('training_jobs', { id: `eq.${j.id}` }, { status: 'pending' });
+          await rest.update('model_trainings', { id: `eq.${j.id}` }, { status: 'pending' });
         }
       }
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
@@ -1716,7 +1715,7 @@ export default function Training() {
 
   const handleSuspendModel = async (jobId: string) => {
     try {
-      await rest.update('training_jobs', { id: `eq.${jobId}` }, { status: 'pending' });
+      await rest.update('model_trainings', { id: `eq.${jobId}` }, { status: 'pending' });
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
       toast({ title: 'Model suspended' });
     } catch (e: any) {
@@ -1726,7 +1725,7 @@ export default function Training() {
 
   const handleDeleteTraining = async (jobId: string) => {
     try {
-      await rest.remove('training_jobs', jobId);
+      await rest.remove('model_trainings', jobId);
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
       toast({ title: 'Training removed' });
     } catch (e: any) {
@@ -1770,24 +1769,33 @@ export default function Training() {
     setTrainingStarting(true);
     try {
       const payload = buildTrainingRequestPayload();
-
-      const res = await trainingFetch(trainingBaseUrl, '/train/payload', 'POST', payload);
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        throw new Error(err?.detail || err?.error || err?.message || `Training request failed (${res.status})`);
-      }
-
-      const data = await res.json();
-
       const nowIso = new Date().toISOString();
-      const jobId = data?.job_id || data?.id || crypto.randomUUID();
+      const modelName = `Model ${selectedDataset?.name || ''} ${format(new Date(), 'yyyy-MM-dd HH:mm')}`;
+      const tenantIdForJob = selectedDataset?.tenant_id || null;
 
-      // Always show ongoing training immediately in UI (fallback for read-only backend resources)
+      // 1) Create record in model_trainings on the backend
+      let jobId: string | undefined;
+      try {
+        const created = await rest.create('model_trainings', {
+          model_name: modelName,
+          model_location: '',
+          tenant_id: tenantIdForJob,
+          dataset_id: selectedDatasetId,
+          status: 'training',
+        });
+        jobId = created?.id;
+      } catch { /* best effort */ }
+
+      if (!jobId) jobId = crypto.randomUUID();
+
+      // 2) Optimistic UI update
       setOptimisticTrainingJobs(prev => [
         {
-          id: jobId,
+          id: jobId!,
           dataset_id: selectedDatasetId,
+          tenant_id: tenantIdForJob,
+          model_name: modelName,
+          model_location: null,
           status: 'training',
           model_type: 'yolov8',
           epochs: trainForm.epochs,
@@ -1804,16 +1812,15 @@ export default function Training() {
         ...prev.filter(j => j.id !== jobId),
       ]);
 
-      // Try to persist on backend when writes are allowed
-      await rest.create('training_jobs', {
-        id: jobId,
-        dataset_id: selectedDatasetId,
-        epochs: trainForm.epochs,
-        batch_size: trainForm.batch_size,
-        status: 'training',
-        started_at: nowIso,
-        progress: 0,
-      }).catch(() => {});
+      // 3) Trigger training endpoint (fire-and-forget style, errors shown but don't block)
+      const res = await trainingFetch(trainingBaseUrl, '/train/payload', 'POST', payload);
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(err?.detail || err?.error || err?.message || `Training request failed (${res.status})`);
+      }
+
+      const data = await res.json();
 
       // Update dataset status (best-effort)
       await rest.update('datasets', { id: `eq.${selectedDatasetId}` }, { status: 'training' }).catch(() => {});
@@ -1823,8 +1830,8 @@ export default function Training() {
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
       qc.invalidateQueries({ queryKey: ['datasets'] });
 
-      // Start polling GET /status
-      pollTrainingStatus(trainingBaseUrl, jobId);
+      // Start polling backend model_trainings status
+      pollTrainingStatus(jobId);
     } catch (e: any) {
       toast({ title: 'Training failed', description: e.message, variant: 'destructive' });
     } finally {
@@ -1832,7 +1839,7 @@ export default function Training() {
     }
   };
 
-  const pollTrainingStatus = (endpoint: string, jobId?: string) => {
+  const pollTrainingStatus = (jobId: string) => {
     const MAX_POLLS = 360;
     const POLL_INTERVAL = 5000;
     let pollCount = 0;
@@ -1842,71 +1849,42 @@ export default function Training() {
       pollCount++;
 
       try {
-        const res = await trainingFetch(endpoint, '/status', 'GET');
-        if (!res.ok) return;
-        const status = await res.json();
-
-        // Update in-app training row + best-effort backend update
-        if (jobId) {
-          const nowIso = new Date().toISOString();
-          const nextStatus = status?.status === 'completed'
-            ? 'completed'
-            : status?.status === 'failed'
-              ? 'failed'
-              : status?.status || 'training';
-
-          const nextProgress = status?.status === 'completed'
-            ? 100
-            : status?.progress !== undefined
-              ? Number(status.progress)
-              : undefined;
-
-          setOptimisticTrainingJobs(prev => prev.map(j =>
-            j.id === jobId
-              ? {
-                  ...j,
-                  status: nextStatus,
-                  progress: nextProgress ?? j.progress,
-                  result_url: status?.result_url ?? j.result_url,
-                  error_message: status?.status === 'failed' ? (status?.error_message || 'Training failed') : j.error_message,
-                  completed_at: status?.status === 'completed' ? nowIso : j.completed_at,
-                  updated_at: nowIso,
-                }
-              : j
-          ));
-
-          const updatePayload: any = {};
-          if (nextProgress !== undefined) updatePayload.progress = nextProgress;
-          if (status?.status === 'completed') {
-            updatePayload.status = 'completed';
-            updatePayload.completed_at = nowIso;
-            if (status?.result_url) updatePayload.result_url = status.result_url;
-          } else if (status?.status === 'failed') {
-            updatePayload.status = 'failed';
-            updatePayload.error_message = status?.error_message || 'Training failed';
-          } else if (status?.status) {
-            updatePayload.status = status.status;
-          }
-          if (Object.keys(updatePayload).length > 0) {
-            await rest.update('training_jobs', { id: `eq.${jobId}` }, updatePayload).catch(() => {});
-          }
+        // Read status from model_trainings on the backend
+        const record = await rest.get('model_trainings', jobId).catch(() => null);
+        if (!record) {
+          setTimeout(poll, POLL_INTERVAL);
+          return;
         }
+
+        const status = record.status || 'training';
+
+        // Update optimistic state
+        setOptimisticTrainingJobs(prev => prev.map(j =>
+          j.id === jobId
+            ? {
+                ...j,
+                status,
+                model_location: record.model_location ?? j.model_location,
+                updated_at: new Date().toISOString(),
+              }
+            : j
+        ));
 
         qc.invalidateQueries({ queryKey: ['training-jobs'] });
 
-        if (status?.status === 'completed' || status?.status === 'failed') {
+        if (status === 'completed' || status === 'failed') {
           // Update dataset status
           if (selectedDatasetId) {
             await rest.update('datasets', { id: `eq.${selectedDatasetId}` }, {
-              status: status.status === 'completed' ? 'ready' : 'draft',
+              status: status === 'completed' ? 'ready' : 'draft',
             }).catch(() => {});
             qc.invalidateQueries({ queryKey: ['datasets'] });
           }
 
-          if (status.status === 'completed') {
+          if (status === 'completed') {
             toast({ title: 'Training completed', description: 'Model training finished successfully.' });
           } else {
-            toast({ title: 'Training failed', description: status?.error_message || 'Training job failed.', variant: 'destructive' });
+            toast({ title: 'Training failed', description: 'Training job failed.', variant: 'destructive' });
           }
           return;
         }
@@ -2676,13 +2654,11 @@ export default function Training() {
           <div className="rounded-xl bg-card border border-border overflow-hidden">
             <ScrollArea className="h-[400px]">
               <Table>
-                <TableHeader>
+                 <TableHeader>
                   <TableRow className="bg-secondary/50">
-                    <TableHead>Model</TableHead>
-                    <TableHead>Epochs</TableHead>
-                    <TableHead>Batch Size</TableHead>
+                    <TableHead>Model Name</TableHead>
+                    <TableHead>Model Location</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Progress</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -2690,7 +2666,7 @@ export default function Training() {
                 <TableBody>
                   {visibleJobs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                         <Brain className="w-12 h-12 mx-auto mb-3 opacity-40" />
                         <p>No training jobs yet.</p>
                       </TableCell>
@@ -2700,17 +2676,9 @@ export default function Training() {
                       const cfg = statusConfig[job.status] || statusConfig.pending;
                       return (
                         <TableRow key={job.id}>
-                          <TableCell className="font-medium">Model {selectedDataset?.name || ''} {format(new Date(job.created_at), 'yyyy-MM-dd HH:mm')}</TableCell>
-                          <TableCell>{job.epochs}</TableCell>
-                          <TableCell>{job.batch_size}</TableCell>
+                          <TableCell className="font-medium">{job.model_name || `Model ${selectedDataset?.name || ''} ${format(new Date(job.created_at), 'yyyy-MM-dd HH:mm')}`}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{job.model_location || '-'}</TableCell>
                           <TableCell><Badge className={cn("text-[10px]", cfg.className)}>{cfg.label}</Badge></TableCell>
-                          <TableCell>
-                            {job.status === 'training' ? (
-                              <div className="w-24"><Progress value={Number(job.progress)} className="h-1.5" /></div>
-                            ) : job.status === 'completed' ? (
-                              <span className="text-xs text-success">100%</span>
-                            ) : '-'}
-                          </TableCell>
                           <TableCell>{format(new Date(job.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
@@ -2754,44 +2722,30 @@ export default function Training() {
               <div className="rounded-xl bg-card border border-border p-6 space-y-4">
                 <div className="flex items-center justify-between">
                   <h4 className="font-semibold text-foreground flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-primary" /> Model Evaluation — {evalJob.model_type.toUpperCase()}
+                    <BarChart3 className="w-5 h-5 text-primary" /> Model Evaluation — {evalJob.model_name || 'Unknown'}
                   </h4>
                   <Button variant="ghost" size="sm" onClick={() => setEvaluationJobId(null)}>
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div className="p-3 rounded-lg bg-secondary/50 border border-border">
                     <p className="text-xs text-muted-foreground">Status</p>
                     <p className="font-semibold text-foreground">{evalJob.status}</p>
                   </div>
                   <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Epochs</p>
-                    <p className="font-semibold text-foreground">{evalJob.epochs}</p>
+                    <p className="text-xs text-muted-foreground">Model Name</p>
+                    <p className="font-semibold text-foreground">{evalJob.model_name || '-'}</p>
                   </div>
                   <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Batch Size</p>
-                    <p className="font-semibold text-foreground">{evalJob.batch_size}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Progress</p>
-                    <p className="font-semibold text-foreground">{evalJob.progress || 0}%</p>
+                    <p className="text-xs text-muted-foreground">Created</p>
+                    <p className="text-sm text-foreground">{format(new Date(evalJob.created_at), 'PPpp')}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Started</p>
-                    <p className="text-sm text-foreground">{evalJob.started_at ? format(new Date(evalJob.started_at), 'PPpp') : 'Not started'}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Completed</p>
-                    <p className="text-sm text-foreground">{evalJob.completed_at ? format(new Date(evalJob.completed_at), 'PPpp') : 'In progress'}</p>
-                  </div>
-                </div>
-                {evalJob.result_url && (
+                {evalJob.model_location && (
                   <div className="p-3 rounded-lg bg-success/5 border border-success/20">
-                    <p className="text-xs text-muted-foreground mb-1">Model Artifact</p>
-                    <a href={evalJob.result_url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline">{evalJob.result_url}</a>
+                    <p className="text-xs text-muted-foreground mb-1">Model Location</p>
+                    <a href={evalJob.model_location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline break-all">{evalJob.model_location}</a>
                   </div>
                 )}
                 {evalJob.error_message && (
