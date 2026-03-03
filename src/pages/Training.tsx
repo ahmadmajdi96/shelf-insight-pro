@@ -388,7 +388,16 @@ export default function Training() {
 
   const visibleJobs = useMemo(() => {
     const serverIds = new Set(jobs.map(j => j.id));
-    const optimisticForDataset = optimisticTrainingJobs.filter(j => j.dataset_id === selectedDatasetId && !serverIds.has(j.id));
+    // Keep optimistic jobs that haven't appeared on the server yet,
+    // or that are still "training" locally (server may lag behind)
+    const optimisticForDataset = optimisticTrainingJobs.filter(j => {
+      if (j.dataset_id !== selectedDatasetId) return false;
+      // If server already has this job, prefer server version
+      if (serverIds.has(j.id)) return false;
+      // Keep optimistic jobs that are still active (not older than 2 hours)
+      const age = Date.now() - new Date(j.created_at).getTime();
+      return age < 2 * 60 * 60 * 1000;
+    });
     return [...optimisticForDataset, ...jobs].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
