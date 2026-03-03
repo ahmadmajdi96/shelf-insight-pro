@@ -1699,12 +1699,11 @@ export default function Training() {
   // ─── Model versioning ─────────────────────────────────
   const handleActivateModel = async (jobId: string) => {
     try {
-      await rest.update('training_jobs', { id: `eq.${jobId}` }, { status: 'completed' });
+      await rest.update('model_trainings', { id: `eq.${jobId}` }, { status: 'completed' });
       if (selectedDatasetId) {
-        // Deactivate other completed jobs for this dataset
         const otherJobs = jobs.filter(j => j.id !== jobId && j.status === 'completed');
         for (const j of otherJobs) {
-          await rest.update('training_jobs', { id: `eq.${j.id}` }, { status: 'pending' });
+          await rest.update('model_trainings', { id: `eq.${j.id}` }, { status: 'pending' });
         }
       }
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
@@ -1716,7 +1715,7 @@ export default function Training() {
 
   const handleSuspendModel = async (jobId: string) => {
     try {
-      await rest.update('training_jobs', { id: `eq.${jobId}` }, { status: 'pending' });
+      await rest.update('model_trainings', { id: `eq.${jobId}` }, { status: 'pending' });
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
       toast({ title: 'Model suspended' });
     } catch (e: any) {
@@ -1726,7 +1725,7 @@ export default function Training() {
 
   const handleDeleteTraining = async (jobId: string) => {
     try {
-      await rest.remove('training_jobs', jobId);
+      await rest.remove('model_trainings', jobId);
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
       toast({ title: 'Training removed' });
     } catch (e: any) {
