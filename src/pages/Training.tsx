@@ -1769,24 +1769,33 @@ export default function Training() {
     setTrainingStarting(true);
     try {
       const payload = buildTrainingRequestPayload();
-
-      const res = await trainingFetch(trainingBaseUrl, '/train/payload', 'POST', payload);
-
-      if (!res.ok) {
-        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
-        throw new Error(err?.detail || err?.error || err?.message || `Training request failed (${res.status})`);
-      }
-
-      const data = await res.json();
-
       const nowIso = new Date().toISOString();
-      const jobId = data?.job_id || data?.id || crypto.randomUUID();
+      const modelName = `Model ${selectedDataset?.name || ''} ${format(new Date(), 'yyyy-MM-dd HH:mm')}`;
+      const tenantIdForJob = selectedDataset?.tenant_id || null;
 
-      // Always show ongoing training immediately in UI (fallback for read-only backend resources)
+      // 1) Create record in model_trainings on the backend
+      let jobId: string | undefined;
+      try {
+        const created = await rest.create('model_trainings', {
+          model_name: modelName,
+          model_location: '',
+          tenant_id: tenantIdForJob,
+          dataset_id: selectedDatasetId,
+          status: 'training',
+        });
+        jobId = created?.id;
+      } catch { /* best effort */ }
+
+      if (!jobId) jobId = crypto.randomUUID();
+
+      // 2) Optimistic UI update
       setOptimisticTrainingJobs(prev => [
         {
-          id: jobId,
+          id: jobId!,
           dataset_id: selectedDatasetId,
+          tenant_id: tenantIdForJob,
+          model_name: modelName,
+          model_location: null,
           status: 'training',
           model_type: 'yolov8',
           epochs: trainForm.epochs,
@@ -1803,16 +1812,15 @@ export default function Training() {
         ...prev.filter(j => j.id !== jobId),
       ]);
 
-      // Try to persist on backend when writes are allowed
-      await rest.create('training_jobs', {
-        id: jobId,
-        dataset_id: selectedDatasetId,
-        epochs: trainForm.epochs,
-        batch_size: trainForm.batch_size,
-        status: 'training',
-        started_at: nowIso,
-        progress: 0,
-      }).catch(() => {});
+      // 3) Trigger training endpoint (fire-and-forget style, errors shown but don't block)
+      const res = await trainingFetch(trainingBaseUrl, '/train/payload', 'POST', payload);
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ error: `HTTP ${res.status}` }));
+        throw new Error(err?.detail || err?.error || err?.message || `Training request failed (${res.status})`);
+      }
+
+      const data = await res.json();
 
       // Update dataset status (best-effort)
       await rest.update('datasets', { id: `eq.${selectedDatasetId}` }, { status: 'training' }).catch(() => {});
@@ -1822,8 +1830,8 @@ export default function Training() {
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
       qc.invalidateQueries({ queryKey: ['datasets'] });
 
-      // Start polling GET /status
-      pollTrainingStatus(trainingBaseUrl, jobId);
+      // Start polling backend model_trainings status
+      pollTrainingStatus(jobId);
     } catch (e: any) {
       toast({ title: 'Training failed', description: e.message, variant: 'destructive' });
     } finally {
