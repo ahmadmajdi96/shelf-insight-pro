@@ -1,7 +1,7 @@
 // Configurable API base URL for the ShelfVision backend
 const STORAGE_KEY = 'shelfvision_api_url';
 
-// Default to the Supabase (Lovable Cloud) URL from env
+// Default backend URL
 function getDefaultUrl(): string {
   return 'https://iralpha.backend.cortanexai.com';
 }
