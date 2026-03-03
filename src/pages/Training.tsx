@@ -2654,13 +2654,11 @@ export default function Training() {
           <div className="rounded-xl bg-card border border-border overflow-hidden">
             <ScrollArea className="h-[400px]">
               <Table>
-                <TableHeader>
+                 <TableHeader>
                   <TableRow className="bg-secondary/50">
-                    <TableHead>Model</TableHead>
-                    <TableHead>Epochs</TableHead>
-                    <TableHead>Batch Size</TableHead>
+                    <TableHead>Model Name</TableHead>
+                    <TableHead>Model Location</TableHead>
                     <TableHead>Status</TableHead>
-                    <TableHead>Progress</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
@@ -2668,7 +2666,7 @@ export default function Training() {
                 <TableBody>
                   {visibleJobs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
+                      <TableCell colSpan={5} className="text-center py-12 text-muted-foreground">
                         <Brain className="w-12 h-12 mx-auto mb-3 opacity-40" />
                         <p>No training jobs yet.</p>
                       </TableCell>
@@ -2678,17 +2676,9 @@ export default function Training() {
                       const cfg = statusConfig[job.status] || statusConfig.pending;
                       return (
                         <TableRow key={job.id}>
-                          <TableCell className="font-medium">Model {selectedDataset?.name || ''} {format(new Date(job.created_at), 'yyyy-MM-dd HH:mm')}</TableCell>
-                          <TableCell>{job.epochs}</TableCell>
-                          <TableCell>{job.batch_size}</TableCell>
+                          <TableCell className="font-medium">{job.model_name || `Model ${selectedDataset?.name || ''} ${format(new Date(job.created_at), 'yyyy-MM-dd HH:mm')}`}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{job.model_location || '-'}</TableCell>
                           <TableCell><Badge className={cn("text-[10px]", cfg.className)}>{cfg.label}</Badge></TableCell>
-                          <TableCell>
-                            {job.status === 'training' ? (
-                              <div className="w-24"><Progress value={Number(job.progress)} className="h-1.5" /></div>
-                            ) : job.status === 'completed' ? (
-                              <span className="text-xs text-success">100%</span>
-                            ) : '-'}
-                          </TableCell>
                           <TableCell>{format(new Date(job.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
