@@ -2748,12 +2748,6 @@ export default function Training() {
                     <a href={evalJob.model_location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline break-all">{evalJob.model_location}</a>
                   </div>
                 )}
-                {evalJob.result_url && (
-                  <div className="p-3 rounded-lg bg-success/5 border border-success/20">
-                    <p className="text-xs text-muted-foreground mb-1">Model Artifact</p>
-                    <a href={evalJob.result_url} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline">{evalJob.result_url}</a>
-                  </div>
-                )}
                 {evalJob.error_message && (
                   <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
                     <p className="text-xs text-muted-foreground mb-1">Error</p>
