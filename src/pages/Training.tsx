@@ -1726,6 +1726,9 @@ export default function Training() {
   const handleDeleteTraining = async (jobId: string) => {
     try {
       await rest.remove('model_trainings', jobId);
+      // Also remove from optimistic state
+      setOptimisticTrainingJobs(prev => prev.filter(j => j.id !== jobId));
+      if (evaluationJobId === jobId) setEvaluationJobId(null);
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
       toast({ title: 'Training removed' });
     } catch (e: any) {
@@ -2657,7 +2660,6 @@ export default function Training() {
                  <TableHeader>
                   <TableRow className="bg-secondary/50">
                     <TableHead>Model Name</TableHead>
-                    <TableHead>Model Location</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Created</TableHead>
                     <TableHead className="text-right">Actions</TableHead>
@@ -2677,7 +2679,6 @@ export default function Training() {
                       return (
                         <TableRow key={job.id}>
                           <TableCell className="font-medium">{job.model_name || `Model ${selectedDataset?.name || ''} ${format(new Date(job.created_at), 'yyyy-MM-dd HH:mm')}`}</TableCell>
-                          <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{job.model_location || '-'}</TableCell>
                           <TableCell><Badge className={cn("text-[10px]", cfg.className)}>{cfg.label}</Badge></TableCell>
                           <TableCell>{format(new Date(job.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
                           <TableCell className="text-right">
@@ -2742,12 +2743,6 @@ export default function Training() {
                     <p className="text-sm text-foreground">{format(new Date(evalJob.created_at), 'PPpp')}</p>
                   </div>
                 </div>
-                {evalJob.model_location && (
-                  <div className="p-3 rounded-lg bg-success/5 border border-success/20">
-                    <p className="text-xs text-muted-foreground mb-1">Model Location</p>
-                    <a href={evalJob.model_location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline break-all">{evalJob.model_location}</a>
-                  </div>
-                )}
                 {evalJob.error_message && (
                   <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
                     <p className="text-xs text-muted-foreground mb-1">Error</p>
