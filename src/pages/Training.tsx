@@ -59,11 +59,17 @@ const CLASS_COLORS = [
   '#22D3EE', '#FB923C', '#818CF8', '#2DD4BF', '#FACC15',
 ];
 
-const statusConfig: Record<string, { icon: any; label: string; className: string }> = {
-  pending: { icon: Clock, label: 'Pending', className: 'text-muted-foreground bg-muted' },
-  training: { icon: Loader2, label: 'Training...', className: 'text-warning bg-warning/10' },
-  completed: { icon: CheckCircle2, label: 'Completed', className: 'text-success bg-success/10' },
+const statusConfig: Record<string, { icon: any; label: string; className: string; glow?: boolean }> = {
+  'request accepted': { icon: Clock, label: 'Request Accepted', className: 'text-sky-400 bg-sky-500/10 border border-sky-500/30', glow: true },
+  'preparing dataset': { icon: Loader2, label: 'Preparing Dataset', className: 'text-violet-400 bg-violet-500/10 border border-violet-500/30', glow: true },
+  'generating training config': { icon: Settings, label: 'Generating Config', className: 'text-amber-400 bg-amber-500/10 border border-amber-500/30', glow: true },
+  'training model': { icon: Brain, label: 'Training Model', className: 'text-orange-400 bg-orange-500/10 border border-orange-500/30', glow: true },
+  training: { icon: Brain, label: 'Training Model', className: 'text-orange-400 bg-orange-500/10 border border-orange-500/30', glow: true },
+  'finalizing output': { icon: Package, label: 'Finalizing Output', className: 'text-teal-400 bg-teal-500/10 border border-teal-500/30', glow: true },
+  completed: { icon: CheckCircle2, label: 'Complete', className: 'text-success bg-success/10' },
+  deployed: { icon: Play, label: 'Deployed', className: 'text-success bg-success/10 border border-success/30' },
   failed: { icon: AlertTriangle, label: 'Failed', className: 'text-destructive bg-destructive/10' },
+  pending: { icon: Clock, label: 'Pending', className: 'text-muted-foreground bg-muted' },
 };
 
 interface BBox {
@@ -1697,17 +1703,22 @@ export default function Training() {
   };
 
   // ─── Model versioning ─────────────────────────────────
-  const handleActivateModel = async (jobId: string) => {
+  const handleDeployModel = async (jobId: string) => {
     try {
-      await rest.update('model_trainings', { id: `eq.${jobId}` }, { status: 'completed' });
-      if (selectedDatasetId) {
-        const otherJobs = jobs.filter(j => j.id !== jobId && j.status === 'completed');
-        for (const j of otherJobs) {
-          await rest.update('model_trainings', { id: `eq.${j.id}` }, { status: 'pending' });
-        }
+      // First, set any currently deployed model back to completed
+      const currentlyDeployed = visibleJobs.filter(j => j.status === 'deployed' && j.id !== jobId);
+      for (const dj of currentlyDeployed) {
+        await rest.update('model_trainings', { id: `eq.${dj.id}` }, { status: 'completed' });
       }
+      // Set this model as deployed
+      await rest.update('model_trainings', { id: `eq.${jobId}` }, { status: 'deployed' });
+      setOptimisticTrainingJobs(prev => prev.map(j => {
+        if (j.id === jobId) return { ...j, status: 'deployed' };
+        if (j.status === 'deployed') return { ...j, status: 'completed' };
+        return j;
+      }));
       qc.invalidateQueries({ queryKey: ['training-jobs'] });
-      toast({ title: 'Model activated', description: 'This model version is now active.' });
+      toast({ title: 'Model deployed successfully' });
     } catch (e: any) {
       toast({ title: 'Error', description: e.message, variant: 'destructive' });
     }
@@ -2679,7 +2690,16 @@ export default function Training() {
                       return (
                         <TableRow key={job.id}>
                           <TableCell className="font-medium">{job.model_name || `Model ${selectedDataset?.name || ''} ${format(new Date(job.created_at), 'yyyy-MM-dd HH:mm')}`}</TableCell>
-                          <TableCell><Badge className={cn("text-[10px]", cfg.className)}>{cfg.label}</Badge></TableCell>
+                          <TableCell>
+                            <Badge className={cn(
+                              "text-[10px]",
+                              cfg.className,
+                              cfg.glow && "animate-pulse-glow"
+                            )}>
+                              {cfg.icon === Loader2 || cfg.icon === Brain ? <cfg.icon className="w-3 h-3 mr-1 animate-spin" /> : null}
+                              {cfg.label}
+                            </Badge>
+                          </TableCell>
                           <TableCell>{format(new Date(job.created_at), 'MMM d, yyyy HH:mm')}</TableCell>
                           <TableCell className="text-right">
                             <DropdownMenu>
@@ -2688,18 +2708,10 @@ export default function Training() {
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
                                 {job.status === 'completed' && (
-                                  <>
-                                    <DropdownMenuItem onClick={() => handleActivateModel(job.id)}>
-                                      <Play className="w-4 h-4 mr-2" />Activate Model
-                                    </DropdownMenuItem>
-                                    <DropdownMenuItem onClick={() => handleSuspendModel(job.id)}>
-                                      <Pause className="w-4 h-4 mr-2" />Suspend Model
-                                    </DropdownMenuItem>
-                                  </>
+                                  <DropdownMenuItem onClick={() => handleDeployModel(job.id)}>
+                                    <Play className="w-4 h-4 mr-2" />Deploy
+                                  </DropdownMenuItem>
                                 )}
-                                <DropdownMenuItem onClick={() => setEvaluationJobId(job.id)}>
-                                  <BarChart3 className="w-4 h-4 mr-2" />View Evaluation
-                                </DropdownMenuItem>
                                 <DropdownMenuItem className="text-destructive" onClick={() => handleDeleteTraining(job.id)}>
                                   <Trash2 className="w-4 h-4 mr-2" />Remove Training
                                 </DropdownMenuItem>
@@ -2715,46 +2727,6 @@ export default function Training() {
             </ScrollArea>
           </div>
 
-          {/* Model Evaluation Details */}
-          {evaluationJobId && (() => {
-            const evalJob = visibleJobs.find(j => j.id === evaluationJobId);
-            if (!evalJob) return null;
-            return (
-              <div className="rounded-xl bg-card border border-border p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-foreground flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-primary" /> Model Evaluation — {evalJob.model_name || 'Unknown'}
-                  </h4>
-                  <Button variant="ghost" size="sm" onClick={() => setEvaluationJobId(null)}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Status</p>
-                    <p className="font-semibold text-foreground">{evalJob.status}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Model Name</p>
-                    <p className="font-semibold text-foreground">{evalJob.model_name || '-'}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Created</p>
-                    <p className="text-sm text-foreground">{format(new Date(evalJob.created_at), 'PPpp')}</p>
-                  </div>
-                </div>
-                {evalJob.error_message && (
-                  <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
-                    <p className="text-xs text-muted-foreground mb-1">Error</p>
-                    <p className="text-sm text-destructive">{evalJob.error_message}</p>
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground italic">
-                  Detailed evaluation metrics (accuracy, F1, confusion matrix) will be populated by the training endpoint when available.
-                </p>
-              </div>
-            );
-          })()}
         </TabsContent>
       </Tabs>
 
