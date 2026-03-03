@@ -2411,12 +2411,6 @@ export default function Training() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => startManualAnnotation(set.id)} disabled={set.image_count === 0}>
-                                <Square className="w-3.5 h-3.5 mr-2" /> Manual Annotate
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => autoAnnotateSet(set.id)} disabled={isAutoAnnotating || set.image_count === 0}>
-                                <Wand2 className="w-3.5 h-3.5 mr-2" /> Auto Annotate
-                              </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => setDeleteSetId(set.id)} className="text-destructive focus:text-destructive">
                                 <Trash2 className="w-3.5 h-3.5 mr-2" /> Delete Set
                               </DropdownMenuItem>
