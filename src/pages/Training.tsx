@@ -2727,46 +2727,6 @@ export default function Training() {
             </ScrollArea>
           </div>
 
-          {/* Model Evaluation Details */}
-          {evaluationJobId && (() => {
-            const evalJob = visibleJobs.find(j => j.id === evaluationJobId);
-            if (!evalJob) return null;
-            return (
-              <div className="rounded-xl bg-card border border-border p-6 space-y-4">
-                <div className="flex items-center justify-between">
-                  <h4 className="font-semibold text-foreground flex items-center gap-2">
-                    <BarChart3 className="w-5 h-5 text-primary" /> Model Evaluation — {evalJob.model_name || 'Unknown'}
-                  </h4>
-                  <Button variant="ghost" size="sm" onClick={() => setEvaluationJobId(null)}>
-                    <X className="w-4 h-4" />
-                  </Button>
-                </div>
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Status</p>
-                    <p className="font-semibold text-foreground">{evalJob.status}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Model Name</p>
-                    <p className="font-semibold text-foreground">{evalJob.model_name || '-'}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Created</p>
-                    <p className="text-sm text-foreground">{format(new Date(evalJob.created_at), 'PPpp')}</p>
-                  </div>
-                </div>
-                {evalJob.error_message && (
-                  <div className="p-3 rounded-lg bg-destructive/5 border border-destructive/20">
-                    <p className="text-xs text-muted-foreground mb-1">Error</p>
-                    <p className="text-sm text-destructive">{evalJob.error_message}</p>
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground italic">
-                  Detailed evaluation metrics (accuracy, F1, confusion matrix) will be populated by the training endpoint when available.
-                </p>
-              </div>
-            );
-          })()}
         </TabsContent>
       </Tabs>
 
