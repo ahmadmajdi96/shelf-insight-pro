@@ -1839,7 +1839,7 @@ export default function Training() {
     }
   };
 
-  const pollTrainingStatus = (endpoint: string, jobId?: string) => {
+  const pollTrainingStatus = (jobId: string) => {
     const MAX_POLLS = 360;
     const POLL_INTERVAL = 5000;
     let pollCount = 0;
@@ -1849,71 +1849,42 @@ export default function Training() {
       pollCount++;
 
       try {
-        const res = await trainingFetch(endpoint, '/status', 'GET');
-        if (!res.ok) return;
-        const status = await res.json();
-
-        // Update in-app training row + best-effort backend update
-        if (jobId) {
-          const nowIso = new Date().toISOString();
-          const nextStatus = status?.status === 'completed'
-            ? 'completed'
-            : status?.status === 'failed'
-              ? 'failed'
-              : status?.status || 'training';
-
-          const nextProgress = status?.status === 'completed'
-            ? 100
-            : status?.progress !== undefined
-              ? Number(status.progress)
-              : undefined;
-
-          setOptimisticTrainingJobs(prev => prev.map(j =>
-            j.id === jobId
-              ? {
-                  ...j,
-                  status: nextStatus,
-                  progress: nextProgress ?? j.progress,
-                  result_url: status?.result_url ?? j.result_url,
-                  error_message: status?.status === 'failed' ? (status?.error_message || 'Training failed') : j.error_message,
-                  completed_at: status?.status === 'completed' ? nowIso : j.completed_at,
-                  updated_at: nowIso,
-                }
-              : j
-          ));
-
-          const updatePayload: any = {};
-          if (nextProgress !== undefined) updatePayload.progress = nextProgress;
-          if (status?.status === 'completed') {
-            updatePayload.status = 'completed';
-            updatePayload.completed_at = nowIso;
-            if (status?.result_url) updatePayload.result_url = status.result_url;
-          } else if (status?.status === 'failed') {
-            updatePayload.status = 'failed';
-            updatePayload.error_message = status?.error_message || 'Training failed';
-          } else if (status?.status) {
-            updatePayload.status = status.status;
-          }
-          if (Object.keys(updatePayload).length > 0) {
-            await rest.update('training_jobs', { id: `eq.${jobId}` }, updatePayload).catch(() => {});
-          }
+        // Read status from model_trainings on the backend
+        const record = await rest.get('model_trainings', jobId).catch(() => null);
+        if (!record) {
+          setTimeout(poll, POLL_INTERVAL);
+          return;
         }
+
+        const status = record.status || 'training';
+
+        // Update optimistic state
+        setOptimisticTrainingJobs(prev => prev.map(j =>
+          j.id === jobId
+            ? {
+                ...j,
+                status,
+                model_location: record.model_location ?? j.model_location,
+                updated_at: new Date().toISOString(),
+              }
+            : j
+        ));
 
         qc.invalidateQueries({ queryKey: ['training-jobs'] });
 
-        if (status?.status === 'completed' || status?.status === 'failed') {
+        if (status === 'completed' || status === 'failed') {
           // Update dataset status
           if (selectedDatasetId) {
             await rest.update('datasets', { id: `eq.${selectedDatasetId}` }, {
-              status: status.status === 'completed' ? 'ready' : 'draft',
+              status: status === 'completed' ? 'ready' : 'draft',
             }).catch(() => {});
             qc.invalidateQueries({ queryKey: ['datasets'] });
           }
 
-          if (status.status === 'completed') {
+          if (status === 'completed') {
             toast({ title: 'Training completed', description: 'Model training finished successfully.' });
           } else {
-            toast({ title: 'Training failed', description: status?.error_message || 'Training job failed.', variant: 'destructive' });
+            toast({ title: 'Training failed', description: 'Training job failed.', variant: 'destructive' });
           }
           return;
         }
