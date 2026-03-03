@@ -368,7 +368,22 @@ export default function Training() {
 
   // Model versioning
   const [evaluationJobId, setEvaluationJobId] = useState<string | null>(null);
-  const [optimisticTrainingJobs, setOptimisticTrainingJobs] = useState<TrainingJob[]>([]);
+  const [optimisticTrainingJobs, setOptimisticTrainingJobs] = useState<TrainingJob[]>(() => {
+    try {
+      const stored = localStorage.getItem('shelfvision_optimistic_training_jobs');
+      if (stored) {
+        const parsed = JSON.parse(stored) as TrainingJob[];
+        // Only keep jobs less than 2 hours old
+        return parsed.filter(j => Date.now() - new Date(j.created_at).getTime() < 2 * 60 * 60 * 1000);
+      }
+    } catch {}
+    return [];
+  });
+
+  // Persist optimistic jobs to localStorage
+  useEffect(() => {
+    localStorage.setItem('shelfvision_optimistic_training_jobs', JSON.stringify(optimisticTrainingJobs));
+  }, [optimisticTrainingJobs]);
 
   // Image sets
   const [showUploadModal, setShowUploadModal] = useState(false);
