@@ -2686,7 +2686,7 @@ export default function Training() {
                     </TableRow>
                   ) : (
                     visibleJobs.map(job => {
-                      const cfg = statusConfig[job.status] || statusConfig.pending;
+                      const cfg = statusConfig[job.status] || statusConfig[job.status?.toLowerCase()] || statusConfig.pending;
                       return (
                         <TableRow key={job.id}>
                           <TableCell className="font-medium">{job.model_name || `Model ${selectedDataset?.name || ''} ${format(new Date(job.created_at), 'yyyy-MM-dd HH:mm')}`}</TableCell>
