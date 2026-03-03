@@ -2728,34 +2728,26 @@ export default function Training() {
                     <X className="w-4 h-4" />
                   </Button>
                 </div>
-                <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                   <div className="p-3 rounded-lg bg-secondary/50 border border-border">
                     <p className="text-xs text-muted-foreground">Status</p>
                     <p className="font-semibold text-foreground">{evalJob.status}</p>
                   </div>
                   <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Epochs</p>
-                    <p className="font-semibold text-foreground">{evalJob.epochs}</p>
+                    <p className="text-xs text-muted-foreground">Model Name</p>
+                    <p className="font-semibold text-foreground">{evalJob.model_name || '-'}</p>
                   </div>
                   <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Batch Size</p>
-                    <p className="font-semibold text-foreground">{evalJob.batch_size}</p>
-                  </div>
-                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Progress</p>
-                    <p className="font-semibold text-foreground">{evalJob.progress || 0}%</p>
+                    <p className="text-xs text-muted-foreground">Created</p>
+                    <p className="text-sm text-foreground">{format(new Date(evalJob.created_at), 'PPpp')}</p>
                   </div>
                 </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Started</p>
-                    <p className="text-sm text-foreground">{evalJob.started_at ? format(new Date(evalJob.started_at), 'PPpp') : 'Not started'}</p>
+                {evalJob.model_location && (
+                  <div className="p-3 rounded-lg bg-success/5 border border-success/20">
+                    <p className="text-xs text-muted-foreground mb-1">Model Location</p>
+                    <a href={evalJob.model_location} target="_blank" rel="noopener noreferrer" className="text-sm text-primary underline break-all">{evalJob.model_location}</a>
                   </div>
-                  <div className="p-3 rounded-lg bg-secondary/50 border border-border">
-                    <p className="text-xs text-muted-foreground">Completed</p>
-                    <p className="text-sm text-foreground">{evalJob.completed_at ? format(new Date(evalJob.completed_at), 'PPpp') : 'In progress'}</p>
-                  </div>
-                </div>
+                )}
                 {evalJob.result_url && (
                   <div className="p-3 rounded-lg bg-success/5 border border-success/20">
                     <p className="text-xs text-muted-foreground mb-1">Model Artifact</p>
