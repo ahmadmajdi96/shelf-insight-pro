@@ -35,14 +35,10 @@ export function useAdmins() {
       const result = await rest.create('admins', admin);
       const adminId = result?.id;
 
-      // Also create an auth user so the admin can log in
+      // Also create an auth user via the backend signup endpoint so the admin can log in
       try {
-        await invoke('create-auth-user', {
-          email: admin.email,
-          password: admin.password,
+        await apiAuth.signup(admin.email, admin.password, {
           full_name: admin.full_name,
-          role: 'admin',
-          admin_id: adminId || null,
         });
       } catch (e) {
         console.error('Auth user creation failed:', e);

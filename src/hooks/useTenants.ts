@@ -78,15 +78,11 @@ export function useTenants() {
       const result = await rest.create('tenants', payload);
       const tenantId = result?.id;
 
-      // If email and password are provided, create an auth user for tenant login
+      // If email and password are provided, create an auth user via backend signup
       if (tenant.email && tenant.password && tenantId) {
         try {
-          await invoke('create-auth-user', {
-            email: tenant.email,
-            password: tenant.password,
+          await apiAuth.signup(tenant.email, tenant.password, {
             full_name: tenant.name,
-            role: 'tenant_admin',
-            tenant_id: tenantId,
           });
         } catch (e) {
           console.error('Auth user creation for tenant failed:', e);
