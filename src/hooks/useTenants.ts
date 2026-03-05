@@ -1,5 +1,5 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { rest } from '@/lib/api-client';
+import { rest, invoke } from '@/lib/api-client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
@@ -75,7 +75,25 @@ export function useTenants() {
       if (tenant.max_skus != null) payload.max_skus = tenant.max_skus;
       if (tenant.max_images_per_month != null) payload.max_images_per_month = tenant.max_images_per_month;
       if (tenant.admin_id) payload.admin_id = tenant.admin_id;
-      return rest.create('tenants', payload);
+      const result = await rest.create('tenants', payload);
+      const tenantId = result?.id;
+
+      // If email and password are provided, create an auth user for tenant login
+      if (tenant.email && tenant.password && tenantId) {
+        try {
+          await invoke('create-auth-user', {
+            email: tenant.email,
+            password: tenant.password,
+            full_name: tenant.name,
+            role: 'tenant_admin',
+            tenant_id: tenantId,
+          });
+        } catch (e) {
+          console.error('Auth user creation for tenant failed:', e);
+        }
+      }
+
+      return result;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['tenants'] });
