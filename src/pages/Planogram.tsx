@@ -130,7 +130,7 @@ export default function Planogram() {
   const [expandedStores, setExpandedStores] = useState<Set<string>>(new Set());
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [expandedAdmins, setExpandedAdmins] = useState<Set<string>>(new Set());
-  const [tenantFormData, setTenantFormData] = useState({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000, admin_id: '' });
+  const [tenantFormData, setTenantFormData] = useState({ name: '', email: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000, admin_id: '' });
 
   // Store modal state
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
@@ -265,7 +265,7 @@ export default function Planogram() {
     setEditingTenantObj(null);
     setIsTenantModalOpen(true);
   };
-  const resetTenantForm = () => { setTenantFormData({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000, admin_id: '' }); setEditingTenantObj(null); };
+  const resetTenantForm = () => { setTenantFormData({ name: '', email: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000, admin_id: '' }); setEditingTenantObj(null); };
   const handleTenantSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const { admin_id, ...rest } = tenantFormData;
@@ -275,7 +275,7 @@ export default function Planogram() {
     resetTenantForm(); setIsTenantModalOpen(false);
   };
   const handleTenantEdit = (tenant: any) => {
-    setTenantFormData({ name: tenant.name, username: tenant.username || '', password: tenant.password || '', max_skus: tenant.max_skus, max_images_per_month: tenant.max_images_per_month, admin_id: tenant.admin_id || '' });
+    setTenantFormData({ name: tenant.name, email: '', username: tenant.username || '', password: tenant.password || '', max_skus: tenant.max_skus, max_images_per_month: tenant.max_images_per_month, admin_id: tenant.admin_id || '' });
     setEditingTenantObj(tenant); setIsTenantModalOpen(true);
   };
   const handleTenantDelete = async () => { if (deleteTenantId) { await deleteTenant.mutateAsync(deleteTenantId); setDeleteTenantId(null); } };
