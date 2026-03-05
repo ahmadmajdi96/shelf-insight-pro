@@ -419,7 +419,7 @@ export default function Data() {
           <PlanogramsTable data={filteredPlanograms} viewLimit={viewLimit} isAdmin={isAdmin} />
         </TabsContent>
 
-        {/* Shelf Images (Scans) - Enhanced with admin, tenant, store, planogram info */}
+        {/* Scans */}
         <TabsContent value="scans">
           <div className="rounded-xl bg-card border border-border overflow-hidden">
             <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
