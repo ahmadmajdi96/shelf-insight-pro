@@ -19,7 +19,7 @@ import { useAdmins } from '@/hooks/useAdmins';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-type DataTab = 'admins' | 'tenants' | 'stores' | 'categories' | 'products' | 'shelves' | 'scans' | 'compliance';
+type DataTab = 'admins' | 'tenants' | 'stores' | 'categories' | 'products' | 'planograms' | 'scans' | 'compliance';
 
 const TAB_CONFIG: { value: DataTab; label: string; icon: string }[] = [
   { value: 'admins', label: 'Admins', icon: '👤' },
@@ -27,8 +27,8 @@ const TAB_CONFIG: { value: DataTab; label: string; icon: string }[] = [
   { value: 'stores', label: 'Stores', icon: '🏪' },
   { value: 'categories', label: 'Categories', icon: '🏷️' },
   { value: 'products', label: 'Products', icon: '📦' },
-  { value: 'shelves', label: 'Shelves', icon: '🗄️' },
-  { value: 'scans', label: 'Shelf Images', icon: '📷' },
+  { value: 'planograms', label: 'Planograms', icon: '📐' },
+  { value: 'scans', label: 'Scans', icon: '📷' },
   { value: 'compliance', label: 'Compliance', icon: '✅' },
 ];
 
