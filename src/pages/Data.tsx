@@ -508,3 +508,87 @@ export default function Data() {
     </MainLayout>
   );
 }
+
+function PlanogramsTable({ data, viewLimit, isAdmin }: { data: any[]; viewLimit: number; isAdmin: boolean }) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const toggle = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const getLayoutItems = (layout: any): { name: string; quantity: number }[] => {
+    if (!layout || !Array.isArray(layout)) return [];
+    const items: { name: string; quantity: number }[] = [];
+    layout.forEach((row: any) => {
+      const rowItems = row?.items || row?.products || [];
+      rowItems.forEach((item: any) => {
+        const name = item?.name || item?.sku_name || item?.label || 'Unknown Item';
+        const qty = item?.quantity || item?.facings || item?.expected_facings || 1;
+        items.push({ name, quantity: qty });
+      });
+    });
+    return items;
+  };
+
+  return (
+    <div className="rounded-xl bg-card border border-border overflow-hidden">
+      <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-secondary/50">
+              <TableHead className="w-8"></TableHead>
+              <TableHead>Name</TableHead>
+              {isAdmin && <TableHead>Tenant</TableHead>}
+              <TableHead>Store</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Items</TableHead>
+              <TableHead>Created</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.slice(0, viewLimit).map(p => {
+              const isExpanded = expandedIds.has(p.id);
+              const items = getLayoutItems(p.layout);
+              return (
+                <Fragment key={p.id}>
+                  <TableRow className="cursor-pointer hover:bg-muted/30" onClick={() => toggle(p.id)}>
+                    <TableCell className="w-8 px-2">
+                      {items.length > 0 && (isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />)}
+                    </TableCell>
+                    <TableCell className="font-medium">{p.name}</TableCell>
+                    {isAdmin && <TableCell>{p.tenant?.name || '—'}</TableCell>}
+                    <TableCell>{p.store?.name || '—'}</TableCell>
+                    <TableCell><Badge variant={p.status === 'active' ? 'default' : 'secondary'}>{p.status}</Badge></TableCell>
+                    <TableCell>{items.length} items</TableCell>
+                    <TableCell>{format(new Date(p.created_at), 'PP')}</TableCell>
+                  </TableRow>
+                  {isExpanded && items.length > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={isAdmin ? 7 : 6} className="bg-secondary/30 px-8 py-3">
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground mb-2">Planogram Items</p>
+                          {items.map((item, i) => (
+                            <div key={i} className="flex items-center justify-between text-sm py-1 px-3 rounded bg-card/50">
+                              <span className="text-foreground">{item.name}</span>
+                              <Badge variant="outline" className="text-xs">×{item.quantity}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              );
+            })}
+            {data.length === 0 && <TableRow><TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-12 text-muted-foreground">No planograms found.</TableCell></TableRow>}
+          </TableBody>
+        </Table>
+      </ScrollArea>
+    </div>
+  );
+}
