@@ -65,9 +65,20 @@ export default function Data() {
     queryFn: async () => { const { data } = await rest.list('skus', { select: '*,tenant:tenants(name),category:product_categories(name)', order: 'name.asc' }); return data || []; },
   });
 
-  const { data: shelves = [], isLoading: shelvesLoading, refetch: refetchShelves } = useQuery({
-    queryKey: ['data-shelves'],
-    queryFn: async () => { const { data } = await rest.list('shelves', { select: '*,tenant:tenants(name),store:stores(name)', order: 'name.asc' }); return data || []; },
+  const { data: planograms = [], isLoading: planogramsLoading, refetch: refetchPlanograms } = useQuery({
+    queryKey: ['data-planograms'],
+    queryFn: async () => { const { data } = await rest.list('planogram_templates', { select: '*,tenant:tenants(name),store:stores(name)', order: 'name.asc' }); return data || []; },
+  });
+
+  const { data: planogramItems = [] } = useQuery({
+    queryKey: ['data-planogram-items'],
+    queryFn: async () => {
+      const ids = planograms.map((p: any) => p.id);
+      if (ids.length === 0) return [];
+      // Fetch layout data is already in planograms (layout field)
+      return planograms;
+    },
+    enabled: planograms.length > 0,
   });
 
   // Enhanced shelf images query with admin, tenant, store, planogram info
@@ -130,13 +141,13 @@ export default function Data() {
     return matchesSearch && matchesTenant && matchesCategory && matchesAdmin;
   }), [products, searchQuery, filterTenant, filterCategory, filterAdmin, filteredTenantsByAdmin]);
 
-  const filteredShelves = useMemo(() => shelves.filter(s => {
-    const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTenant = filterTenant === 'all' || s.tenant_id === filterTenant;
-    const matchesStore = filterStore === 'all' || s.store_id === filterStore;
-    const matchesAdmin = filterAdmin === 'all' || filteredTenantsByAdmin.some(t => t.id === s.tenant_id);
+  const filteredPlanograms = useMemo(() => planograms.filter((p: any) => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesTenant = filterTenant === 'all' || p.tenant_id === filterTenant;
+    const matchesStore = filterStore === 'all' || p.store_id === filterStore;
+    const matchesAdmin = filterAdmin === 'all' || filteredTenantsByAdmin.some(t => t.id === p.tenant_id);
     return matchesSearch && matchesTenant && matchesStore && matchesAdmin;
-  }), [shelves, searchQuery, filterTenant, filterStore, filterAdmin, filteredTenantsByAdmin]);
+  }), [planograms, searchQuery, filterTenant, filterStore, filterAdmin, filteredTenantsByAdmin]);
 
   const filteredScans = useMemo(() => scans.filter((s: any) => {
     const matchesTenant = filterTenant === 'all' || s.shelf?.tenant_id === filterTenant;
@@ -168,7 +179,7 @@ export default function Data() {
       case 'stores': return filteredStores.length;
       case 'categories': return filteredCategories.length;
       case 'products': return filteredProducts.length;
-      case 'shelves': return filteredShelves.length;
+      case 'planograms': return filteredPlanograms.length;
       case 'scans': return filteredScans.length;
       case 'compliance': return filteredCompliance.length;
     }
@@ -180,7 +191,7 @@ export default function Data() {
       activeTab === 'stores' ? filteredStores :
       activeTab === 'categories' ? filteredCategories :
       activeTab === 'products' ? filteredProducts :
-      activeTab === 'shelves' ? filteredShelves : activeTab === 'compliance' ? filteredCompliance : filteredScans;
+      activeTab === 'planograms' ? filteredPlanograms : activeTab === 'compliance' ? filteredCompliance : filteredScans;
     if (data.length === 0) return;
     const headers = Object.keys(data[0]).filter(k => !['tenant', 'category', 'store', 'shelf', 'template'].includes(k));
     const csvContent = [headers.join(','), ...data.map(row => headers.map(h => {
@@ -196,9 +207,9 @@ export default function Data() {
     link.click();
   };
 
-  const handleRefresh = () => { refetchTenants(); refetchStores(); refetchCategories(); refetchProducts(); refetchShelves(); refetchScans(); refetchCompliance(); };
+  const handleRefresh = () => { refetchTenants(); refetchStores(); refetchCategories(); refetchProducts(); refetchPlanograms(); refetchScans(); refetchCompliance(); };
   const clearFilters = () => { setSearchQuery(''); setFilterAdmin('all'); setFilterTenant('all'); setFilterStore('all'); setFilterCategory('all'); };
-  const isLoading = tenantsLoading || storesLoading || categoriesLoading || productsLoading || shelvesLoading || scansLoading || complianceLoading;
+  const isLoading = tenantsLoading || storesLoading || categoriesLoading || productsLoading || planogramsLoading || scansLoading || complianceLoading;
   const hasActiveFilters = searchQuery || filterAdmin !== 'all' || filterTenant !== 'all' || filterStore !== 'all' || filterCategory !== 'all';
 
   return (
@@ -228,7 +239,7 @@ export default function Data() {
               </SelectContent>
             </Select>
           )}
-          {(['shelves', 'scans', 'compliance'] as DataTab[]).includes(activeTab) && (
+          {(['planograms', 'scans', 'compliance'] as DataTab[]).includes(activeTab) && (
             <Select value={filterStore} onValueChange={setFilterStore}>
               <SelectTrigger className="w-[160px] bg-secondary border-border"><SelectValue placeholder="All Stores" /></SelectTrigger>
               <SelectContent>
