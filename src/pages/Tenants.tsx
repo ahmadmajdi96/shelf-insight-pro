@@ -45,6 +45,7 @@ export default function Tenants() {
   const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     name: '',
+    email: '',
     username: '',
     password: '',
     max_skus: 50,
@@ -78,7 +79,7 @@ export default function Tenants() {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000 });
+    setFormData({ name: '', email: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000 });
     setEditingTenant(null);
   };
 
@@ -96,6 +97,7 @@ export default function Tenants() {
   const handleEdit = (tenant: any) => {
     setFormData({
       name: tenant.name,
+      email: '',
       username: tenant.username || '',
       password: tenant.password || '',
       max_skus: tenant.max_skus,
@@ -386,6 +388,17 @@ export default function Tenants() {
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                 required
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Login Email</Label>
+              <Input 
+                type="email"
+                placeholder="tenant@example.com" 
+                className="bg-secondary border-border"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                required={!editingTenant}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">

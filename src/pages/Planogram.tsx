@@ -130,7 +130,7 @@ export default function Planogram() {
   const [expandedStores, setExpandedStores] = useState<Set<string>>(new Set());
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
   const [expandedAdmins, setExpandedAdmins] = useState<Set<string>>(new Set());
-  const [tenantFormData, setTenantFormData] = useState({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000, admin_id: '' });
+  const [tenantFormData, setTenantFormData] = useState({ name: '', email: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000, admin_id: '' });
 
   // Store modal state
   const [isStoreModalOpen, setIsStoreModalOpen] = useState(false);
@@ -265,7 +265,7 @@ export default function Planogram() {
     setEditingTenantObj(null);
     setIsTenantModalOpen(true);
   };
-  const resetTenantForm = () => { setTenantFormData({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000, admin_id: '' }); setEditingTenantObj(null); };
+  const resetTenantForm = () => { setTenantFormData({ name: '', email: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000, admin_id: '' }); setEditingTenantObj(null); };
   const handleTenantSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const { admin_id, ...rest } = tenantFormData;
@@ -275,7 +275,7 @@ export default function Planogram() {
     resetTenantForm(); setIsTenantModalOpen(false);
   };
   const handleTenantEdit = (tenant: any) => {
-    setTenantFormData({ name: tenant.name, username: tenant.username || '', password: tenant.password || '', max_skus: tenant.max_skus, max_images_per_month: tenant.max_images_per_month, admin_id: tenant.admin_id || '' });
+    setTenantFormData({ name: tenant.name, email: '', username: tenant.username || '', password: tenant.password || '', max_skus: tenant.max_skus, max_images_per_month: tenant.max_images_per_month, admin_id: tenant.admin_id || '' });
     setEditingTenantObj(tenant); setIsTenantModalOpen(true);
   };
   const handleTenantDelete = async () => { if (deleteTenantId) { await deleteTenant.mutateAsync(deleteTenantId); setDeleteTenantId(null); } };
@@ -1404,9 +1404,10 @@ export default function Planogram() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2"><Label>Login Email</Label><Input type="email" placeholder="tenant@example.com" className="bg-secondary border-border" value={tenantFormData.email} onChange={e => setTenantFormData({ ...tenantFormData, email: e.target.value })} required={!editingTenantObj} /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Username</Label><Input placeholder="tenant_username" className="bg-secondary border-border" value={tenantFormData.username} onChange={e => setTenantFormData({ ...tenantFormData, username: e.target.value })} /></div>
-                <div className="space-y-2"><Label>Password</Label><Input type="password" placeholder="••••••••" className="bg-secondary border-border" value={tenantFormData.password} onChange={e => setTenantFormData({ ...tenantFormData, password: e.target.value })} /></div>
+                <div className="space-y-2"><Label>Password</Label><Input type="password" placeholder="••••••••" className="bg-secondary border-border" value={tenantFormData.password} onChange={e => setTenantFormData({ ...tenantFormData, password: e.target.value })} required={!editingTenantObj} /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Max SKUs</Label><Input type="number" className="bg-secondary border-border" value={tenantFormData.max_skus} onChange={e => setTenantFormData({ ...tenantFormData, max_skus: parseInt(e.target.value) || 0 })} /></div>
