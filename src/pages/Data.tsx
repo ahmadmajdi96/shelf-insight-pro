@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Download, RefreshCw, Search, X } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -19,7 +20,7 @@ import { useAdmins } from '@/hooks/useAdmins';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
-type DataTab = 'admins' | 'tenants' | 'stores' | 'categories' | 'products' | 'shelves' | 'scans' | 'compliance';
+type DataTab = 'admins' | 'tenants' | 'stores' | 'categories' | 'products' | 'planograms' | 'scans' | 'compliance';
 
 const TAB_CONFIG: { value: DataTab; label: string; icon: string }[] = [
   { value: 'admins', label: 'Admins', icon: '👤' },
@@ -27,8 +28,8 @@ const TAB_CONFIG: { value: DataTab; label: string; icon: string }[] = [
   { value: 'stores', label: 'Stores', icon: '🏪' },
   { value: 'categories', label: 'Categories', icon: '🏷️' },
   { value: 'products', label: 'Products', icon: '📦' },
-  { value: 'shelves', label: 'Shelves', icon: '🗄️' },
-  { value: 'scans', label: 'Shelf Images', icon: '📷' },
+  { value: 'planograms', label: 'Planograms', icon: '📐' },
+  { value: 'scans', label: 'Scans', icon: '📷' },
   { value: 'compliance', label: 'Compliance', icon: '✅' },
 ];
 
@@ -65,9 +66,20 @@ export default function Data() {
     queryFn: async () => { const { data } = await rest.list('skus', { select: '*,tenant:tenants(name),category:product_categories(name)', order: 'name.asc' }); return data || []; },
   });
 
-  const { data: shelves = [], isLoading: shelvesLoading, refetch: refetchShelves } = useQuery({
-    queryKey: ['data-shelves'],
-    queryFn: async () => { const { data } = await rest.list('shelves', { select: '*,tenant:tenants(name),store:stores(name)', order: 'name.asc' }); return data || []; },
+  const { data: planograms = [], isLoading: planogramsLoading, refetch: refetchPlanograms } = useQuery({
+    queryKey: ['data-planograms'],
+    queryFn: async () => { const { data } = await rest.list('planogram_templates', { select: '*,tenant:tenants(name),store:stores(name)', order: 'name.asc' }); return data || []; },
+  });
+
+  const { data: planogramItems = [] } = useQuery({
+    queryKey: ['data-planogram-items'],
+    queryFn: async () => {
+      const ids = planograms.map((p: any) => p.id);
+      if (ids.length === 0) return [];
+      // Fetch layout data is already in planograms (layout field)
+      return planograms;
+    },
+    enabled: planograms.length > 0,
   });
 
   // Enhanced shelf images query with admin, tenant, store, planogram info
@@ -130,13 +142,13 @@ export default function Data() {
     return matchesSearch && matchesTenant && matchesCategory && matchesAdmin;
   }), [products, searchQuery, filterTenant, filterCategory, filterAdmin, filteredTenantsByAdmin]);
 
-  const filteredShelves = useMemo(() => shelves.filter(s => {
-    const matchesSearch = s.name.toLowerCase().includes(searchQuery.toLowerCase());
-    const matchesTenant = filterTenant === 'all' || s.tenant_id === filterTenant;
-    const matchesStore = filterStore === 'all' || s.store_id === filterStore;
-    const matchesAdmin = filterAdmin === 'all' || filteredTenantsByAdmin.some(t => t.id === s.tenant_id);
+  const filteredPlanograms = useMemo(() => planograms.filter((p: any) => {
+    const matchesSearch = p.name.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesTenant = filterTenant === 'all' || p.tenant_id === filterTenant;
+    const matchesStore = filterStore === 'all' || p.store_id === filterStore;
+    const matchesAdmin = filterAdmin === 'all' || filteredTenantsByAdmin.some(t => t.id === p.tenant_id);
     return matchesSearch && matchesTenant && matchesStore && matchesAdmin;
-  }), [shelves, searchQuery, filterTenant, filterStore, filterAdmin, filteredTenantsByAdmin]);
+  }), [planograms, searchQuery, filterTenant, filterStore, filterAdmin, filteredTenantsByAdmin]);
 
   const filteredScans = useMemo(() => scans.filter((s: any) => {
     const matchesTenant = filterTenant === 'all' || s.shelf?.tenant_id === filterTenant;
@@ -168,7 +180,7 @@ export default function Data() {
       case 'stores': return filteredStores.length;
       case 'categories': return filteredCategories.length;
       case 'products': return filteredProducts.length;
-      case 'shelves': return filteredShelves.length;
+      case 'planograms': return filteredPlanograms.length;
       case 'scans': return filteredScans.length;
       case 'compliance': return filteredCompliance.length;
     }
@@ -180,7 +192,7 @@ export default function Data() {
       activeTab === 'stores' ? filteredStores :
       activeTab === 'categories' ? filteredCategories :
       activeTab === 'products' ? filteredProducts :
-      activeTab === 'shelves' ? filteredShelves : activeTab === 'compliance' ? filteredCompliance : filteredScans;
+      activeTab === 'planograms' ? filteredPlanograms : activeTab === 'compliance' ? filteredCompliance : filteredScans;
     if (data.length === 0) return;
     const headers = Object.keys(data[0]).filter(k => !['tenant', 'category', 'store', 'shelf', 'template'].includes(k));
     const csvContent = [headers.join(','), ...data.map(row => headers.map(h => {
@@ -196,9 +208,9 @@ export default function Data() {
     link.click();
   };
 
-  const handleRefresh = () => { refetchTenants(); refetchStores(); refetchCategories(); refetchProducts(); refetchShelves(); refetchScans(); refetchCompliance(); };
+  const handleRefresh = () => { refetchTenants(); refetchStores(); refetchCategories(); refetchProducts(); refetchPlanograms(); refetchScans(); refetchCompliance(); };
   const clearFilters = () => { setSearchQuery(''); setFilterAdmin('all'); setFilterTenant('all'); setFilterStore('all'); setFilterCategory('all'); };
-  const isLoading = tenantsLoading || storesLoading || categoriesLoading || productsLoading || shelvesLoading || scansLoading || complianceLoading;
+  const isLoading = tenantsLoading || storesLoading || categoriesLoading || productsLoading || planogramsLoading || scansLoading || complianceLoading;
   const hasActiveFilters = searchQuery || filterAdmin !== 'all' || filterTenant !== 'all' || filterStore !== 'all' || filterCategory !== 'all';
 
   return (
@@ -228,7 +240,7 @@ export default function Data() {
               </SelectContent>
             </Select>
           )}
-          {(['shelves', 'scans', 'compliance'] as DataTab[]).includes(activeTab) && (
+          {(['planograms', 'scans', 'compliance'] as DataTab[]).includes(activeTab) && (
             <Select value={filterStore} onValueChange={setFilterStore}>
               <SelectTrigger className="w-[160px] bg-secondary border-border"><SelectValue placeholder="All Stores" /></SelectTrigger>
               <SelectContent>
@@ -402,31 +414,12 @@ export default function Data() {
           </div>
         </TabsContent>
 
-        {/* Shelves */}
-        <TabsContent value="shelves">
-          <div className="rounded-xl bg-card border border-border overflow-hidden">
-            <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
-              <Table>
-                <TableHeader><TableRow className="bg-secondary/50"><TableHead>Name</TableHead>{isAdmin && <TableHead>Tenant</TableHead>}<TableHead>Store</TableHead><TableHead>Location</TableHead><TableHead>Width (cm)</TableHead><TableHead>Created</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {filteredShelves.slice(0, viewLimit).map(s => (
-                    <TableRow key={s.id}>
-                      <TableCell className="font-medium">{s.name}</TableCell>
-                      {isAdmin && <TableCell>{(s as any).tenant?.name || '—'}</TableCell>}
-                      <TableCell>{(s as any).store?.name || '—'}</TableCell>
-                      <TableCell>{s.location_in_store || '—'}</TableCell>
-                      <TableCell>{s.width_cm || '—'}</TableCell>
-                      <TableCell>{format(new Date(s.created_at), 'PP')}</TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredShelves.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No shelves found.</TableCell></TableRow>}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </div>
+        {/* Planograms */}
+        <TabsContent value="planograms">
+          <PlanogramsTable data={filteredPlanograms} viewLimit={viewLimit} isAdmin={isAdmin} />
         </TabsContent>
 
-        {/* Shelf Images (Scans) - Enhanced with admin, tenant, store, planogram info */}
+        {/* Scans */}
         <TabsContent value="scans">
           <div className="rounded-xl bg-card border border-border overflow-hidden">
             <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
@@ -466,7 +459,7 @@ export default function Data() {
                       <TableCell>{format(new Date(s.created_at), 'PP')}</TableCell>
                     </TableRow>
                   ))}
-                  {filteredScans.length === 0 && <TableRow><TableCell colSpan={isAdmin ? 8 : 7} className="text-center py-12 text-muted-foreground">No shelf images found.</TableCell></TableRow>}
+                  {filteredScans.length === 0 && <TableRow><TableCell colSpan={isAdmin ? 8 : 7} className="text-center py-12 text-muted-foreground">No scans found.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </ScrollArea>
@@ -513,5 +506,89 @@ export default function Data() {
         </TabsContent>
       </Tabs>
     </MainLayout>
+  );
+}
+
+function PlanogramsTable({ data, viewLimit, isAdmin }: { data: any[]; viewLimit: number; isAdmin: boolean }) {
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+
+  const toggle = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const getLayoutItems = (layout: any): { name: string; quantity: number }[] => {
+    if (!layout || !Array.isArray(layout)) return [];
+    const items: { name: string; quantity: number }[] = [];
+    layout.forEach((row: any) => {
+      const rowItems = row?.items || row?.products || [];
+      rowItems.forEach((item: any) => {
+        const name = item?.name || item?.sku_name || item?.label || 'Unknown Item';
+        const qty = item?.quantity || item?.facings || item?.expected_facings || 1;
+        items.push({ name, quantity: qty });
+      });
+    });
+    return items;
+  };
+
+  return (
+    <div className="rounded-xl bg-card border border-border overflow-hidden">
+      <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
+        <Table>
+          <TableHeader>
+            <TableRow className="bg-secondary/50">
+              <TableHead className="w-8"></TableHead>
+              <TableHead>Name</TableHead>
+              {isAdmin && <TableHead>Tenant</TableHead>}
+              <TableHead>Store</TableHead>
+              <TableHead>Status</TableHead>
+              <TableHead>Items</TableHead>
+              <TableHead>Created</TableHead>
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.slice(0, viewLimit).map(p => {
+              const isExpanded = expandedIds.has(p.id);
+              const items = getLayoutItems(p.layout);
+              return (
+                <Fragment key={p.id}>
+                  <TableRow className="cursor-pointer hover:bg-muted/30" onClick={() => toggle(p.id)}>
+                    <TableCell className="w-8 px-2">
+                      {items.length > 0 && (isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />)}
+                    </TableCell>
+                    <TableCell className="font-medium">{p.name}</TableCell>
+                    {isAdmin && <TableCell>{p.tenant?.name || '—'}</TableCell>}
+                    <TableCell>{p.store?.name || '—'}</TableCell>
+                    <TableCell><Badge variant={p.status === 'active' ? 'default' : 'secondary'}>{p.status}</Badge></TableCell>
+                    <TableCell>{items.length} items</TableCell>
+                    <TableCell>{format(new Date(p.created_at), 'PP')}</TableCell>
+                  </TableRow>
+                  {isExpanded && items.length > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={isAdmin ? 7 : 6} className="bg-secondary/30 px-8 py-3">
+                        <div className="space-y-1">
+                          <p className="text-xs font-medium text-muted-foreground mb-2">Planogram Items</p>
+                          {items.map((item, i) => (
+                            <div key={i} className="flex items-center justify-between text-sm py-1 px-3 rounded bg-card/50">
+                              <span className="text-foreground">{item.name}</span>
+                              <Badge variant="outline" className="text-xs">×{item.quantity}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
+                </Fragment>
+              );
+            })}
+            {data.length === 0 && <TableRow><TableCell colSpan={isAdmin ? 7 : 6} className="text-center py-12 text-muted-foreground">No planograms found.</TableCell></TableRow>}
+          </TableBody>
+        </Table>
+      </ScrollArea>
+    </div>
   );
 }

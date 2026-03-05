@@ -577,11 +577,11 @@ export default function Planogram() {
                           {adminTenantsList.map(tenant => {
                             const imgPct = tenant.max_images_per_month > 0 ? (tenant.processed_images_this_month / tenant.max_images_per_month) * 100 : 0;
                             return (
-                              <div key={tenant.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border hover:border-primary/30 transition-colors">
+                              <div key={tenant.id} className="flex items-center justify-between p-3 rounded-lg bg-secondary/50 border border-border hover:border-primary/30 transition-colors cursor-pointer" onClick={() => { setActiveTab('tenants'); }}>
                                 <div className="flex items-center gap-3">
                                   <Building2 className="w-4 h-4 text-muted-foreground" />
                                   <div>
-                                    <p className="font-medium text-foreground text-sm">{tenant.name}</p>
+                                    <p className="font-medium text-primary text-sm hover:underline">{tenant.name}</p>
                                     <p className="text-xs text-muted-foreground">{tenant.skuCount} SKUs · {tenant.processed_images_this_month.toLocaleString()} / {tenant.max_images_per_month.toLocaleString()} images</p>
                                   </div>
                                 </div>
