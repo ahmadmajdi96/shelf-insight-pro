@@ -1,4 +1,5 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, Fragment } from 'react';
+import { ChevronDown, ChevronRight } from 'lucide-react';
 import { Download, RefreshCw, Search, X } from 'lucide-react';
 import { MainLayout } from '@/components/layout/MainLayout';
 import { Button } from '@/components/ui/button';
@@ -413,28 +414,9 @@ export default function Data() {
           </div>
         </TabsContent>
 
-        {/* Shelves */}
-        <TabsContent value="shelves">
-          <div className="rounded-xl bg-card border border-border overflow-hidden">
-            <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
-              <Table>
-                <TableHeader><TableRow className="bg-secondary/50"><TableHead>Name</TableHead>{isAdmin && <TableHead>Tenant</TableHead>}<TableHead>Store</TableHead><TableHead>Location</TableHead><TableHead>Width (cm)</TableHead><TableHead>Created</TableHead></TableRow></TableHeader>
-                <TableBody>
-                  {filteredShelves.slice(0, viewLimit).map(s => (
-                    <TableRow key={s.id}>
-                      <TableCell className="font-medium">{s.name}</TableCell>
-                      {isAdmin && <TableCell>{(s as any).tenant?.name || '—'}</TableCell>}
-                      <TableCell>{(s as any).store?.name || '—'}</TableCell>
-                      <TableCell>{s.location_in_store || '—'}</TableCell>
-                      <TableCell>{s.width_cm || '—'}</TableCell>
-                      <TableCell>{format(new Date(s.created_at), 'PP')}</TableCell>
-                    </TableRow>
-                  ))}
-                  {filteredShelves.length === 0 && <TableRow><TableCell colSpan={6} className="text-center py-12 text-muted-foreground">No shelves found.</TableCell></TableRow>}
-                </TableBody>
-              </Table>
-            </ScrollArea>
-          </div>
+        {/* Planograms */}
+        <TabsContent value="planograms">
+          <PlanogramsTable data={filteredPlanograms} viewLimit={viewLimit} isAdmin={isAdmin} />
         </TabsContent>
 
         {/* Shelf Images (Scans) - Enhanced with admin, tenant, store, planogram info */}
