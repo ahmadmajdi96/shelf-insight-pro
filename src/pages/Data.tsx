@@ -459,7 +459,7 @@ export default function Data() {
                       <TableCell>{format(new Date(s.created_at), 'PP')}</TableCell>
                     </TableRow>
                   ))}
-                  {filteredScans.length === 0 && <TableRow><TableCell colSpan={isAdmin ? 8 : 7} className="text-center py-12 text-muted-foreground">No shelf images found.</TableCell></TableRow>}
+                  {filteredScans.length === 0 && <TableRow><TableCell colSpan={isAdmin ? 8 : 7} className="text-center py-12 text-muted-foreground">No scans found.</TableCell></TableRow>}
                 </TableBody>
               </Table>
             </ScrollArea>
