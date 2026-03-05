@@ -45,6 +45,7 @@ export default function Tenants() {
   const [expandedTenants, setExpandedTenants] = useState<Set<string>>(new Set());
   const [formData, setFormData] = useState({
     name: '',
+    email: '',
     username: '',
     password: '',
     max_skus: 50,
@@ -78,7 +79,7 @@ export default function Tenants() {
   };
 
   const resetForm = () => {
-    setFormData({ name: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000 });
+    setFormData({ name: '', email: '', username: '', password: '', max_skus: 50, max_images_per_month: 1000 });
     setEditingTenant(null);
   };
 
@@ -96,6 +97,7 @@ export default function Tenants() {
   const handleEdit = (tenant: any) => {
     setFormData({
       name: tenant.name,
+      email: '',
       username: tenant.username || '',
       password: tenant.password || '',
       max_skus: tenant.max_skus,
