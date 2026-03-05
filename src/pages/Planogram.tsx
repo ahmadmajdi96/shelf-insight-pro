@@ -1404,9 +1404,10 @@ export default function Planogram() {
                   </SelectContent>
                 </Select>
               </div>
+              <div className="space-y-2"><Label>Login Email</Label><Input type="email" placeholder="tenant@example.com" className="bg-secondary border-border" value={tenantFormData.email} onChange={e => setTenantFormData({ ...tenantFormData, email: e.target.value })} required={!editingTenantObj} /></div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Username</Label><Input placeholder="tenant_username" className="bg-secondary border-border" value={tenantFormData.username} onChange={e => setTenantFormData({ ...tenantFormData, username: e.target.value })} /></div>
-                <div className="space-y-2"><Label>Password</Label><Input type="password" placeholder="••••••••" className="bg-secondary border-border" value={tenantFormData.password} onChange={e => setTenantFormData({ ...tenantFormData, password: e.target.value })} /></div>
+                <div className="space-y-2"><Label>Password</Label><Input type="password" placeholder="••••••••" className="bg-secondary border-border" value={tenantFormData.password} onChange={e => setTenantFormData({ ...tenantFormData, password: e.target.value })} required={!editingTenantObj} /></div>
               </div>
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2"><Label>Max SKUs</Label><Input type="number" className="bg-secondary border-border" value={tenantFormData.max_skus} onChange={e => setTenantFormData({ ...tenantFormData, max_skus: parseInt(e.target.value) || 0 })} /></div>
