@@ -390,6 +390,17 @@ export default function Tenants() {
                 required
               />
             </div>
+            <div className="space-y-2">
+              <Label>Login Email</Label>
+              <Input 
+                type="email"
+                placeholder="tenant@example.com" 
+                className="bg-secondary border-border"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                required={!editingTenant}
+              />
+            </div>
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Username</Label>
