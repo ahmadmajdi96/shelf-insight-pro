@@ -68,7 +68,7 @@ export default function Data() {
 
   const { data: planograms = [], isLoading: planogramsLoading, refetch: refetchPlanograms } = useQuery({
     queryKey: ['data-planograms'],
-    queryFn: async () => { const { data } = await rest.list('planogram_templates', { select: '*,tenant:tenants(name),store:stores(name)', order: 'name.asc' }); return data || []; },
+    queryFn: async () => { const { data } = await rest.list('planogram_templates', { select: '*,tenant:tenants(name),store:stores(name),shelf:shelves(name)', order: 'name.asc' }); return data || []; },
   });
 
   const { data: planogramItems = [] } = useQuery({
@@ -511,12 +511,22 @@ export default function Data() {
 
 function PlanogramsTable({ data, viewLimit, isAdmin }: { data: any[]; viewLimit: number; isAdmin: boolean }) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [collapsedShelves, setCollapsedShelves] = useState<Set<string>>(new Set());
 
   const toggle = (id: string) => {
     setExpandedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleShelf = (shelfKey: string) => {
+    setCollapsedShelves(prev => {
+      const next = new Set(prev);
+      if (next.has(shelfKey)) next.delete(shelfKey);
+      else next.add(shelfKey);
       return next;
     });
   };
@@ -535,6 +545,19 @@ function PlanogramsTable({ data, viewLimit, isAdmin }: { data: any[]; viewLimit:
     return items;
   };
 
+  // Group planograms by shelf
+  const grouped = useMemo(() => {
+    const map = new Map<string, { shelfName: string; planograms: any[] }>();
+    const limited = data.slice(0, viewLimit);
+    limited.forEach(p => {
+      const key = p.shelf_id || '__no_shelf__';
+      const shelfName = p.shelf?.name || 'No Shelf Assigned';
+      if (!map.has(key)) map.set(key, { shelfName, planograms: [] });
+      map.get(key)!.planograms.push(p);
+    });
+    return Array.from(map.entries());
+  }, [data, viewLimit]);
+
   return (
     <div className="rounded-xl bg-card border border-border overflow-hidden">
       <ScrollArea className="h-[calc(100vh-380px)] min-h-[400px]">
@@ -551,37 +574,59 @@ function PlanogramsTable({ data, viewLimit, isAdmin }: { data: any[]; viewLimit:
             </TableRow>
           </TableHeader>
           <TableBody>
-            {data.slice(0, viewLimit).map(p => {
-              const isExpanded = expandedIds.has(p.id);
-              const items = getLayoutItems(p.layout);
+            {grouped.map(([shelfKey, group]) => {
+              const isCollapsed = collapsedShelves.has(shelfKey);
               return (
-                <Fragment key={p.id}>
-                  <TableRow className="cursor-pointer hover:bg-muted/30" onClick={() => toggle(p.id)}>
+                <Fragment key={shelfKey}>
+                  <TableRow
+                    className="cursor-pointer bg-muted/40 hover:bg-muted/60 border-t-2 border-border"
+                    onClick={() => toggleShelf(shelfKey)}
+                  >
                     <TableCell className="w-8 px-2">
-                      {items.length > 0 && (isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />)}
+                      {isCollapsed ? <ChevronRight className="w-4 h-4 text-primary" /> : <ChevronDown className="w-4 h-4 text-primary" />}
                     </TableCell>
-                    <TableCell className="font-medium">{p.name}</TableCell>
-                    {isAdmin && <TableCell>{p.tenant?.name || '—'}</TableCell>}
-                    <TableCell>{p.store?.name || '—'}</TableCell>
-                    <TableCell><Badge variant={p.status === 'active' ? 'default' : 'secondary'}>{p.status}</Badge></TableCell>
-                    <TableCell>{items.length} items</TableCell>
-                    <TableCell>{format(new Date(p.created_at), 'PP')}</TableCell>
+                    <TableCell colSpan={isAdmin ? 6 : 5} className="font-semibold text-foreground">
+                      <div className="flex items-center gap-2">
+                        <span className="text-primary">📋</span>
+                        <span>{group.shelfName}</span>
+                        <Badge variant="outline" className="ml-2 text-xs">{group.planograms.length} planogram{group.planograms.length !== 1 ? 's' : ''}</Badge>
+                      </div>
+                    </TableCell>
                   </TableRow>
-                  {isExpanded && items.length > 0 && (
-                    <TableRow>
-                      <TableCell colSpan={isAdmin ? 7 : 6} className="bg-secondary/30 px-8 py-3">
-                        <div className="space-y-1">
-                          <p className="text-xs font-medium text-muted-foreground mb-2">Planogram Items</p>
-                          {items.map((item, i) => (
-                            <div key={i} className="flex items-center justify-between text-sm py-1 px-3 rounded bg-card/50">
-                              <span className="text-foreground">{item.name}</span>
-                              <Badge variant="outline" className="text-xs">×{item.quantity}</Badge>
-                            </div>
-                          ))}
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  )}
+                  {!isCollapsed && group.planograms.map(p => {
+                    const isExpanded = expandedIds.has(p.id);
+                    const items = getLayoutItems(p.layout);
+                    return (
+                      <Fragment key={p.id}>
+                        <TableRow className="cursor-pointer hover:bg-muted/30" onClick={() => toggle(p.id)}>
+                          <TableCell className="w-8 px-2 pl-6">
+                            {items.length > 0 && (isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />)}
+                          </TableCell>
+                          <TableCell className="font-medium">{p.name}</TableCell>
+                          {isAdmin && <TableCell>{p.tenant?.name || '—'}</TableCell>}
+                          <TableCell>{p.store?.name || '—'}</TableCell>
+                          <TableCell><Badge variant={p.status === 'active' ? 'default' : 'secondary'}>{p.status}</Badge></TableCell>
+                          <TableCell>{items.length} items</TableCell>
+                          <TableCell>{format(new Date(p.created_at), 'PP')}</TableCell>
+                        </TableRow>
+                        {isExpanded && items.length > 0 && (
+                          <TableRow>
+                            <TableCell colSpan={isAdmin ? 7 : 6} className="bg-secondary/30 px-8 py-3">
+                              <div className="space-y-1">
+                                <p className="text-xs font-medium text-muted-foreground mb-2">Planogram Items</p>
+                                {items.map((item, i) => (
+                                  <div key={i} className="flex items-center justify-between text-sm py-1 px-3 rounded bg-card/50">
+                                    <span className="text-foreground">{item.name}</span>
+                                    <Badge variant="outline" className="text-xs">×{item.quantity}</Badge>
+                                  </div>
+                                ))}
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )}
+                      </Fragment>
+                    );
+                  })}
                 </Fragment>
               );
             })}
