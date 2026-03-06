@@ -510,11 +510,11 @@ export default function Data() {
 }
 
 function PlanogramsTable({ data, viewLimit, isAdmin }: { data: any[]; viewLimit: number; isAdmin: boolean }) {
-  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
-  const [collapsedShelves, setCollapsedShelves] = useState<Set<string>>(new Set());
+  const [expandedPlanograms, setExpandedPlanograms] = useState<Set<string>>(new Set());
+  const [expandedShelves, setExpandedShelves] = useState<Set<string>>(new Set());
 
-  const toggle = (id: string) => {
-    setExpandedIds(prev => {
+  const togglePlanogram = (id: string) => {
+    setExpandedPlanograms(prev => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
@@ -522,41 +522,28 @@ function PlanogramsTable({ data, viewLimit, isAdmin }: { data: any[]; viewLimit:
     });
   };
 
-  const toggleShelf = (shelfKey: string) => {
-    setCollapsedShelves(prev => {
+  const toggleShelf = (key: string) => {
+    setExpandedShelves(prev => {
       const next = new Set(prev);
-      if (next.has(shelfKey)) next.delete(shelfKey);
-      else next.add(shelfKey);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
       return next;
     });
   };
 
-  const getLayoutItems = (layout: any): { name: string; quantity: number }[] => {
+  const getShelvesFromLayout = (layout: any): { label: string; products: { name: string; facings: number }[] }[] => {
     if (!layout || !Array.isArray(layout)) return [];
-    const items: { name: string; quantity: number }[] = [];
-    layout.forEach((row: any) => {
-      const rowItems = row?.items || row?.products || [];
-      rowItems.forEach((item: any) => {
-        const name = item?.name || item?.sku_name || item?.label || 'Unknown Item';
-        const qty = item?.quantity || item?.facings || item?.expected_facings || 1;
-        items.push({ name, quantity: qty });
-      });
+    return layout.map((row: any) => {
+      const label = row?.label || 'Unnamed Shelf';
+      const products = (row?.products || row?.items || []).map((item: any) => ({
+        name: item?.name || item?.sku_name || item?.label || 'Unknown Item',
+        facings: item?.facings || item?.quantity || item?.expected_facings || 1,
+      }));
+      return { label, products };
     });
-    return items;
   };
 
-  // Group planograms by shelf
-  const grouped = useMemo(() => {
-    const map = new Map<string, { shelfName: string; planograms: any[] }>();
-    const limited = data.slice(0, viewLimit);
-    limited.forEach(p => {
-      const key = p.shelf_id || '__no_shelf__';
-      const shelfName = p.shelf?.name || 'No Shelf Assigned';
-      if (!map.has(key)) map.set(key, { shelfName, planograms: [] });
-      map.get(key)!.planograms.push(p);
-    });
-    return Array.from(map.entries());
-  }, [data, viewLimit]);
+  const limited = data.slice(0, viewLimit);
 
   return (
     <div className="rounded-xl bg-card border border-border overflow-hidden">
@@ -569,64 +556,63 @@ function PlanogramsTable({ data, viewLimit, isAdmin }: { data: any[]; viewLimit:
               {isAdmin && <TableHead>Tenant</TableHead>}
               <TableHead>Store</TableHead>
               <TableHead>Status</TableHead>
-              <TableHead>Items</TableHead>
+              <TableHead>Shelves</TableHead>
               <TableHead>Created</TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {grouped.map(([shelfKey, group]) => {
-              const isCollapsed = collapsedShelves.has(shelfKey);
+            {limited.map(p => {
+              const isPlanogramExpanded = expandedPlanograms.has(p.id);
+              const shelves = getShelvesFromLayout(p.layout);
               return (
-                <Fragment key={shelfKey}>
-                  <TableRow
-                    className="cursor-pointer bg-muted/40 hover:bg-muted/60 border-t-2 border-border"
-                    onClick={() => toggleShelf(shelfKey)}
-                  >
+                <Fragment key={p.id}>
+                  <TableRow className="cursor-pointer hover:bg-muted/30" onClick={() => togglePlanogram(p.id)}>
                     <TableCell className="w-8 px-2">
-                      {isCollapsed ? <ChevronRight className="w-4 h-4 text-primary" /> : <ChevronDown className="w-4 h-4 text-primary" />}
+                      {shelves.length > 0 && (isPlanogramExpanded ? <ChevronDown className="w-4 h-4 text-primary" /> : <ChevronRight className="w-4 h-4 text-primary" />)}
                     </TableCell>
-                    <TableCell colSpan={isAdmin ? 6 : 5} className="font-semibold text-foreground">
-                      <div className="flex items-center gap-2">
-                        <span className="text-primary">📋</span>
-                        <span>{group.shelfName}</span>
-                        <Badge variant="outline" className="ml-2 text-xs">{group.planograms.length} planogram{group.planograms.length !== 1 ? 's' : ''}</Badge>
-                      </div>
-                    </TableCell>
+                    <TableCell className="font-medium">{p.name}</TableCell>
+                    {isAdmin && <TableCell>{p.tenant?.name || '—'}</TableCell>}
+                    <TableCell>{p.store?.name || '—'}</TableCell>
+                    <TableCell><Badge variant={p.status === 'active' ? 'default' : 'secondary'}>{p.status}</Badge></TableCell>
+                    <TableCell>{shelves.length} {shelves.length === 1 ? 'shelf' : 'shelves'}</TableCell>
+                    <TableCell>{format(new Date(p.created_at), 'PP')}</TableCell>
                   </TableRow>
-                  {!isCollapsed && group.planograms.map(p => {
-                    const isExpanded = expandedIds.has(p.id);
-                    const items = getLayoutItems(p.layout);
-                    return (
-                      <Fragment key={p.id}>
-                        <TableRow className="cursor-pointer hover:bg-muted/30" onClick={() => toggle(p.id)}>
-                          <TableCell className="w-8 px-2 pl-6">
-                            {items.length > 0 && (isExpanded ? <ChevronDown className="w-4 h-4 text-muted-foreground" /> : <ChevronRight className="w-4 h-4 text-muted-foreground" />)}
-                          </TableCell>
-                          <TableCell className="font-medium">{p.name}</TableCell>
-                          {isAdmin && <TableCell>{p.tenant?.name || '—'}</TableCell>}
-                          <TableCell>{p.store?.name || '—'}</TableCell>
-                          <TableCell><Badge variant={p.status === 'active' ? 'default' : 'secondary'}>{p.status}</Badge></TableCell>
-                          <TableCell>{items.length} items</TableCell>
-                          <TableCell>{format(new Date(p.created_at), 'PP')}</TableCell>
-                        </TableRow>
-                        {isExpanded && items.length > 0 && (
-                          <TableRow>
-                            <TableCell colSpan={isAdmin ? 7 : 6} className="bg-secondary/30 px-8 py-3">
-                              <div className="space-y-1">
-                                <p className="text-xs font-medium text-muted-foreground mb-2">Planogram Items</p>
-                                {items.map((item, i) => (
-                                  <div key={i} className="flex items-center justify-between text-sm py-1 px-3 rounded bg-card/50">
-                                    <span className="text-foreground">{item.name}</span>
-                                    <Badge variant="outline" className="text-xs">×{item.quantity}</Badge>
+                  {isPlanogramExpanded && shelves.length > 0 && (
+                    <TableRow>
+                      <TableCell colSpan={isAdmin ? 7 : 6} className="bg-secondary/20 p-0">
+                        <div className="pl-8 pr-4 py-2 space-y-1">
+                          {shelves.map((shelf, si) => {
+                            const shelfKey = `${p.id}-${si}`;
+                            const isShelfExpanded = expandedShelves.has(shelfKey);
+                            return (
+                              <div key={si} className="rounded-lg border border-border/50 bg-card/50 overflow-hidden">
+                                <div
+                                  className="flex items-center gap-2 px-3 py-2 cursor-pointer hover:bg-muted/30"
+                                  onClick={(e) => { e.stopPropagation(); toggleShelf(shelfKey); }}
+                                >
+                                  {shelf.products.length > 0
+                                    ? (isShelfExpanded ? <ChevronDown className="w-3.5 h-3.5 text-muted-foreground" /> : <ChevronRight className="w-3.5 h-3.5 text-muted-foreground" />)
+                                    : <span className="w-3.5" />}
+                                  <span className="text-sm font-medium text-foreground">{shelf.label}</span>
+                                  <Badge variant="outline" className="ml-auto text-[10px]">{shelf.products.length} products</Badge>
+                                </div>
+                                {isShelfExpanded && shelf.products.length > 0 && (
+                                  <div className="px-4 pb-2 space-y-1">
+                                    {shelf.products.map((prod, pi) => (
+                                      <div key={pi} className="flex items-center justify-between text-sm py-1 px-3 rounded bg-secondary/30">
+                                        <span className="text-foreground">{prod.name}</span>
+                                        <Badge variant="outline" className="text-xs">×{prod.facings}</Badge>
+                                      </div>
+                                    ))}
                                   </div>
-                                ))}
+                                )}
                               </div>
-                            </TableCell>
-                          </TableRow>
-                        )}
-                      </Fragment>
-                    );
-                  })}
+                            );
+                          })}
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  )}
                 </Fragment>
               );
             })}
