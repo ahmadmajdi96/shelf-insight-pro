@@ -95,15 +95,15 @@ export function Sidebar() {
       <div className="h-16 flex items-center justify-between px-4 border-b border-sidebar-border">
         {(!collapsed || isMobile) && (
           <div className="flex items-center gap-2.5 animate-fade-in">
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center shadow-sm">
-              <ScanLine className="w-4.5 h-4.5 text-primary-foreground" />
+            <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center shadow-sm overflow-hidden">
+              <img src="/corta-logo.png" alt="CORTA" className="w-7 h-7 object-contain" />
             </div>
-            <span className="font-bold text-foreground tracking-tight">ALPHA IR</span>
+            <span className="font-bold text-foreground tracking-tight">CORTA</span>
           </div>
         )}
         {collapsed && !isMobile && (
-          <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-primary to-accent flex items-center justify-center mx-auto shadow-sm">
-            <ScanLine className="w-4.5 h-4.5 text-primary-foreground" />
+          <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center mx-auto shadow-sm overflow-hidden">
+            <img src="/corta-logo.png" alt="CORTA" className="w-7 h-7 object-contain" />
           </div>
         )}
       </div>

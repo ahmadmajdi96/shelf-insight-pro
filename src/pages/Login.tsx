@@ -58,15 +58,15 @@ export default function Login() {
       {/* Left Panel - Branding */}
       <div className="hidden lg:flex lg:w-1/2 bg-gradient-to-br from-primary/10 via-background to-background p-12 flex-col justify-between">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-            <ScanLine className="w-6 h-6 text-primary-foreground" />
+          <div className="w-12 h-12 rounded-xl bg-white flex items-center justify-center shadow-sm overflow-hidden">
+            <img src="/corta-logo.png" alt="CORTA" className="w-10 h-10 object-contain" />
           </div>
-          <span className="text-xl font-bold text-foreground">ALPHA IR</span>
+          <span className="text-xl font-bold text-foreground">CORTA</span>
         </div>
         
         <div className="space-y-6">
           <h1 className="text-4xl font-bold text-foreground leading-tight">
-            Intelligent Shelf<br />Detection Platform
+            SKU Recognition<br />Made Intelligent
           </h1>
           <p className="text-lg text-muted-foreground max-w-md">
             Transform retail shelf images into actionable insights with AI-powered SKU detection and share of shelf analytics.
@@ -88,7 +88,7 @@ export default function Login() {
         </div>
         
         <p className="text-sm text-muted-foreground">
-          © {new Date().getFullYear()} ALPHA IR. All rights reserved.
+          © {new Date().getFullYear()} CORTA. All rights reserved.
         </p>
       </div>
 
@@ -97,10 +97,10 @@ export default function Login() {
         <div className="w-full max-w-md space-y-8">
           {/* Mobile Logo */}
           <div className="lg:hidden flex items-center justify-center gap-3 mb-8">
-            <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center">
-              <ScanLine className="w-6 h-6 text-primary-foreground" />
+            <div className="w-10 h-10 rounded-xl bg-white flex items-center justify-center shadow-sm overflow-hidden">
+              <img src="/corta-logo.png" alt="CORTA" className="w-9 h-9 object-contain" />
             </div>
-            <span className="text-xl font-bold text-foreground">ALPHA IR</span>
+            <span className="text-xl font-bold text-foreground">CORTA</span>
           </div>
 
           <div className="text-center lg:text-left">
@@ -179,7 +179,7 @@ export default function Login() {
           </form>
 
           <p className="text-center text-sm text-muted-foreground">
-            © {new Date().getFullYear()} ALPHA IR. All rights reserved.
+            © {new Date().getFullYear()} CORTA. All rights reserved.
           </p>
         </div>
       </div>
